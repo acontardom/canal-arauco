@@ -10,22 +10,25 @@ async function sincronizarProtocolos() {
 
   for (const protocolo of pendientes) {
     try {
+      const payload = {
+        local_id:           protocolo.id,
+        tipo:               protocolo.tipo,
+        entidad:            protocolo.entidad,
+        entidad_id:         String(protocolo.entidadId),
+        protocolo_id:       protocolo.protocoloId,
+        estado:             protocolo.estado,
+        usuario_nombre:     protocolo.usuarioNombre ?? null,
+        fecha_creacion:     protocolo.fechaCreacion ?? null,
+        fecha_modificacion: protocolo.fechaModificacion ?? null,
+        datos:              protocolo.datos ?? {},
+      };
+
+      // TODO: quitar este log una vez confirmado en producción
+      console.log('[Sync] Enviando protocolo:', payload);
+
       const { data, error } = await supabase
         .from('protocolos')
-        .upsert(
-          {
-            local_id:          protocolo.id,
-            tipo:              protocolo.tipo,
-            entidad_id:        String(protocolo.entidadId),
-            protocolo_id:      protocolo.protocoloId,
-            estado:            protocolo.estado,
-            usuario_nombre:    protocolo.usuarioNombre ?? null,
-            fecha_creacion:    protocolo.fechaCreacion ?? null,
-            fecha_modificacion: protocolo.fechaModificacion ?? null,
-            datos:             protocolo.datos ?? {},
-          },
-          { onConflict: 'local_id' }
-        )
+        .upsert(payload, { onConflict: 'local_id' })
         .select('id')
         .single();
 
