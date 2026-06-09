@@ -43,21 +43,25 @@ export default function TramoDetalle() {
 
       <div style={s.lista}>
         {PROTOCOLOS.map(protocolo => {
+          const esG5 = protocolo.id === 'G5';
           const estado = estadoPor[protocolo.id] ?? 'pendiente';
           const { icono, color: c, label } = ESTADO[estado];
 
           return (
             <div
               key={protocolo.id}
-              style={s.fila}
-              onClick={() => navigate(`/protocolo/tramo/${tramoId}/${protocolo.id}`)}
+              style={{ ...s.fila, opacity: esG5 ? 0.55 : 1, cursor: esG5 ? 'default' : 'pointer' }}
+              onClick={esG5 ? undefined : () => navigate(`/protocolo/tramo/${tramoId}/${protocolo.id}`)}
             >
               <span style={{ color: c, fontSize: '18px', lineHeight: 1 }}>{icono}</span>
               <div style={s.filaInfo}>
                 <span style={s.protNombre}>{protocolo.nombre}</span>
-                <span style={{ color: c, fontSize: '12px', fontWeight: 600 }}>{label}</span>
+                {esG5
+                  ? <span style={{ color: '#f59e0b', fontSize: '12px', fontWeight: 600 }}>Próximamente</span>
+                  : <span style={{ color: c, fontSize: '12px', fontWeight: 600 }}>{label}</span>
+                }
               </div>
-              <span style={s.chevron}>›</span>
+              {!esG5 && <span style={s.chevron}>›</span>}
             </div>
           );
         })}

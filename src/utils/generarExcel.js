@@ -143,7 +143,9 @@ export async function generarExcel(protocolo, fotos = []) {
 
   // ── Checklist: items ─────────────────────────────────────────────────────────
   itemsChecklist.forEach((item, i) => {
-    const checked = checklist[item.id] === true;
+    const val = checklist[item.id]; // 'si' | 'no' | 'na' | null
+    const display = val === 'si' ? '✓ SÍ' : val === 'no' ? '✗ NO' : val === 'na' ? 'N/A' : '—';
+    const argb = val === 'si' ? C.green : val === 'no' ? C.red : val === 'na' ? 'FFF59E0B' : C.muted;
     const bgArgb = i % 2 === 0 ? C.lightGray : C.white;
     const row = ws.getRow(r);
 
@@ -155,8 +157,8 @@ export async function generarExcel(protocolo, fotos = []) {
     cA.font = { size: 11 };
 
     const cB = row.getCell(2);
-    cB.value = checked ? '✓' : '✗';
-    cB.font = { bold: true, size: 13, color: { argb: checked ? C.green : C.red } };
+    cB.value = display;
+    cB.font = { bold: true, size: 11, color: { argb } };
     cB.fill = fill(bgArgb);
     cB.border = border();
     cB.alignment = { vertical: 'middle', horizontal: 'center' };

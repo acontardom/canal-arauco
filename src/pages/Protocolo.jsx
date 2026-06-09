@@ -8,12 +8,31 @@ import { generarExcel } from '../utils/generarExcel';
 import { sincronizar } from '../utils/sync';
 import { supabase } from '../config/supabase';
 
+const OPCION_COLOR = { si: '#10b981', no: '#ef4444', na: '#f59e0b' };
+const PROBETA_VOL = 0.0101;
+const PROTOCOLOS_CON_CAMIONES = new Set(['PICE2_RADIER', 'PICE2_MURO']);
+
 function leerComoDataUrl(file) {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) => resolve(e.target.result);
     reader.readAsDataURL(file);
   });
+}
+
+function calcTiempoTraslado(horaCarga, horaDescarga) {
+  if (!horaCarga || !horaDescarga) return '';
+  const [h1, m1] = horaCarga.split(':').map(Number);
+  const [h2, m2] = horaDescarga.split(':').map(Number);
+  const diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+  return diff >= 0 ? String(diff) : '';
+}
+
+function calcPU(pesoVacia, pesoLlena) {
+  const v = parseFloat(pesoVacia);
+  const l = parseFloat(pesoLlena);
+  if (isNaN(v) || isNaN(l) || l <= v) return '';
+  return String(Math.round((l - v) / PROBETA_VOL));
 }
 
 // ─── Sub-componentes ──────────────────────────────────────────────────────────
@@ -34,11 +53,7 @@ function EstadoBadge({ estado }) {
     completado: { color: '#10b981', label: 'Completado' },
   };
   const { color, label } = cfg[estado] ?? cfg.pendiente;
-  return (
-    <span style={{ ...s.estadoBadge, color, borderColor: color }}>
-      {label}
-    </span>
-  );
+  return <span style={{ ...s.estadoBadge, color, borderColor: color }}>{label}</span>;
 }
 
 function Toast({ toast }) {
@@ -55,12 +70,155 @@ function ModalConfirmar({ onConfirmar, onCancelar }) {
     <div style={s.overlay}>
       <div style={s.modal}>
         <h2 style={s.modalTitulo}>¿Marcar como completado?</h2>
-        <p style={s.modalTexto}>
-          Se registrará como completado. Podrás editarlo si es necesario.
-        </p>
+        <p style={s.modalTexto}>Se registrará como completado. Podrás editarlo si es necesario.</p>
         <div style={s.modalBotones}>
           <button style={s.btnModalCancelar} onClick={onCancelar}>Cancelar</button>
           <button style={s.btnModalConfirmar} onClick={onConfirmar}>Confirmar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CamionModal({ camion: initialData, onSave, onCancelar, onEliminar }) {
+  const [data, setData] = useState(initialData);
+  const inputCamaraRef = useRef(null);
+  const inputGaleriaRef = useRef(null);
+
+  function set(field, value) {
+    setData(prev => {
+      const next = { ...prev, [field]: value };
+      if (field === 'horaCarga' || field === 'horaDescarga') {
+        next.tiempoTraslado = calcTiempoTraslado(next.horaCarga, next.horaDescarga);
+      }
+      if (field === 'puProbetaVacia' || field === 'puProbetaLlena') {
+        next.puResultado = calcPU(next.puProbetaVacia, next.puProbetaLlena);
+      }
+      return next;
+    });
+  }
+
+  async function handleFoto(e) {
+    const files = Array.from(e.target.files ?? []);
+    for (const file of files) {
+      const dataUrl = await leerComoDataUrl(file);
+      setData(prev => ({ ...prev, fotos: [...(prev.fotos ?? []), { dataUrl, descripcion: '' }] }));
+    }
+    e.target.value = '';
+  }
+
+  function eliminarFotoCamion(fi) {
+    setData(prev => ({ ...prev, fotos: prev.fotos.filter((_, i) => i !== fi) }));
+  }
+
+  function setDescFoto(fi, desc) {
+    setData(prev => ({
+      ...prev,
+      fotos: prev.fotos.map((f, i) => i === fi ? { ...f, descripcion: desc } : f),
+    }));
+  }
+
+  return (
+    <div style={s.overlay}>
+      <div style={sm.container}>
+        <div style={sm.header}>
+          <h2 style={sm.titulo}>Camión #{data.numero}</h2>
+          <button style={sm.btnCerrar} onClick={onCancelar}>×</button>
+        </div>
+
+        <div style={sm.body}>
+          <label style={sm.label}>Tipo hormigón / volumen</label>
+          <input style={sm.input} placeholder="G20 — 8.5 m³" value={data.tipoHormigon} onChange={e => set('tipoHormigon', e.target.value)} />
+
+          <label style={sm.label}>N° guía / planta</label>
+          <input style={sm.input} placeholder="G-1234 / Planta Los Ángeles" value={data.guia} onChange={e => set('guia', e.target.value)} />
+
+          <div style={sm.row}>
+            <div style={sm.half}>
+              <label style={sm.label}>Cono (cm)</label>
+              <input style={sm.input} type="number" placeholder="0" value={data.cono} onChange={e => set('cono', e.target.value)} />
+            </div>
+            <div style={sm.half}>
+              <label style={sm.label}>Temperatura (°C)</label>
+              <input style={sm.input} type="number" placeholder="0" value={data.temperatura} onChange={e => set('temperatura', e.target.value)} />
+            </div>
+          </div>
+
+          <div style={sm.row}>
+            <div style={sm.half}>
+              <label style={sm.label}>Hora de carga</label>
+              <input style={sm.input} type="time" value={data.horaCarga} onChange={e => set('horaCarga', e.target.value)} />
+            </div>
+            <div style={sm.half}>
+              <label style={sm.label}>Hora de descarga</label>
+              <input style={sm.input} type="time" value={data.horaDescarga} onChange={e => set('horaDescarga', e.target.value)} />
+            </div>
+          </div>
+
+          <label style={sm.label}>Tiempo de traslado (min)</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input
+              style={{ ...sm.input, flex: 1 }}
+              type="number"
+              placeholder="Auto"
+              value={data.tiempoTraslado}
+              onChange={e => set('tiempoTraslado', e.target.value)}
+            />
+            {data.tiempoTraslado && <span style={sm.calcBadge}>{data.tiempoTraslado} min</span>}
+          </div>
+
+          <p style={sm.sectionTitle}>Ensayo Peso Unitario — probeta 10.1 L</p>
+          <div style={sm.row}>
+            <div style={sm.half}>
+              <label style={sm.label}>Probeta vacía (kg)</label>
+              <input style={sm.input} type="number" step="0.001" placeholder="0.000" value={data.puProbetaVacia} onChange={e => set('puProbetaVacia', e.target.value)} />
+            </div>
+            <div style={sm.half}>
+              <label style={sm.label}>Probeta + hormigón (kg)</label>
+              <input style={sm.input} type="number" step="0.001" placeholder="0.000" value={data.puProbetaLlena} onChange={e => set('puProbetaLlena', e.target.value)} />
+            </div>
+          </div>
+          {data.puResultado && (
+            <div style={sm.resultado}>PU = <strong>{Number(data.puResultado).toLocaleString('es-CL')} kg/m³</strong></div>
+          )}
+
+          <label style={sm.label}>Observaciones del camión</label>
+          <textarea style={sm.textarea} rows={3} value={data.observaciones} onChange={e => set('observaciones', e.target.value)} placeholder="Notas del camión..." />
+
+          <p style={sm.sectionTitle}>Fotos del camión</p>
+          <input ref={inputCamaraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFoto} />
+          <input ref={inputGaleriaRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleFoto} />
+          <div style={s.fotosBotones}>
+            <button style={sm.btnFotoSm} onClick={() => inputCamaraRef.current?.click()}>📷 Foto</button>
+            <button style={{ ...sm.btnFotoSm, background: '#0f3460' }} onClick={() => inputGaleriaRef.current?.click()}>🖼 Adjuntar</button>
+          </div>
+          {(data.fotos?.length > 0) && (
+            <div style={s.fotosGrid}>
+              {data.fotos.map((foto, fi) => (
+                <div key={fi} style={s.fotoCard}>
+                  <div style={s.fotoThumb}>
+                    <img src={foto.dataUrl} alt="" style={s.fotoImg} />
+                    <button style={s.btnEliminarFoto} onClick={() => eliminarFotoCamion(fi)}>×</button>
+                  </div>
+                  <input
+                    type="text"
+                    defaultValue={foto.descripcion}
+                    placeholder="Descripción..."
+                    style={s.fotoDescInput}
+                    onBlur={e => setDescFoto(fi, e.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={sm.footer}>
+          {onEliminar && (
+            <button style={sm.btnEliminar} onClick={onEliminar}>Eliminar</button>
+          )}
+          <button style={sm.btnCancelar} onClick={onCancelar}>Cancelar</button>
+          <button style={sm.btnGuardar} onClick={() => onSave(data)}>Guardar</button>
         </div>
       </div>
     </div>
@@ -77,14 +235,16 @@ export default function Protocolo() {
   const entidadIdReal = tipo === 'caida' ? Number(entidadId) : entidadId;
   const protocoloInfo = PROTOCOLOS.find(p => p.id === protocoloId);
   const itemsChecklist = CHECKLISTS[protocoloId] ?? [];
-  const emptyChecklist = Object.fromEntries(itemsChecklist.map(i => [i.id, false]));
+  const emptyChecklist = Object.fromEntries(itemsChecklist.map(i => [i.id, null]));
   const nombreEntidad = tipo === 'tramo' ? `Tramo ${entidadId}` : `Caída ${entidadId}`;
   const titulo = `${nombreEntidad} — ${protocoloInfo?.nombre ?? protocoloId}`;
   const volverUrl = tipo === 'tramo' ? `/tramos/${entidadId}` : `/caidas/${entidadId}`;
+  const tieneCamiones = PROTOCOLOS_CON_CAMIONES.has(protocoloId);
 
-  // Form state
   const [checklist, setChecklist] = useState(emptyChecklist);
   const [observaciones, setObservaciones] = useState('');
+  const [camiones, setCamiones] = useState([]);
+  const [camionModal, setCamionModal] = useState(null);
   const [estado, setEstado] = useState('pendiente');
   const [guardando, setGuardando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
@@ -97,9 +257,6 @@ export default function Protocolo() {
   const inputCamaraRef = useRef(null);
   const inputGaleriaRef = useRef(null);
 
-  // ── Dexie live queries ──────────────────────────────────────────────────────
-
-  // Usamos toArray para distinguir "cargando" (undefined) de "no encontrado" ([])
   const protocoloArr = useLiveQuery(
     () =>
       db.protocolos
@@ -120,20 +277,17 @@ export default function Protocolo() {
     [protocolo?.id]
   ) ?? [];
 
-  // ── Carga inicial ───────────────────────────────────────────────────────────
-
   useEffect(() => {
     if (!cargando && !cargadoRef.current) {
       cargadoRef.current = true;
       if (protocolo) {
         setChecklist(protocolo.datos?.checklist ?? emptyChecklist);
         setObservaciones(protocolo.datos?.observaciones ?? '');
+        setCamiones(protocolo.datos?.camiones ?? []);
         setEstado(protocolo.estado);
       }
     }
   }, [cargando, protocolo]);
-
-  // ── Helpers ─────────────────────────────────────────────────────────────────
 
   function mostrarToast(msg, tipo = 'ok') {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -141,64 +295,48 @@ export default function Protocolo() {
     toastTimerRef.current = setTimeout(() => setToast(null), 3000);
   }
 
-  function toggleCheck(itemId) {
-    setChecklist(prev => ({ ...prev, [itemId]: !prev[itemId] }));
+  function setCheckValue(itemId, opcion) {
+    setChecklist(prev => ({
+      ...prev,
+      [itemId]: prev[itemId] === opcion ? null : opcion,
+    }));
   }
 
-  // Garantiza que el protocolo exista en Dexie y retorna su id
   async function obtenerOCrearId() {
     if (protocolo?.id) return protocolo.id;
     const now = new Date().toISOString();
     return db.protocolos.add({
-      tipo,
-      entidad: tipo,
-      entidadId: entidadIdReal,
-      protocoloId,
-      estado: 'borrador',
-      usuarioNombre: usuario,
-      fechaCreacion: now,
-      fechaModificacion: now,
-      datos: { checklist, observaciones },
+      tipo, entidad: tipo, entidadId: entidadIdReal, protocoloId,
+      estado: 'borrador', usuarioNombre: usuario,
+      fechaCreacion: now, fechaModificacion: now,
+      datos: { checklist, observaciones, camiones },
       sincronizada: false,
     });
   }
-
-  // ── Guardar ──────────────────────────────────────────────────────────────────
 
   async function guardar(nuevoEstado) {
     if (guardando) return;
     setGuardando(true);
     try {
       const now = new Date().toISOString();
-      const datos = { checklist, observaciones };
+      const datos = { checklist, observaciones, camiones };
 
       if (protocolo) {
         await db.protocolos.update(protocolo.id, {
-          estado: nuevoEstado,
-          usuarioNombre: usuario,
-          fechaModificacion: now,
-          datos,
-          sincronizada: false, // resetear para que sync la re-envíe
+          estado: nuevoEstado, usuarioNombre: usuario,
+          fechaModificacion: now, datos, sincronizada: false,
         });
       } else {
         await db.protocolos.add({
-          tipo,
-          entidad: tipo,
-          entidadId: entidadIdReal,
-          protocoloId,
-          estado: nuevoEstado,
-          usuarioNombre: usuario,
-          fechaCreacion: now,
-          fechaModificacion: now,
-          datos,
-          sincronizada: false,
+          tipo, entidad: tipo, entidadId: entidadIdReal, protocoloId,
+          estado: nuevoEstado, usuarioNombre: usuario,
+          fechaCreacion: now, fechaModificacion: now, datos, sincronizada: false,
         });
       }
 
       setEstado(nuevoEstado);
       mostrarToast(nuevoEstado === 'completado' ? '✓ Protocolo completado' : '✓ Borrador guardado');
 
-      // Sincronizar inmediatamente si hay señal
       if (supabase && navigator.onLine) {
         setSincronizando(true);
         sincronizar().finally(() => setSincronizando(false));
@@ -210,25 +348,16 @@ export default function Protocolo() {
     }
   }
 
-  // ── Fotos ────────────────────────────────────────────────────────────────────
-
   async function handleFotoSeleccionada(e) {
     const files = Array.from(e.target.files ?? []);
     if (files.length === 0) return;
-
     try {
       const protocoloLocalId = await obtenerOCrearId();
       for (const file of files) {
         const dataUrl = await leerComoDataUrl(file);
-        await db.fotos.add({
-          protocoloLocalId,
-          nombre: file.name,
-          tipo: file.type,
-          dataUrl,
-          sincronizada: false,
-        });
+        await db.fotos.add({ protocoloLocalId, nombre: file.name, tipo: file.type, dataUrl, sincronizada: false });
       }
-      mostrarToast(`${files.length > 1 ? files.length + ' fotos agregadas' : 'Foto agregada'}`);
+      mostrarToast(files.length > 1 ? `${files.length} fotos agregadas` : 'Foto agregada');
     } catch {
       mostrarToast('Error al guardar foto', 'error');
     } finally {
@@ -240,21 +369,45 @@ export default function Protocolo() {
     await db.fotos.delete(fotoId);
   }
 
-  // ── Render ───────────────────────────────────────────────────────────────────
-
-  if (cargando) {
-    return <div style={s.cargando}>Cargando...</div>;
+  function abrirNuevoCamion() {
+    setCamionModal({
+      idx: -1,
+      data: {
+        id: Date.now().toString(),
+        numero: camiones.length + 1,
+        tipoHormigon: '', guia: '',
+        cono: '', temperatura: '',
+        horaCarga: '', horaDescarga: '', tiempoTraslado: '',
+        puProbetaVacia: '', puProbetaLlena: '', puResultado: '',
+        observaciones: '', fotos: [],
+      },
+    });
   }
 
-  const completados = itemsChecklist.filter(item => checklist[item.id]).length;
+  function guardarCamion(dataFinal) {
+    if (camionModal.idx === -1) {
+      setCamiones(prev => [...prev, dataFinal]);
+    } else {
+      setCamiones(prev => prev.map((c, i) => i === camionModal.idx ? dataFinal : c));
+    }
+    setCamionModal(null);
+  }
+
+  function eliminarCamionActual() {
+    if (camionModal.idx !== -1) {
+      setCamiones(prev => prev.filter((_, i) => i !== camionModal.idx));
+    }
+    setCamionModal(null);
+  }
+
+  if (cargando) return <div style={s.cargando}>Cargando...</div>;
+
+  const respondidos = itemsChecklist.filter(item => checklist[item.id] !== null).length;
 
   return (
     <div style={s.page}>
-      {/* Header */}
       <div style={s.header}>
-        <button style={s.btnVolver} onClick={() => navigate(volverUrl)}>
-          ← Volver
-        </button>
+        <button style={s.btnVolver} onClick={() => navigate(volverUrl)}>← Volver</button>
         <div style={s.headerInfo}>
           <h1 style={s.titulo}>{titulo}</h1>
           <EstadoBadge estado={estado} />
@@ -262,24 +415,71 @@ export default function Protocolo() {
       </div>
 
       {/* Checklist */}
-      <Seccion titulo={`Lista de verificación (${completados}/${itemsChecklist.length})`}>
-        <div style={s.checklist}>
-          {itemsChecklist.map(item => (
-            <label key={item.id} style={s.checkItem} onClick={() => toggleCheck(item.id)}>
-              <div style={{
-                ...s.checkBox,
-                background: checklist[item.id] ? '#10b981' : 'transparent',
-                borderColor: checklist[item.id] ? '#10b981' : '#0f3460',
-              }}>
-                {checklist[item.id] && <span style={s.checkMark}>✓</span>}
-              </div>
-              <span style={{ color: checklist[item.id] ? '#10b981' : '#ccd6f6', fontSize: '14px' }}>
-                {item.label}
-              </span>
-            </label>
-          ))}
-        </div>
+      <Seccion titulo={
+        itemsChecklist.length > 0
+          ? `Lista de verificación (${respondidos}/${itemsChecklist.length})`
+          : 'Lista de verificación'
+      }>
+        {itemsChecklist.length === 0 ? (
+          <p style={s.checklistPendiente}>Checklist pendiente de configuración</p>
+        ) : (
+          <div style={s.checklist}>
+            {itemsChecklist.map(item => {
+              const val = checklist[item.id];
+              return (
+                <div key={item.id} style={s.checkItem}>
+                  <span style={s.checkLabel}>{item.label}</span>
+                  <div style={s.checkBtns}>
+                    {(['si', 'no', 'na']).map(opcion => {
+                      const active = val === opcion;
+                      return (
+                        <button
+                          key={opcion}
+                          style={{
+                            ...s.checkBtn,
+                            background: active ? OPCION_COLOR[opcion] : 'transparent',
+                            borderColor: active ? OPCION_COLOR[opcion] : '#0f3460',
+                            color: active ? '#fff' : '#8892b0',
+                          }}
+                          onClick={() => setCheckValue(item.id, opcion)}
+                        >
+                          {opcion === 'si' ? 'SÍ' : opcion === 'no' ? 'NO' : 'N/A'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </Seccion>
+
+      {/* Camiones HA — solo PICE2_RADIER / PICE2_MURO */}
+      {tieneCamiones && (
+        <Seccion titulo={`Control H.A. — Camiones${camiones.length > 0 ? ` (${camiones.length})` : ''}`}>
+          <button style={s.btnAgregarCamion} onClick={abrirNuevoCamion}>
+            + Agregar camión
+          </button>
+          {camiones.length > 0 && (
+            <div style={s.camionesList}>
+              {camiones.map((c, idx) => (
+                <div key={c.id} style={s.camionFila} onClick={() => setCamionModal({ idx, data: { ...c } })}>
+                  <div style={s.camionNum}>#{c.numero}</div>
+                  <div style={s.camionInfo}>
+                    <span style={s.camionTipo}>{c.tipoHormigon || '—'}</span>
+                    <span style={s.camionMeta}>
+                      {[c.guia && `G: ${c.guia}`, c.cono && `Cono: ${c.cono}cm`, c.temperatura && `${c.temperatura}°C`]
+                        .filter(Boolean).join(' · ')}
+                    </span>
+                  </div>
+                  <span style={s.chevronSm}>›</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Seccion>
+      )}
 
       {/* Observaciones */}
       <Seccion titulo="Observaciones">
@@ -294,30 +494,12 @@ export default function Protocolo() {
 
       {/* Fotos */}
       <Seccion titulo={`Fotos${fotos.length > 0 ? ` (${fotos.length})` : ''}`}>
-        <input
-          ref={inputCamaraRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          style={{ display: 'none' }}
-          onChange={handleFotoSeleccionada}
-        />
-        <input
-          ref={inputGaleriaRef}
-          type="file"
-          accept="image/*"
-          multiple
-          style={{ display: 'none' }}
-          onChange={handleFotoSeleccionada}
-        />
+        <input ref={inputCamaraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFotoSeleccionada} />
+        <input ref={inputGaleriaRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleFotoSeleccionada} />
 
         <div style={s.fotosBotones}>
-          <button style={s.btnFoto} onClick={() => inputCamaraRef.current?.click()}>
-            📷 Sacar foto
-          </button>
-          <button style={{ ...s.btnFoto, background: '#0f3460' }} onClick={() => inputGaleriaRef.current?.click()}>
-            🖼 Adjuntar foto
-          </button>
+          <button style={s.btnFoto} onClick={() => inputCamaraRef.current?.click()}>📷 Sacar foto</button>
+          <button style={{ ...s.btnFoto, background: '#0f3460' }} onClick={() => inputGaleriaRef.current?.click()}>🖼 Adjuntar foto</button>
         </div>
 
         {fotos.length > 0 ? (
@@ -326,13 +508,7 @@ export default function Protocolo() {
               <div key={foto.id} style={s.fotoCard}>
                 <div style={s.fotoThumb}>
                   <img src={foto.dataUrl} alt={foto.nombre} style={s.fotoImg} />
-                  <button
-                    style={s.btnEliminarFoto}
-                    onClick={() => eliminarFoto(foto.id)}
-                    title="Eliminar foto"
-                  >
-                    ×
-                  </button>
+                  <button style={s.btnEliminarFoto} onClick={() => eliminarFoto(foto.id)} title="Eliminar">×</button>
                 </div>
                 <input
                   type="text"
@@ -349,32 +525,20 @@ export default function Protocolo() {
         )}
       </Seccion>
 
-      {/* Botones de acción */}
+      {/* Acciones */}
       <div style={s.accionesCabecera}>
         {supabase && (
           <span style={s.syncLabel}>
-            {sincronizando
-              ? '🔄 sincronizando...'
-              : protocolo?.sincronizada
-              ? '☁️ sincronizado'
-              : '🔄 pendiente'}
+            {sincronizando ? '🔄 sincronizando...' : protocolo?.sincronizada ? '☁️ sincronizado' : '🔄 pendiente'}
           </span>
         )}
       </div>
       <div style={s.acciones}>
-        <button
-          style={{ ...s.btnAccion, ...s.btnBorrador }}
-          onClick={() => guardar('borrador')}
-          disabled={guardando}
-        >
+        <button style={{ ...s.btnAccion, ...s.btnBorrador }} onClick={() => guardar('borrador')} disabled={guardando}>
           {guardando ? 'Guardando...' : 'Guardar borrador'}
         </button>
         <button
-          style={{
-            ...s.btnAccion,
-            ...s.btnCompletar,
-            opacity: estado === 'completado' ? 0.6 : 1,
-          }}
+          style={{ ...s.btnAccion, ...s.btnCompletar, opacity: estado === 'completado' ? 0.6 : 1 }}
           onClick={() => setConfirmando(true)}
           disabled={guardando || estado === 'completado'}
         >
@@ -382,20 +546,15 @@ export default function Protocolo() {
         </button>
       </div>
 
-      {/* Botón Excel — solo si el protocolo ya fue guardado */}
       {protocolo && (
         <div style={s.accionesSecundarias}>
           <button
             style={{ ...s.btnAccion, ...s.btnExcel, opacity: descargando ? 0.6 : 1 }}
             onClick={async () => {
               setDescargando(true);
-              try {
-                await generarExcel(protocolo, fotos);
-              } catch (e) {
-                mostrarToast('Error al generar Excel', 'error');
-              } finally {
-                setDescargando(false);
-              }
+              try { await generarExcel(protocolo, fotos); }
+              catch { mostrarToast('Error al generar Excel', 'error'); }
+              finally { setDescargando(false); }
             }}
             disabled={descargando}
           >
@@ -404,14 +563,21 @@ export default function Protocolo() {
         </div>
       )}
 
-      {/* Toast */}
       <Toast toast={toast} />
 
-      {/* Modal confirmación */}
       {confirmando && (
         <ModalConfirmar
           onConfirmar={async () => { setConfirmando(false); await guardar('completado'); }}
           onCancelar={() => setConfirmando(false)}
+        />
+      )}
+
+      {camionModal && (
+        <CamionModal
+          camion={camionModal.data}
+          onSave={guardarCamion}
+          onCancelar={() => setCamionModal(null)}
+          onEliminar={camionModal.idx !== -1 ? eliminarCamionActual : null}
         />
       )}
     </div>
@@ -425,52 +591,54 @@ const s = {
   cargando: { color: '#8892b0', padding: '40px', textAlign: 'center' },
 
   header: { marginBottom: '24px' },
-  btnVolver: {
-    background: 'transparent', border: 'none', color: '#8892b0',
-    cursor: 'pointer', fontSize: '14px', padding: '0 0 12px',
-  },
+  btnVolver: { background: 'transparent', border: 'none', color: '#8892b0', cursor: 'pointer', fontSize: '14px', padding: '0 0 12px' },
   headerInfo: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' },
   titulo: { color: '#ccd6f6', fontSize: '20px', fontWeight: 700, flex: 1 },
-  estadoBadge: {
-    fontSize: '12px', fontWeight: 600, border: '1.5px solid',
-    borderRadius: '6px', padding: '3px 10px', whiteSpace: 'nowrap', flexShrink: 0,
-  },
+  estadoBadge: { fontSize: '12px', fontWeight: 600, border: '1.5px solid', borderRadius: '6px', padding: '3px 10px', whiteSpace: 'nowrap', flexShrink: 0 },
 
-  seccion: {
-    background: '#16213e', borderRadius: '12px', padding: '20px',
-    border: '1px solid #0f3460', marginBottom: '16px',
-  },
+  seccion: { background: '#16213e', borderRadius: '12px', padding: '20px', border: '1px solid #0f3460', marginBottom: '16px' },
   seccionTitulo: { color: '#8892b0', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '16px' },
 
-  checklist: { display: 'flex', flexDirection: 'column', gap: '4px' },
+  checklist: { display: 'flex', flexDirection: 'column' },
   checkItem: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    gap: '10px', padding: '9px 0', borderBottom: '1px solid #0f3460',
+  },
+  checkLabel: { color: '#ccd6f6', fontSize: '13px', flex: 1, lineHeight: 1.3 },
+  checkBtns: { display: 'flex', gap: '4px', flexShrink: 0 },
+  checkBtn: {
+    padding: '5px 9px', border: '1.5px solid', borderRadius: '6px',
+    fontSize: '11px', fontWeight: 700, cursor: 'pointer',
+    transition: 'all 0.12s', minWidth: '36px', textAlign: 'center',
+  },
+  checklistPendiente: { color: '#8892b0', fontSize: '13px', fontStyle: 'italic', textAlign: 'center', margin: 0 },
+
+  btnAgregarCamion: {
+    background: '#0f3460', color: '#64ffda', border: '1.5px solid #64ffda',
+    borderRadius: '8px', padding: '10px 16px', fontSize: '14px', fontWeight: 600,
+    cursor: 'pointer', width: '100%', marginBottom: '12px',
+  },
+  camionesList: { display: 'flex', flexDirection: 'column', gap: '6px' },
+  camionFila: {
     display: 'flex', alignItems: 'center', gap: '12px',
-    padding: '10px 12px', borderRadius: '8px', cursor: 'pointer',
-    userSelect: 'none',
+    background: '#0f3460', borderRadius: '8px', padding: '12px 14px',
+    cursor: 'pointer', border: '1px solid #1e3a5f',
   },
-  checkBox: {
-    width: '22px', height: '22px', borderRadius: '6px', border: '2px solid',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0, transition: 'all 0.15s',
-  },
-  checkMark: { color: '#fff', fontSize: '13px', fontWeight: 700, lineHeight: 1 },
+  camionNum: { color: '#64ffda', fontWeight: 700, fontSize: '15px', minWidth: '28px' },
+  camionInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' },
+  camionTipo: { color: '#ccd6f6', fontSize: '13px', fontWeight: 600 },
+  camionMeta: { color: '#8892b0', fontSize: '11px' },
+  chevronSm: { color: '#8892b0', fontSize: '18px' },
 
   textarea: {
     width: '100%', background: '#0f3460', border: '1px solid #1e3a5f',
     borderRadius: '8px', color: '#ccd6f6', fontSize: '14px',
-    padding: '12px', resize: 'vertical', fontFamily: 'inherit',
-    lineHeight: '1.5', outline: 'none',
+    padding: '12px', resize: 'vertical', fontFamily: 'inherit', lineHeight: '1.5', outline: 'none',
   },
 
   fotosBotones: { display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' },
-  btnFoto: {
-    background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px',
-    padding: '10px 16px', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
-    flex: '1 1 140px',
-  },
-  fotosGrid: {
-    display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px',
-  },
+  btnFoto: { background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 16px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', flex: '1 1 140px' },
+  fotosGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' },
   fotoCard: { display: 'flex', flexDirection: 'column', gap: '6px' },
   fotoThumb: { position: 'relative', aspectRatio: '1', borderRadius: '8px', overflow: 'hidden' },
   fotoImg: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
@@ -483,52 +651,68 @@ const s = {
   fotoDescInput: {
     width: '100%', background: '#0f3460', border: '1px solid #1e3a5f',
     borderRadius: '6px', color: '#ccd6f6', fontSize: '11px',
-    padding: '5px 7px', fontFamily: 'inherit', outline: 'none',
-    lineHeight: '1.4',
+    padding: '5px 7px', fontFamily: 'inherit', outline: 'none', lineHeight: '1.4',
   },
   sinFotos: { color: '#8892b0', fontSize: '13px', fontStyle: 'italic', textAlign: 'center', margin: '8px 0 0' },
 
   accionesCabecera: { display: 'flex', justifyContent: 'flex-end', marginBottom: '6px', minHeight: '20px' },
   syncLabel: { color: '#8892b0', fontSize: '12px' },
-  acciones: { display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '0' },
+  acciones: { display: 'flex', gap: '12px', flexWrap: 'wrap' },
   accionesSecundarias: { marginTop: '10px' },
-  btnAccion: {
-    flex: '1 1 140px', padding: '14px 20px', borderRadius: '10px',
-    fontSize: '15px', fontWeight: 700, cursor: 'pointer', border: 'none',
-  },
+  btnAccion: { flex: '1 1 140px', padding: '14px 20px', borderRadius: '10px', fontSize: '15px', fontWeight: 700, cursor: 'pointer', border: 'none' },
   btnBorrador: { background: '#0f3460', color: '#ccd6f6' },
   btnCompletar: { background: '#10b981', color: '#fff' },
-  btnExcel: {
-    background: '#1d6a34', color: '#fff',
-    width: '100%', fontSize: '14px',
-  },
+  btnExcel: { background: '#1d6a34', color: '#fff', width: '100%', fontSize: '14px' },
 
   toast: {
     position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
     color: '#fff', padding: '12px 24px', borderRadius: '10px',
     fontSize: '14px', fontWeight: 600, zIndex: 1000,
-    boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-    whiteSpace: 'nowrap',
+    boxShadow: '0 4px 16px rgba(0,0,0,0.4)', whiteSpace: 'nowrap',
   },
 
   overlay: {
-    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     zIndex: 200, padding: '16px',
   },
-  modal: {
-    background: '#16213e', borderRadius: '16px', padding: '32px 28px',
-    maxWidth: '360px', width: '100%', border: '1px solid #0f3460',
-  },
+  modal: { background: '#16213e', borderRadius: '16px', padding: '32px 28px', maxWidth: '360px', width: '100%', border: '1px solid #0f3460' },
   modalTitulo: { color: '#ccd6f6', fontSize: '18px', fontWeight: 700, marginBottom: '12px' },
   modalTexto: { color: '#8892b0', fontSize: '14px', lineHeight: '1.5', marginBottom: '24px' },
   modalBotones: { display: 'flex', gap: '10px' },
-  btnModalCancelar: {
-    flex: 1, padding: '12px', background: '#0f3460', color: '#ccd6f6',
-    border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+  btnModalCancelar: { flex: 1, padding: '12px', background: '#0f3460', color: '#ccd6f6', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' },
+  btnModalConfirmar: { flex: 1, padding: '12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' },
+};
+
+const sm = {
+  container: {
+    background: '#16213e', borderRadius: '16px', width: '100%',
+    maxWidth: '480px', maxHeight: '90vh', display: 'flex',
+    flexDirection: 'column', border: '1px solid #0f3460', overflow: 'hidden',
   },
-  btnModalConfirmar: {
-    flex: 1, padding: '12px', background: '#10b981', color: '#fff',
-    border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #0f3460', flexShrink: 0 },
+  titulo: { color: '#ccd6f6', fontSize: '17px', fontWeight: 700, margin: 0 },
+  btnCerrar: { background: 'transparent', border: 'none', color: '#8892b0', fontSize: '24px', cursor: 'pointer', lineHeight: 1, padding: '0 4px' },
+  body: { padding: '16px 20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' },
+  label: { color: '#8892b0', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' },
+  sectionTitle: { color: '#64ffda', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '6px 0 0' },
+  input: {
+    background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '7px',
+    color: '#ccd6f6', fontSize: '14px', padding: '10px 12px',
+    fontFamily: 'inherit', outline: 'none', width: '100%',
   },
+  textarea: {
+    background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '7px',
+    color: '#ccd6f6', fontSize: '14px', padding: '10px 12px',
+    fontFamily: 'inherit', outline: 'none', width: '100%', resize: 'vertical',
+  },
+  row: { display: 'flex', gap: '10px' },
+  half: { flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' },
+  calcBadge: { background: '#10b981', color: '#fff', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', fontWeight: 700, whiteSpace: 'nowrap' },
+  resultado: { background: '#0a2040', border: '1px solid #10b981', borderRadius: '8px', padding: '10px 14px', color: '#ccd6f6', fontSize: '14px' },
+  btnFotoSm: { background: '#10b981', color: '#fff', border: 'none', borderRadius: '7px', padding: '8px 14px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', flex: '1 1 100px' },
+  footer: { display: 'flex', gap: '8px', padding: '14px 20px', borderTop: '1px solid #0f3460', flexShrink: 0 },
+  btnEliminar: { background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' },
+  btnCancelar: { flex: 1, background: '#0f3460', color: '#ccd6f6', border: 'none', borderRadius: '8px', padding: '12px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' },
+  btnGuardar: { flex: 2, background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' },
 };
