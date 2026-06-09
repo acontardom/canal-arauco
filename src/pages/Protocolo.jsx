@@ -10,7 +10,6 @@ import { supabase } from '../config/supabase';
 
 const OPCION_COLOR = { si: '#10b981', no: '#ef4444', na: '#f59e0b' };
 const PROBETA_VOL = 0.0101;
-const PROTOCOLOS_CON_CAMIONES = new Set(['PICE2_RADIER', 'PICE2_MURO']);
 
 function leerComoDataUrl(file) {
   return new Promise((resolve) => {
@@ -43,7 +42,6 @@ function normalizeChecklist(raw, items) {
     if (typeof v === 'object' && !Array.isArray(v)) {
       return [item.id, { valor: v.valor ?? null, obs: v.obs ?? '' }];
     }
-    // formato anterior: string 'si'/'no'/'na'
     if (typeof v === 'string') return [item.id, { valor: v, obs: '' }];
     return [item.id, { valor: null, obs: '' }];
   }));
@@ -253,7 +251,8 @@ export default function Protocolo() {
   const nombreEntidad = tipo === 'tramo' ? `Tramo ${entidadId}` : `Caída ${entidadId}`;
   const titulo = `${nombreEntidad} — ${protocoloInfo?.nombre ?? protocoloId}`;
   const volverUrl = tipo === 'tramo' ? `/tramos/${entidadId}` : `/caidas/${entidadId}`;
-  const tieneCamiones = PROTOCOLOS_CON_CAMIONES.has(protocoloId);
+  // Protocolos de Control H.A. — solo muestran la vista de camiones
+  const esHA = protocoloId === 'HA_RADIER' || protocoloId === 'HA_MURO';
   // Evaluado una sola vez al montar — suficiente para PWA móvil
   const isMobile = window.innerWidth < 768;
 
@@ -342,7 +341,9 @@ export default function Protocolo() {
     setGuardando(true);
     try {
       const now = new Date().toISOString();
-      const datos = { checklist, observaciones, camiones };
+      const datos = esHA
+        ? { camiones }
+        : { checklist, observaciones, camiones: [] };
 
       if (protocolo) {
         await db.protocolos.update(protocolo.id, {
@@ -425,7 +426,9 @@ export default function Protocolo() {
 
   if (cargando) return <div style={s.cargando}>Cargando...</div>;
 
-  const respondidos = itemsChecklist.filter(item => checklist[item.id]?.valor !== null).length;
+  const respondidos = esHA
+    ? 0
+    : itemsChecklist.filter(item => checklist[item.id]?.valor !== null).length;
 
   return (
     <div style={s.page}>
@@ -437,64 +440,9 @@ export default function Protocolo() {
         </div>
       </div>
 
-      {/* Checklist */}
-      <Seccion titulo={
-        itemsChecklist.length > 0
-          ? `Lista de verificación (${respondidos}/${itemsChecklist.length})`
-          : 'Lista de verificación'
-      }>
-        {itemsChecklist.length === 0 ? (
-          <p style={s.checklistPendiente}>Checklist pendiente de configuración</p>
-        ) : (
-          <div style={s.checklist}>
-            {itemsChecklist.map(item => {
-              const entry = checklist[item.id] ?? { valor: null, obs: '' };
-              return (
-                <div key={item.id} style={isMobile ? s.checkItemMobile : s.checkItemDesktop}>
-                  {/* Label */}
-                  <span style={isMobile ? s.checkLabelMobile : s.checkLabelDesktop}>
-                    {item.label}
-                  </span>
-
-                  {/* Botones SI / NO / N/A */}
-                  <div style={s.checkBtns}>
-                    {['si', 'no', 'na'].map(opcion => {
-                      const active = entry.valor === opcion;
-                      return (
-                        <button
-                          key={opcion}
-                          style={{
-                            ...s.checkBtn,
-                            background: active ? OPCION_COLOR[opcion] : 'transparent',
-                            borderColor: active ? OPCION_COLOR[opcion] : '#0f3460',
-                            color: active ? '#fff' : '#8892b0',
-                          }}
-                          onClick={() => setCheckValue(item.id, opcion)}
-                        >
-                          {opcion === 'si' ? 'SÍ' : opcion === 'no' ? 'NO' : 'N/A'}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Observación individual */}
-                  <textarea
-                    style={isMobile ? s.checkObsMobile : s.checkObsDesktop}
-                    value={entry.obs}
-                    onChange={e => setCheckObs(item.id, e.target.value)}
-                    placeholder="Observación..."
-                    rows={2}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Seccion>
-
-      {/* Camiones HA — solo PICE2_RADIER / PICE2_MURO */}
-      {tieneCamiones && (
-        <Seccion titulo={`Control H.A. — Camiones${camiones.length > 0 ? ` (${camiones.length})` : ''}`}>
+      {esHA ? (
+        /* ── Vista Control H.A. — solo camiones ─────────────────────────────── */
+        <Seccion titulo={`Camiones${camiones.length > 0 ? ` (${camiones.length})` : ''}`}>
           <button style={s.btnAgregarCamion} onClick={abrirNuevoCamion}>
             + Agregar camión
           </button>
@@ -516,53 +464,104 @@ export default function Protocolo() {
             </div>
           )}
         </Seccion>
+      ) : (
+        /* ── Vista estándar — checklist + observaciones + fotos ─────────────── */
+        <>
+          {/* Checklist */}
+          <Seccion titulo={
+            itemsChecklist.length > 0
+              ? `Lista de verificación (${respondidos}/${itemsChecklist.length})`
+              : 'Lista de verificación'
+          }>
+            {itemsChecklist.length === 0 ? (
+              <p style={s.checklistPendiente}>Checklist pendiente de configuración</p>
+            ) : (
+              <div style={s.checklist}>
+                {itemsChecklist.map(item => {
+                  const entry = checklist[item.id] ?? { valor: null, obs: '' };
+                  return (
+                    <div key={item.id} style={isMobile ? s.checkItemMobile : s.checkItemDesktop}>
+                      <span style={isMobile ? s.checkLabelMobile : s.checkLabelDesktop}>
+                        {item.label}
+                      </span>
+                      <div style={s.checkBtns}>
+                        {['si', 'no', 'na'].map(opcion => {
+                          const active = entry.valor === opcion;
+                          return (
+                            <button
+                              key={opcion}
+                              style={{
+                                ...s.checkBtn,
+                                background: active ? OPCION_COLOR[opcion] : 'transparent',
+                                borderColor: active ? OPCION_COLOR[opcion] : '#0f3460',
+                                color: active ? '#fff' : '#8892b0',
+                              }}
+                              onClick={() => setCheckValue(item.id, opcion)}
+                            >
+                              {opcion === 'si' ? 'SÍ' : opcion === 'no' ? 'NO' : 'N/A'}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <textarea
+                        style={isMobile ? s.checkObsMobile : s.checkObsDesktop}
+                        value={entry.obs}
+                        onChange={e => setCheckObs(item.id, e.target.value)}
+                        placeholder="Observación..."
+                        rows={2}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Seccion>
+
+          {/* Observaciones generales */}
+          <Seccion titulo="Observaciones">
+            <textarea
+              style={s.textarea}
+              value={observaciones}
+              onChange={e => setObservaciones(e.target.value)}
+              placeholder="Notas adicionales, condiciones del terreno, anomalías observadas..."
+              rows={4}
+            />
+          </Seccion>
+
+          {/* Fotos */}
+          <Seccion titulo={`Fotos${fotos.length > 0 ? ` (${fotos.length})` : ''}`}>
+            <input ref={inputCamaraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFotoSeleccionada} />
+            <input ref={inputGaleriaRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleFotoSeleccionada} />
+            <div style={s.fotosBotones}>
+              <button style={s.btnFoto} onClick={() => inputCamaraRef.current?.click()}>📷 Sacar foto</button>
+              <button style={{ ...s.btnFoto, background: '#0f3460' }} onClick={() => inputGaleriaRef.current?.click()}>🖼 Adjuntar foto</button>
+            </div>
+            {fotos.length > 0 ? (
+              <div style={s.fotosGrid}>
+                {fotos.map(foto => (
+                  <div key={foto.id} style={s.fotoCard}>
+                    <div style={s.fotoThumb}>
+                      <img src={foto.dataUrl} alt={foto.nombre} style={s.fotoImg} />
+                      <button style={s.btnEliminarFoto} onClick={() => eliminarFoto(foto.id)} title="Eliminar">×</button>
+                    </div>
+                    <input
+                      type="text"
+                      defaultValue={foto.descripcion ?? ''}
+                      placeholder="Descripción..."
+                      style={s.fotoDescInput}
+                      onBlur={e => db.fotos.update(foto.id, { descripcion: e.target.value })}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={s.sinFotos}>Sin fotos adjuntas</p>
+            )}
+          </Seccion>
+        </>
       )}
 
-      {/* Observaciones generales */}
-      <Seccion titulo="Observaciones">
-        <textarea
-          style={s.textarea}
-          value={observaciones}
-          onChange={e => setObservaciones(e.target.value)}
-          placeholder="Notas adicionales, condiciones del terreno, anomalías observadas..."
-          rows={4}
-        />
-      </Seccion>
-
-      {/* Fotos */}
-      <Seccion titulo={`Fotos${fotos.length > 0 ? ` (${fotos.length})` : ''}`}>
-        <input ref={inputCamaraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFotoSeleccionada} />
-        <input ref={inputGaleriaRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleFotoSeleccionada} />
-
-        <div style={s.fotosBotones}>
-          <button style={s.btnFoto} onClick={() => inputCamaraRef.current?.click()}>📷 Sacar foto</button>
-          <button style={{ ...s.btnFoto, background: '#0f3460' }} onClick={() => inputGaleriaRef.current?.click()}>🖼 Adjuntar foto</button>
-        </div>
-
-        {fotos.length > 0 ? (
-          <div style={s.fotosGrid}>
-            {fotos.map(foto => (
-              <div key={foto.id} style={s.fotoCard}>
-                <div style={s.fotoThumb}>
-                  <img src={foto.dataUrl} alt={foto.nombre} style={s.fotoImg} />
-                  <button style={s.btnEliminarFoto} onClick={() => eliminarFoto(foto.id)} title="Eliminar">×</button>
-                </div>
-                <input
-                  type="text"
-                  defaultValue={foto.descripcion ?? ''}
-                  placeholder="Descripción..."
-                  style={s.fotoDescInput}
-                  onBlur={e => db.fotos.update(foto.id, { descripcion: e.target.value })}
-                />
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p style={s.sinFotos}>Sin fotos adjuntas</p>
-        )}
-      </Seccion>
-
-      {/* Acciones */}
+      {/* Acciones — siempre visibles */}
       <div style={s.accionesCabecera}>
         {supabase && (
           <span style={s.syncLabel}>
@@ -650,71 +649,34 @@ const s = {
   seccionTitulo: { color: '#8892b0', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '16px' },
 
   checklist: { display: 'flex', flexDirection: 'column' },
-
-  // Desktop: fila única — label | botones | obs
-  checkItemDesktop: {
-    display: 'flex', alignItems: 'flex-start', gap: '12px',
-    padding: '10px 0', borderBottom: '1px solid #0f3460',
-  },
+  checkItemDesktop: { display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '10px 0', borderBottom: '1px solid #0f3460' },
   checkLabelDesktop: { color: '#ccd6f6', fontSize: '13px', flex: 1, lineHeight: 1.4, paddingTop: '6px' },
   checkObsDesktop: { ...obsInputBase, width: '190px', flexShrink: 0 },
-
-  // Mobile: columna — label / botones / obs
-  checkItemMobile: {
-    display: 'flex', flexDirection: 'column', gap: '7px',
-    padding: '10px 0', borderBottom: '1px solid #0f3460',
-  },
+  checkItemMobile: { display: 'flex', flexDirection: 'column', gap: '7px', padding: '10px 0', borderBottom: '1px solid #0f3460' },
   checkLabelMobile: { color: '#ccd6f6', fontSize: '13px', lineHeight: 1.4 },
   checkObsMobile: { ...obsInputBase, width: '100%' },
-
   checkBtns: { display: 'flex', gap: '4px', flexShrink: 0 },
-  checkBtn: {
-    padding: '5px 9px', border: '1.5px solid', borderRadius: '6px',
-    fontSize: '11px', fontWeight: 700, cursor: 'pointer',
-    transition: 'all 0.12s', minWidth: '36px', textAlign: 'center',
-  },
+  checkBtn: { padding: '5px 9px', border: '1.5px solid', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.12s', minWidth: '36px', textAlign: 'center' },
   checklistPendiente: { color: '#8892b0', fontSize: '13px', fontStyle: 'italic', textAlign: 'center', margin: 0 },
 
-  btnAgregarCamion: {
-    background: '#0f3460', color: '#64ffda', border: '1.5px solid #64ffda',
-    borderRadius: '8px', padding: '10px 16px', fontSize: '14px', fontWeight: 600,
-    cursor: 'pointer', width: '100%', marginBottom: '12px',
-  },
+  btnAgregarCamion: { background: '#0f3460', color: '#64ffda', border: '1.5px solid #64ffda', borderRadius: '8px', padding: '10px 16px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', width: '100%', marginBottom: '12px' },
   camionesList: { display: 'flex', flexDirection: 'column', gap: '6px' },
-  camionFila: {
-    display: 'flex', alignItems: 'center', gap: '12px',
-    background: '#0f3460', borderRadius: '8px', padding: '12px 14px',
-    cursor: 'pointer', border: '1px solid #1e3a5f',
-  },
+  camionFila: { display: 'flex', alignItems: 'center', gap: '12px', background: '#0f3460', borderRadius: '8px', padding: '12px 14px', cursor: 'pointer', border: '1px solid #1e3a5f' },
   camionNum: { color: '#64ffda', fontWeight: 700, fontSize: '15px', minWidth: '28px' },
   camionInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' },
   camionTipo: { color: '#ccd6f6', fontSize: '13px', fontWeight: 600 },
   camionMeta: { color: '#8892b0', fontSize: '11px' },
   chevronSm: { color: '#8892b0', fontSize: '18px' },
 
-  textarea: {
-    width: '100%', background: '#0f3460', border: '1px solid #1e3a5f',
-    borderRadius: '8px', color: '#ccd6f6', fontSize: '14px',
-    padding: '12px', resize: 'vertical', fontFamily: 'inherit', lineHeight: '1.5', outline: 'none',
-  },
-
+  textarea: { width: '100%', background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '8px', color: '#ccd6f6', fontSize: '14px', padding: '12px', resize: 'vertical', fontFamily: 'inherit', lineHeight: '1.5', outline: 'none' },
   fotosBotones: { display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' },
   btnFoto: { background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 16px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', flex: '1 1 140px' },
   fotosGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' },
   fotoCard: { display: 'flex', flexDirection: 'column', gap: '6px' },
   fotoThumb: { position: 'relative', aspectRatio: '1', borderRadius: '8px', overflow: 'hidden' },
   fotoImg: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
-  btnEliminarFoto: {
-    position: 'absolute', top: '4px', right: '4px',
-    background: 'rgba(0,0,0,0.7)', color: '#fff', border: 'none',
-    borderRadius: '50%', width: '22px', height: '22px', fontSize: '16px',
-    lineHeight: '20px', cursor: 'pointer', padding: 0, textAlign: 'center',
-  },
-  fotoDescInput: {
-    width: '100%', background: '#0f3460', border: '1px solid #1e3a5f',
-    borderRadius: '6px', color: '#ccd6f6', fontSize: '11px',
-    padding: '5px 7px', fontFamily: 'inherit', outline: 'none', lineHeight: '1.4',
-  },
+  btnEliminarFoto: { position: 'absolute', top: '4px', right: '4px', background: 'rgba(0,0,0,0.7)', color: '#fff', border: 'none', borderRadius: '50%', width: '22px', height: '22px', fontSize: '16px', lineHeight: '20px', cursor: 'pointer', padding: 0, textAlign: 'center' },
+  fotoDescInput: { width: '100%', background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '6px', color: '#ccd6f6', fontSize: '11px', padding: '5px 7px', fontFamily: 'inherit', outline: 'none', lineHeight: '1.4' },
   sinFotos: { color: '#8892b0', fontSize: '13px', fontStyle: 'italic', textAlign: 'center', margin: '8px 0 0' },
 
   accionesCabecera: { display: 'flex', justifyContent: 'flex-end', marginBottom: '6px', minHeight: '20px' },
@@ -726,18 +688,8 @@ const s = {
   btnCompletar: { background: '#10b981', color: '#fff' },
   btnExcel: { background: '#1d6a34', color: '#fff', width: '100%', fontSize: '14px' },
 
-  toast: {
-    position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
-    color: '#fff', padding: '12px 24px', borderRadius: '10px',
-    fontSize: '14px', fontWeight: 600, zIndex: 1000,
-    boxShadow: '0 4px 16px rgba(0,0,0,0.4)', whiteSpace: 'nowrap',
-  },
-
-  overlay: {
-    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    zIndex: 200, padding: '16px',
-  },
+  toast: { position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)', color: '#fff', padding: '12px 24px', borderRadius: '10px', fontSize: '14px', fontWeight: 600, zIndex: 1000, boxShadow: '0 4px 16px rgba(0,0,0,0.4)', whiteSpace: 'nowrap' },
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '16px' },
   modal: { background: '#16213e', borderRadius: '16px', padding: '32px 28px', maxWidth: '360px', width: '100%', border: '1px solid #0f3460' },
   modalTitulo: { color: '#ccd6f6', fontSize: '18px', fontWeight: 700, marginBottom: '12px' },
   modalTexto: { color: '#8892b0', fontSize: '14px', lineHeight: '1.5', marginBottom: '24px' },
@@ -747,27 +699,15 @@ const s = {
 };
 
 const sm = {
-  container: {
-    background: '#16213e', borderRadius: '16px', width: '100%',
-    maxWidth: '480px', maxHeight: '90vh', display: 'flex',
-    flexDirection: 'column', border: '1px solid #0f3460', overflow: 'hidden',
-  },
+  container: { background: '#16213e', borderRadius: '16px', width: '100%', maxWidth: '480px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', border: '1px solid #0f3460', overflow: 'hidden' },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #0f3460', flexShrink: 0 },
   titulo: { color: '#ccd6f6', fontSize: '17px', fontWeight: 700, margin: 0 },
   btnCerrar: { background: 'transparent', border: 'none', color: '#8892b0', fontSize: '24px', cursor: 'pointer', lineHeight: 1, padding: '0 4px' },
   body: { padding: '16px 20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' },
   label: { color: '#8892b0', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' },
   sectionTitle: { color: '#64ffda', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '6px 0 0' },
-  input: {
-    background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '7px',
-    color: '#ccd6f6', fontSize: '14px', padding: '10px 12px',
-    fontFamily: 'inherit', outline: 'none', width: '100%',
-  },
-  textarea: {
-    background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '7px',
-    color: '#ccd6f6', fontSize: '14px', padding: '10px 12px',
-    fontFamily: 'inherit', outline: 'none', width: '100%', resize: 'vertical',
-  },
+  input: { background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '7px', color: '#ccd6f6', fontSize: '14px', padding: '10px 12px', fontFamily: 'inherit', outline: 'none', width: '100%' },
+  textarea: { background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '7px', color: '#ccd6f6', fontSize: '14px', padding: '10px 12px', fontFamily: 'inherit', outline: 'none', width: '100%', resize: 'vertical' },
   row: { display: 'flex', gap: '10px' },
   half: { flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' },
   calcBadge: { background: '#10b981', color: '#fff', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', fontWeight: 700, whiteSpace: 'nowrap' },

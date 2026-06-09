@@ -127,6 +127,7 @@ export async function generarExcel(protocolo, fotos = []) {
     r++;
   });
 
+  if (itemsChecklist.length > 0) {
   // ── Separador ────────────────────────────────────────────────────────────────
   ws.getRow(r).height = 10;
   r++;
@@ -181,6 +182,7 @@ export async function generarExcel(protocolo, fotos = []) {
       r++;
     }
   });
+  } // end if (itemsChecklist.length > 0)
 
   // ── Separador ────────────────────────────────────────────────────────────────
   ws.getRow(r).height = 10;

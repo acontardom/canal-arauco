@@ -15,6 +15,8 @@ export const PROTOCOLOS = [
   { id: 'PICE4_RADIER', codigo: 'PICE-04', nombre: 'Enfierradura Radier', subtipo: 'radier' },
   { id: 'PICE4_MURO',  codigo: 'PICE-04', nombre: 'Enfierradura Muro',    subtipo: 'muro' },
   { id: 'G5',          codigo: 'G5',      nombre: 'Emplantillado',         subtipo: null },
+  { id: 'HA_RADIER',  codigo: 'H.A.',    nombre: 'Control H.A. Radier',   subtipo: 'radier' },
+  { id: 'HA_MURO',    codigo: 'H.A.',    nombre: 'Control H.A. Muro',     subtipo: 'muro' },
 ];
 
 export const CHECKLISTS = {
