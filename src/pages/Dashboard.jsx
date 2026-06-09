@@ -25,13 +25,24 @@ export default function Dashboard() {
     []
   ) ?? [];
 
-  const tramosConCompletado = new Set(
-    protocolos.filter(p => p.tipo === 'tramo' && p.estado === 'completado').map(p => p.entidadId)
-  ).size;
+  function calcMetricas(tipo, entidades) {
+    const conteo = {};
+    protocolos.forEach(p => {
+      if (p.tipo === tipo && p.estado === 'completado') {
+        conteo[p.entidadId] = (conteo[p.entidadId] ?? 0) + 1;
+      }
+    });
+    let completos = 0, enProgreso = 0;
+    entidades.forEach(id => {
+      const n = conteo[id] ?? 0;
+      if (n === PROTOCOLOS.length) completos++;
+      else if (n > 0) enProgreso++;
+    });
+    return { completos, enProgreso };
+  }
 
-  const caidasConCompletado = new Set(
-    protocolos.filter(p => p.tipo === 'caida' && p.estado === 'completado').map(p => p.entidadId)
-  ).size;
+  const tramos  = calcMetricas('tramo', TRAMOS);
+  const caidas  = calcMetricas('caida', CAIDAS);
 
   return (
     <div style={s.page}>
@@ -40,14 +51,16 @@ export default function Dashboard() {
       <div style={s.cards}>
         <TarjetaResumen
           titulo="Tramos"
-          completados={tramosConCompletado}
+          completos={tramos.completos}
+          enProgreso={tramos.enProgreso}
           total={TRAMOS.length}
           onClick={() => navigate('/tramos')}
           btnLabel="Ver Tramos"
         />
         <TarjetaResumen
           titulo="Caídas"
-          completados={caidasConCompletado}
+          completos={caidas.completos}
+          enProgreso={caidas.enProgreso}
           total={CAIDAS.length}
           onClick={() => navigate('/caidas')}
           btnLabel="Ver Caídas"
@@ -84,22 +97,31 @@ export default function Dashboard() {
   );
 }
 
-function TarjetaResumen({ titulo, completados, total, onClick, btnLabel }) {
-  const pct = total === 0 ? 0 : completados / total;
-  const color = completados === 0 ? '#ef4444' : completados === total ? '#10b981' : '#f59e0b';
+function TarjetaResumen({ titulo, completos, enProgreso, total, onClick, btnLabel }) {
+  const pct = total === 0 ? 0 : completos / total;
 
   return (
     <div style={s.card}>
       <div style={s.cardHeader}>
         <span style={s.cardTitulo}>{titulo}</span>
-        <span style={{ ...s.cardBadge, color, borderColor: color }}>
-          {completados}/{total}
+        <span style={{ ...s.cardBadge, color: '#10b981', borderColor: '#10b981' }}>
+          {completos}/{total}
         </span>
       </div>
       <div style={s.barraFondo}>
-        <div style={{ ...s.barraRelleno, width: `${pct * 100}%`, background: color }} />
+        <div style={{ ...s.barraRelleno, width: `${pct * 100}%`, background: '#10b981' }} />
       </div>
-      <p style={s.cardDesc}>con al menos 1 protocolo completado</p>
+      <div style={s.cardMetricas}>
+        <span style={{ color: '#10b981', fontSize: '12px', fontWeight: 600 }}>
+          {completos} completos
+        </span>
+        <span style={{ color: enProgreso > 0 ? '#f59e0b' : '#8892b0', fontSize: '12px', fontWeight: 600 }}>
+          {enProgreso} en progreso
+        </span>
+        <span style={{ color: '#8892b0', fontSize: '12px' }}>
+          {total - completos - enProgreso} sin iniciar
+        </span>
+      </div>
       <button style={s.btn} onClick={onClick}>{btnLabel} →</button>
     </div>
   );
@@ -121,7 +143,7 @@ const s = {
   },
   barraFondo: { height: '6px', background: '#0f3460', borderRadius: '3px', marginBottom: '10px' },
   barraRelleno: { height: '100%', borderRadius: '3px', transition: 'width 0.4s ease' },
-  cardDesc: { color: '#8892b0', fontSize: '12px', margin: '0 0 16px' },
+  cardMetricas: { display: 'flex', gap: '14px', flexWrap: 'wrap', margin: '0 0 16px' },
   btn: {
     background: '#0f3460', color: '#64ffda', border: '1px solid #64ffda',
     borderRadius: '8px', padding: '8px 16px', fontSize: '13px',
