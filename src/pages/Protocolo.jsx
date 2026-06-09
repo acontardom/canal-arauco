@@ -35,6 +35,20 @@ function calcPU(pesoVacia, pesoLlena) {
   return String(Math.round((l - v) / PROBETA_VOL));
 }
 
+// Convierte cualquier formato previo del checklist al formato {valor, obs}
+function normalizeChecklist(raw, items) {
+  return Object.fromEntries(items.map(item => {
+    const v = raw?.[item.id];
+    if (v === null || v === undefined) return [item.id, { valor: null, obs: '' }];
+    if (typeof v === 'object' && !Array.isArray(v)) {
+      return [item.id, { valor: v.valor ?? null, obs: v.obs ?? '' }];
+    }
+    // formato anterior: string 'si'/'no'/'na'
+    if (typeof v === 'string') return [item.id, { valor: v, obs: '' }];
+    return [item.id, { valor: null, obs: '' }];
+  }));
+}
+
 // ─── Sub-componentes ──────────────────────────────────────────────────────────
 
 function Seccion({ titulo, children }) {
@@ -235,11 +249,13 @@ export default function Protocolo() {
   const entidadIdReal = tipo === 'caida' ? Number(entidadId) : entidadId;
   const protocoloInfo = PROTOCOLOS.find(p => p.id === protocoloId);
   const itemsChecklist = CHECKLISTS[protocoloId] ?? [];
-  const emptyChecklist = Object.fromEntries(itemsChecklist.map(i => [i.id, null]));
+  const emptyChecklist = Object.fromEntries(itemsChecklist.map(i => [i.id, { valor: null, obs: '' }]));
   const nombreEntidad = tipo === 'tramo' ? `Tramo ${entidadId}` : `Caída ${entidadId}`;
   const titulo = `${nombreEntidad} — ${protocoloInfo?.nombre ?? protocoloId}`;
   const volverUrl = tipo === 'tramo' ? `/tramos/${entidadId}` : `/caidas/${entidadId}`;
   const tieneCamiones = PROTOCOLOS_CON_CAMIONES.has(protocoloId);
+  // Evaluado una sola vez al montar — suficiente para PWA móvil
+  const isMobile = window.innerWidth < 768;
 
   const [checklist, setChecklist] = useState(emptyChecklist);
   const [observaciones, setObservaciones] = useState('');
@@ -281,7 +297,7 @@ export default function Protocolo() {
     if (!cargando && !cargadoRef.current) {
       cargadoRef.current = true;
       if (protocolo) {
-        setChecklist(protocolo.datos?.checklist ?? emptyChecklist);
+        setChecklist(normalizeChecklist(protocolo.datos?.checklist, itemsChecklist));
         setObservaciones(protocolo.datos?.observaciones ?? '');
         setCamiones(protocolo.datos?.camiones ?? []);
         setEstado(protocolo.estado);
@@ -296,10 +312,17 @@ export default function Protocolo() {
   }
 
   function setCheckValue(itemId, opcion) {
-    setChecklist(prev => ({
-      ...prev,
-      [itemId]: prev[itemId] === opcion ? null : opcion,
-    }));
+    setChecklist(prev => {
+      const curr = prev[itemId] ?? { valor: null, obs: '' };
+      return { ...prev, [itemId]: { ...curr, valor: curr.valor === opcion ? null : opcion } };
+    });
+  }
+
+  function setCheckObs(itemId, obs) {
+    setChecklist(prev => {
+      const curr = prev[itemId] ?? { valor: null, obs: '' };
+      return { ...prev, [itemId]: { ...curr, obs } };
+    });
   }
 
   async function obtenerOCrearId() {
@@ -402,7 +425,7 @@ export default function Protocolo() {
 
   if (cargando) return <div style={s.cargando}>Cargando...</div>;
 
-  const respondidos = itemsChecklist.filter(item => checklist[item.id] !== null).length;
+  const respondidos = itemsChecklist.filter(item => checklist[item.id]?.valor !== null).length;
 
   return (
     <div style={s.page}>
@@ -425,13 +448,18 @@ export default function Protocolo() {
         ) : (
           <div style={s.checklist}>
             {itemsChecklist.map(item => {
-              const val = checklist[item.id];
+              const entry = checklist[item.id] ?? { valor: null, obs: '' };
               return (
-                <div key={item.id} style={s.checkItem}>
-                  <span style={s.checkLabel}>{item.label}</span>
+                <div key={item.id} style={isMobile ? s.checkItemMobile : s.checkItemDesktop}>
+                  {/* Label */}
+                  <span style={isMobile ? s.checkLabelMobile : s.checkLabelDesktop}>
+                    {item.label}
+                  </span>
+
+                  {/* Botones SI / NO / N/A */}
                   <div style={s.checkBtns}>
-                    {(['si', 'no', 'na']).map(opcion => {
-                      const active = val === opcion;
+                    {['si', 'no', 'na'].map(opcion => {
+                      const active = entry.valor === opcion;
                       return (
                         <button
                           key={opcion}
@@ -448,6 +476,15 @@ export default function Protocolo() {
                       );
                     })}
                   </div>
+
+                  {/* Observación individual */}
+                  <textarea
+                    style={isMobile ? s.checkObsMobile : s.checkObsDesktop}
+                    value={entry.obs}
+                    onChange={e => setCheckObs(item.id, e.target.value)}
+                    placeholder="Observación..."
+                    rows={2}
+                  />
                 </div>
               );
             })}
@@ -481,7 +518,7 @@ export default function Protocolo() {
         </Seccion>
       )}
 
-      {/* Observaciones */}
+      {/* Observaciones generales */}
       <Seccion titulo="Observaciones">
         <textarea
           style={s.textarea}
@@ -586,6 +623,19 @@ export default function Protocolo() {
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 
+const obsInputBase = {
+  background: '#0a1f3a',
+  border: '1px solid #1e3a5f',
+  borderRadius: '6px',
+  color: '#ccd6f6',
+  fontSize: '12px',
+  padding: '6px 9px',
+  fontFamily: 'inherit',
+  outline: 'none',
+  resize: 'none',
+  lineHeight: '1.4',
+};
+
 const s = {
   page: { maxWidth: '640px', margin: '0 auto', paddingBottom: '40px' },
   cargando: { color: '#8892b0', padding: '40px', textAlign: 'center' },
@@ -600,11 +650,23 @@ const s = {
   seccionTitulo: { color: '#8892b0', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '16px' },
 
   checklist: { display: 'flex', flexDirection: 'column' },
-  checkItem: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    gap: '10px', padding: '9px 0', borderBottom: '1px solid #0f3460',
+
+  // Desktop: fila única — label | botones | obs
+  checkItemDesktop: {
+    display: 'flex', alignItems: 'flex-start', gap: '12px',
+    padding: '10px 0', borderBottom: '1px solid #0f3460',
   },
-  checkLabel: { color: '#ccd6f6', fontSize: '13px', flex: 1, lineHeight: 1.3 },
+  checkLabelDesktop: { color: '#ccd6f6', fontSize: '13px', flex: 1, lineHeight: 1.4, paddingTop: '6px' },
+  checkObsDesktop: { ...obsInputBase, width: '190px', flexShrink: 0 },
+
+  // Mobile: columna — label / botones / obs
+  checkItemMobile: {
+    display: 'flex', flexDirection: 'column', gap: '7px',
+    padding: '10px 0', borderBottom: '1px solid #0f3460',
+  },
+  checkLabelMobile: { color: '#ccd6f6', fontSize: '13px', lineHeight: 1.4 },
+  checkObsMobile: { ...obsInputBase, width: '100%' },
+
   checkBtns: { display: 'flex', gap: '4px', flexShrink: 0 },
   checkBtn: {
     padding: '5px 9px', border: '1.5px solid', borderRadius: '6px',

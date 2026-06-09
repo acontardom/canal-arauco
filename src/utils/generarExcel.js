@@ -143,7 +143,10 @@ export async function generarExcel(protocolo, fotos = []) {
 
   // ── Checklist: items ─────────────────────────────────────────────────────────
   itemsChecklist.forEach((item, i) => {
-    const val = checklist[item.id]; // 'si' | 'no' | 'na' | null
+    const entry = checklist[item.id];
+    // Soporta formato nuevo { valor, obs } y formato anterior (string)
+    const val = (entry && typeof entry === 'object') ? entry.valor : entry;
+    const obs = (entry && typeof entry === 'object') ? (entry.obs ?? '') : '';
     const display = val === 'si' ? '✓ SÍ' : val === 'no' ? '✗ NO' : val === 'na' ? 'N/A' : '—';
     const argb = val === 'si' ? C.green : val === 'no' ? C.red : val === 'na' ? 'FFF59E0B' : C.muted;
     const bgArgb = i % 2 === 0 ? C.lightGray : C.white;
@@ -165,6 +168,18 @@ export async function generarExcel(protocolo, fotos = []) {
 
     row.height = 20;
     r++;
+
+    if (obs) {
+      ws.mergeCells(`A${r}:B${r}`);
+      const obsCell = ws.getRow(r).getCell(1);
+      obsCell.value = `  ↳ ${obs}`;
+      obsCell.font = { size: 10, italic: true, color: { argb: C.muted } };
+      obsCell.fill = fill(bgArgb);
+      obsCell.border = border();
+      obsCell.alignment = { vertical: 'middle', wrapText: true };
+      ws.getRow(r).height = Math.max(16, Math.ceil(obs.length / 80) * 14);
+      r++;
+    }
   });
 
   // ── Separador ────────────────────────────────────────────────────────────────
