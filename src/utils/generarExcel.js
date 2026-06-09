@@ -1,23 +1,5 @@
 import ExcelJS from 'exceljs';
-
-// Items actuales del checklist — se actualizarán cuando lleguen los checklists reales
-const ITEMS_CHECKLIST = [
-  'Item de verificación 1',
-  'Item de verificación 2',
-  'Item de verificación 3',
-  'Item de verificación 4',
-  'Item de verificación 5',
-];
-
-const NOMBRES_PROTOCOLO = {
-  PICE1:       'PICE1 Excavación',
-  PICE2_RADIER: 'PICE2 Radier',
-  PICE2_MURO:  'PICE2 Muro',
-  PICE3:       'PICE3 Moldaje',
-  PICE4:       'PICE4 Enfierradura',
-  G5:          'G5 Emplantillado',
-  CONTROL_HA:  'Control H.A.',
-};
+import { PROTOCOLOS, CHECKLISTS } from '../constants/estructura';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -95,8 +77,12 @@ export async function generarExcel(protocolo, fotos = []) {
     ? `Tramo ${protocolo.entidadId}`
     : `Caída ${protocolo.entidadId}`;
 
-  const nombreProtocolo = NOMBRES_PROTOCOLO[protocolo.protocoloId] ?? protocolo.protocoloId;
-  const checklist = protocolo.datos?.checklist ?? [];
+  const protocoloMeta = PROTOCOLOS.find(p => p.id === protocolo.protocoloId);
+  const nombreProtocolo = protocoloMeta
+    ? `${protocoloMeta.codigo} ${protocoloMeta.nombre}`
+    : protocolo.protocoloId;
+  const itemsChecklist = CHECKLISTS[protocolo.protocoloId] ?? [];
+  const checklist = protocolo.datos?.checklist ?? {};
   const observaciones = protocolo.datos?.observaciones ?? '';
 
   let r = 1; // fila actual (1-indexed)
@@ -156,13 +142,13 @@ export async function generarExcel(protocolo, fotos = []) {
   }
 
   // ── Checklist: items ─────────────────────────────────────────────────────────
-  ITEMS_CHECKLIST.forEach((item, i) => {
-    const checked = checklist[i] === true;
+  itemsChecklist.forEach((item, i) => {
+    const checked = checklist[item.id] === true;
     const bgArgb = i % 2 === 0 ? C.lightGray : C.white;
     const row = ws.getRow(r);
 
     const cA = row.getCell(1);
-    cA.value = item;
+    cA.value = item.label;
     cA.fill = fill(bgArgb);
     cA.border = border();
     cA.alignment = { vertical: 'middle' };

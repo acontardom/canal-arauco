@@ -1,9 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
-import { TRAMOS, PROTOCOLOS_TRAMO } from '../constants/estructura';
+import { TRAMOS, PROTOCOLOS } from '../constants/estructura';
 
-const TOTAL = PROTOCOLOS_TRAMO.length;
+const TOTAL = PROTOCOLOS.length;
 
 function colorProgreso(completados) {
   if (completados === 0) return '#ef4444';

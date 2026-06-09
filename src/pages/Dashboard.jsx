@@ -1,10 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
-import { TRAMOS, CAIDAS, PROTOCOLOS_TRAMO } from '../constants/estructura';
+import { TRAMOS, CAIDAS, PROTOCOLOS } from '../constants/estructura';
 
 const NOMBRE_PROTOCOLO = Object.fromEntries(
-  PROTOCOLOS_TRAMO.map(p => [p.id, p.nombre])
+  PROTOCOLOS.map(p => [p.id, p.nombre])
 );
 
 function formatFecha(iso) {

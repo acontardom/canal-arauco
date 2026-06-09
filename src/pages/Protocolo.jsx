@@ -3,22 +3,10 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
-import { PROTOCOLOS_TRAMO, PROTOCOLOS_CAIDA } from '../constants/estructura';
+import { PROTOCOLOS, CHECKLISTS } from '../constants/estructura';
 import { generarExcel } from '../utils/generarExcel';
 import { sincronizar } from '../utils/sync';
 import { supabase } from '../config/supabase';
-
-const PROTOCOLOS_POR_TIPO = { tramo: PROTOCOLOS_TRAMO, caida: PROTOCOLOS_CAIDA };
-
-const ITEMS_PLACEHOLDER = [
-  'Item de verificación 1',
-  'Item de verificación 2',
-  'Item de verificación 3',
-  'Item de verificación 4',
-  'Item de verificación 5',
-];
-
-const CHECKLIST_VACIO = ITEMS_PLACEHOLDER.map(() => false);
 
 function leerComoDataUrl(file) {
   return new Promise((resolve) => {
@@ -87,13 +75,15 @@ export default function Protocolo() {
   const { usuario } = useUser();
 
   const entidadIdReal = tipo === 'caida' ? Number(entidadId) : entidadId;
-  const protocoloInfo = PROTOCOLOS_POR_TIPO[tipo]?.find(p => p.id === protocoloId);
+  const protocoloInfo = PROTOCOLOS.find(p => p.id === protocoloId);
+  const itemsChecklist = CHECKLISTS[protocoloId] ?? [];
+  const emptyChecklist = Object.fromEntries(itemsChecklist.map(i => [i.id, false]));
   const nombreEntidad = tipo === 'tramo' ? `Tramo ${entidadId}` : `Caída ${entidadId}`;
   const titulo = `${nombreEntidad} — ${protocoloInfo?.nombre ?? protocoloId}`;
   const volverUrl = tipo === 'tramo' ? `/tramos/${entidadId}` : `/caidas/${entidadId}`;
 
   // Form state
-  const [checklist, setChecklist] = useState(CHECKLIST_VACIO);
+  const [checklist, setChecklist] = useState(emptyChecklist);
   const [observaciones, setObservaciones] = useState('');
   const [estado, setEstado] = useState('pendiente');
   const [guardando, setGuardando] = useState(false);
@@ -136,7 +126,7 @@ export default function Protocolo() {
     if (!cargando && !cargadoRef.current) {
       cargadoRef.current = true;
       if (protocolo) {
-        setChecklist(protocolo.datos?.checklist ?? CHECKLIST_VACIO);
+        setChecklist(protocolo.datos?.checklist ?? emptyChecklist);
         setObservaciones(protocolo.datos?.observaciones ?? '');
         setEstado(protocolo.estado);
       }
@@ -151,12 +141,8 @@ export default function Protocolo() {
     toastTimerRef.current = setTimeout(() => setToast(null), 3000);
   }
 
-  function toggleCheck(i) {
-    setChecklist(prev => {
-      const nuevo = [...prev];
-      nuevo[i] = !nuevo[i];
-      return nuevo;
-    });
+  function toggleCheck(itemId) {
+    setChecklist(prev => ({ ...prev, [itemId]: !prev[itemId] }));
   }
 
   // Garantiza que el protocolo exista en Dexie y retorna su id
@@ -260,7 +246,7 @@ export default function Protocolo() {
     return <div style={s.cargando}>Cargando...</div>;
   }
 
-  const completados = checklist.filter(Boolean).length;
+  const completados = itemsChecklist.filter(item => checklist[item.id]).length;
 
   return (
     <div style={s.page}>
@@ -276,19 +262,19 @@ export default function Protocolo() {
       </div>
 
       {/* Checklist */}
-      <Seccion titulo={`Lista de verificación (${completados}/${ITEMS_PLACEHOLDER.length})`}>
+      <Seccion titulo={`Lista de verificación (${completados}/${itemsChecklist.length})`}>
         <div style={s.checklist}>
-          {ITEMS_PLACEHOLDER.map((item, i) => (
-            <label key={i} style={s.checkItem} onClick={() => toggleCheck(i)}>
+          {itemsChecklist.map(item => (
+            <label key={item.id} style={s.checkItem} onClick={() => toggleCheck(item.id)}>
               <div style={{
                 ...s.checkBox,
-                background: checklist[i] ? '#10b981' : 'transparent',
-                borderColor: checklist[i] ? '#10b981' : '#0f3460',
+                background: checklist[item.id] ? '#10b981' : 'transparent',
+                borderColor: checklist[item.id] ? '#10b981' : '#0f3460',
               }}>
-                {checklist[i] && <span style={s.checkMark}>✓</span>}
+                {checklist[item.id] && <span style={s.checkMark}>✓</span>}
               </div>
-              <span style={{ color: checklist[i] ? '#10b981' : '#ccd6f6', fontSize: '14px' }}>
-                {item}
+              <span style={{ color: checklist[item.id] ? '#10b981' : '#ccd6f6', fontSize: '14px' }}>
+                {item.label}
               </span>
             </label>
           ))}

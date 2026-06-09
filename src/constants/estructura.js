@@ -7,25 +7,77 @@ export const TRAMOS = [
 
 export const CAIDAS = Array.from({ length: 29 }, (_, i) => i + 1);
 
-export const PROTOCOLOS_TRAMO = [
-  { id: 'PICE1', nombre: 'PICE1 Excavación' },
-  { id: 'PICE2_RADIER', nombre: 'PICE2 Radier' },
-  { id: 'PICE2_MURO', nombre: 'PICE2 Muro' },
-  { id: 'PICE3', nombre: 'PICE3 Moldaje' },
-  { id: 'PICE4', nombre: 'PICE4 Enfierradura' },
-  { id: 'G5', nombre: 'G5 Emplantillado' },
-  { id: 'CONTROL_HA', nombre: 'Control H.A.' },
+export const PROTOCOLOS = [
+  { id: 'PICE1',       codigo: 'PICE-01', nombre: 'Excavación',           subtipo: null },
+  { id: 'PICE2_RADIER', codigo: 'PICE-02', nombre: 'Hormigones Radier',   subtipo: 'radier' },
+  { id: 'PICE2_MURO',  codigo: 'PICE-02', nombre: 'Hormigones Muro',      subtipo: 'muro' },
+  { id: 'PICE3',       codigo: 'PICE-03', nombre: 'Moldajes',              subtipo: null },
+  { id: 'PICE4_RADIER', codigo: 'PICE-04', nombre: 'Enfierradura Radier', subtipo: 'radier' },
+  { id: 'PICE4_MURO',  codigo: 'PICE-04', nombre: 'Enfierradura Muro',    subtipo: 'muro' },
+  { id: 'G5',          codigo: 'G5',      nombre: 'Emplantillado',         subtipo: null },
 ];
 
-export const PROTOCOLOS_CAIDA = [
-  { id: 'PICE1', nombre: 'PICE1 Excavación' },
-  { id: 'PICE2_RADIER', nombre: 'PICE2 Radier' },
-  { id: 'PICE2_MURO', nombre: 'PICE2 Muro' },
-  { id: 'PICE3', nombre: 'PICE3 Moldaje' },
-  { id: 'PICE4', nombre: 'PICE4 Enfierradura' },
-  { id: 'G5', nombre: 'G5 Emplantillado' },
-  { id: 'CONTROL_HA', nombre: 'Control H.A.' },
-];
+export const CHECKLISTS = {
+  PICE1: [
+    { id: 'pr_verificados',        label: 'PR verificados' },
+    { id: 'replanteo_conforme',    label: 'Replanteo conforme a planos' },
+    { id: 'cotas_excavacion',      label: 'Cotas de excavación' },
+    { id: 'espesor_capas_relleno', label: 'Espesor de capas de relleno conforme' },
+    { id: 'ancho_excavacion',      label: 'Ancho excavación' },
+    { id: 'registro_fotografico',  label: 'Registro fotográfico' },
+    { id: 'compactacion',          label: 'Compactación' },
+    { id: 'aprobacion_hormigonado', label: 'Aprobación para hormigonado' },
+  ],
+  PICE2_RADIER: [
+    { id: 'tratamiento_junta',     label: 'Tratamientos de junta' },
+    { id: 'limpieza_seccion',      label: 'Limpieza de la sección a hormigonar' },
+    { id: 'herramientas_adecuadas', label: 'Herramientas adecuadas' },
+    { id: 'cono_conforme',         label: 'Cono conforme' },
+    { id: 'vibrado_adecuado',      label: 'Vibrado adecuado' },
+    { id: 'platachado_afinado',    label: 'Platachado / Afinado' },
+    { id: 'curado',                label: 'Curado' },
+  ],
+  PICE2_MURO: [
+    { id: 'tratamiento_junta',     label: 'Tratamientos de junta' },
+    { id: 'limpieza_seccion',      label: 'Limpieza de la sección a hormigonar' },
+    { id: 'herramientas_adecuadas', label: 'Herramientas adecuadas' },
+    { id: 'cono_conforme',         label: 'Cono conforme' },
+    { id: 'vibrado_adecuado',      label: 'Vibrado adecuado' },
+    { id: 'platachado_afinado',    label: 'Platachado / Afinado' },
+    { id: 'curado',                label: 'Curado' },
+  ],
+  PICE3: [
+    { id: 'desmoldante',           label: 'Desmoldante' },
+    { id: 'fijacion_moldajes',     label: 'Fijación moldajes' },
+    { id: 'fijacion_puntales',     label: 'Fijación puntales' },
+    { id: 'herramientas_adecuadas', label: 'Herramientas adecuadas' },
+    { id: 'estanquidad',           label: 'Estanquidad' },
+    { id: 'limpieza',              label: 'Limpieza' },
+    { id: 'junta_dilatacion',      label: 'Junta de dilatación' },
+    { id: 'junta_contraccion',     label: 'Junta de contracción' },
+    { id: 'water_stop',            label: 'Wáter stop' },
+    { id: 'aprobacion_hormigonado', label: 'Aprobación para hormigonado' },
+  ],
+  PICE4_RADIER: [
+    { id: 'diametros_conforme',    label: 'Diámetros conforme' },
+    { id: 'separacion_conforme',   label: 'Separación conforme' },
+    { id: 'recubrimiento_conforme', label: 'Recubrimiento conforme' },
+    { id: 'armadura_fija',         label: 'Armadura fija' },
+    { id: 'traslapes',             label: 'Traslapes' },
+    { id: 'limpieza',              label: 'Limpieza' },
+    { id: 'aprobacion',            label: 'Aprobación' },
+  ],
+  PICE4_MURO: [
+    { id: 'diametros_conforme',    label: 'Diámetros conforme' },
+    { id: 'separacion_conforme',   label: 'Separación conforme' },
+    { id: 'recubrimiento_conforme', label: 'Recubrimiento conforme' },
+    { id: 'armadura_fija',         label: 'Armadura fija' },
+    { id: 'traslapes',             label: 'Traslapes' },
+    { id: 'limpieza',              label: 'Limpieza' },
+    { id: 'aprobacion',            label: 'Aprobación' },
+  ],
+  G5: [],
+};
 
 export const USUARIOS = [
   'Álvaro Muñoz',

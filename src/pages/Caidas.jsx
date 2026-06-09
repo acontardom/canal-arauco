@@ -1,9 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
-import { CAIDAS, PROTOCOLOS_CAIDA } from '../constants/estructura';
+import { CAIDAS, PROTOCOLOS } from '../constants/estructura';
 
-const TOTAL = PROTOCOLOS_CAIDA.length;
+const TOTAL = PROTOCOLOS.length;
 
 function colorProgreso(completados) {
   if (completados === 0) return '#ef4444';

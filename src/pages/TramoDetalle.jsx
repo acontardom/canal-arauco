@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
-import { PROTOCOLOS_TRAMO } from '../constants/estructura';
+import { PROTOCOLOS } from '../constants/estructura';
 
 const ESTADO = {
   completado: { icono: '●', color: '#10b981', label: 'Completado' },
@@ -19,8 +19,8 @@ export default function TramoDetalle() {
   ) ?? [];
 
   const estadoPor = Object.fromEntries(protocolos.map(p => [p.protocoloId, p.estado]));
-  const completados = PROTOCOLOS_TRAMO.filter(p => estadoPor[p.id] === 'completado').length;
-  const color = completados === 0 ? '#ef4444' : completados === PROTOCOLOS_TRAMO.length ? '#10b981' : '#f59e0b';
+  const completados = PROTOCOLOS.filter(p => estadoPor[p.id] === 'completado').length;
+  const color = completados === 0 ? '#ef4444' : completados === PROTOCOLOS.length ? '#10b981' : '#f59e0b';
 
   return (
     <div style={s.page}>
@@ -29,20 +29,20 @@ export default function TramoDetalle() {
       <div style={s.header}>
         <h1 style={s.titulo}>Tramo {tramoId}</h1>
         <span style={{ ...s.badge, color, borderColor: color }}>
-          {completados}/{PROTOCOLOS_TRAMO.length} completados
+          {completados}/{PROTOCOLOS.length} completados
         </span>
       </div>
 
       <div style={s.barraFondo}>
         <div style={{
           ...s.barraRelleno,
-          width: `${(completados / PROTOCOLOS_TRAMO.length) * 100}%`,
+          width: `${(completados / PROTOCOLOS.length) * 100}%`,
           background: color,
         }} />
       </div>
 
       <div style={s.lista}>
-        {PROTOCOLOS_TRAMO.map(protocolo => {
+        {PROTOCOLOS.map(protocolo => {
           const estado = estadoPor[protocolo.id] ?? 'pendiente';
           const { icono, color: c, label } = ESTADO[estado];
 
