@@ -4,7 +4,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
 import { PROTOCOLOS, CHECKLISTS } from '../constants/estructura';
-import { generarExcel } from '../utils/generarExcel';
+import { generarPDF } from '../utils/generarPDF';
+import { useKm } from '../hooks/useKm';
 import { sincronizar } from '../utils/sync';
 import { supabase } from '../config/supabase';
 
@@ -243,6 +244,7 @@ export default function Protocolo() {
   const { tipo, entidadId, protocoloId } = useParams();
   const navigate = useNavigate();
   const { usuario } = useUser();
+  const { kmInicio, kmFin } = useKm(tipo, entidadId);
 
   const entidadIdReal = tipo === 'caida' ? Number(entidadId) : entidadId;
   const protocoloInfo = PROTOCOLOS.find(p => p.id === protocoloId);
@@ -588,13 +590,16 @@ export default function Protocolo() {
             style={{ ...s.btnAccion, ...s.btnExcel, opacity: descargando ? 0.6 : 1 }}
             onClick={async () => {
               setDescargando(true);
-              try { await generarExcel(protocolo, fotos); }
-              catch { mostrarToast('Error al generar Excel', 'error'); }
+              try { await generarPDF(protocolo, fotos, kmInicio, kmFin); }
+              catch (err) {
+                console.error('Error PDF:', err);
+                mostrarToast('Error al generar PDF', 'error');
+              }
               finally { setDescargando(false); }
             }}
             disabled={descargando}
           >
-            {descargando ? 'Generando...' : '⬇ Descargar Excel'}
+            {descargando ? 'Generando...' : '⬇ Descargar PDF'}
           </button>
         </div>
       )}
