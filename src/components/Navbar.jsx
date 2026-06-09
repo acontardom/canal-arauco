@@ -1,6 +1,8 @@
 import { NavLink } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 
+const isDesktop = window.innerWidth >= 768;
+
 export default function Navbar() {
   const { usuario, cerrarSesion } = useUser();
 
@@ -12,6 +14,11 @@ export default function Navbar() {
         <NavLink to="/" end style={navStyle}>Dashboard</NavLink>
         <NavLink to="/tramos" style={navStyle}>Tramos</NavLink>
         <NavLink to="/caidas" style={navStyle}>Caídas</NavLink>
+        {isDesktop && (
+          <NavLink to="/configuracion" style={navStyle} title="Configuración KM">
+            ⚙ Config
+          </NavLink>
+        )}
       </div>
 
       <div style={styles.usuario}>

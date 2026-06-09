@@ -8,6 +8,7 @@ import TramoDetalle from './pages/TramoDetalle';
 import Caidas from './pages/Caidas';
 import CaidaDetalle from './pages/CaidaDetalle';
 import Protocolo from './pages/Protocolo';
+import Configuracion from './pages/Configuracion';
 import { descargarDesdeSupabase, iniciarSyncAutomatico } from './utils/sync';
 import { supabase } from './config/supabase';
 
@@ -79,6 +80,7 @@ export default function App() {
             <Route path="/caidas" element={<Caidas />} />
             <Route path="/caidas/:caidaId" element={<CaidaDetalle />} />
             <Route path="/protocolo/:tipo/:entidadId/:protocoloId" element={<Protocolo />} />
+            <Route path="/configuracion" element={<Configuracion />} />
           </Routes>
         </Layout>
       </UserProvider>
