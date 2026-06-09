@@ -82,6 +82,95 @@ async function sincronizarFotos() {
   }
 }
 
+// ─── Descarga desde Supabase → Dexie ─────────────────────────────────────────
+
+export async function descargarDesdeSupabase() {
+  if (!supabase || !navigator.onLine) return;
+
+  try {
+    // ── Protocolos ────────────────────────────────────────────────────────────
+    const { data: remotos, error: errProt } = await supabase
+      .from('protocolos')
+      .select('*');
+
+    if (errProt) throw errProt;
+
+    for (const remoto of remotos ?? []) {
+      // Buscar en Dexie por local_id (clave primaria original) o por supabaseId
+      let local = remoto.local_id ? await db.protocolos.get(remoto.local_id) : null;
+
+      if (!local && remoto.id) {
+        local = await db.protocolos.where('supabaseId').equals(remoto.id).first();
+      }
+
+      const dexieData = {
+        tipo:              remoto.tipo,
+        entidad:           remoto.entidad ?? remoto.tipo,
+        // Las caídas se almacenan como Number en Dexie; los tramos como string
+        entidadId:         remoto.tipo === 'caida'
+                             ? Number(remoto.entidad_id)
+                             : remoto.entidad_id,
+        protocoloId:       remoto.protocolo_id,
+        estado:            remoto.estado,
+        usuarioNombre:     remoto.usuario_nombre ?? null,
+        fechaCreacion:     remoto.fecha_creacion ?? null,
+        fechaModificacion: remoto.fecha_modificacion ?? null,
+        datos:             remoto.datos ?? {},
+        supabaseId:        remoto.id,
+        sincronizada:      true,
+      };
+
+      if (!local) {
+        // Insertar preservando el local_id original como clave primaria de Dexie
+        if (remoto.local_id) {
+          await db.protocolos.put({ id: remoto.local_id, ...dexieData });
+        } else {
+          await db.protocolos.add(dexieData);
+        }
+      } else {
+        // Actualizar solo si el remoto es más reciente (comparación lexicográfica de ISO)
+        const fechaRemota = remoto.fecha_modificacion ?? '';
+        const fechaLocal  = local.fechaModificacion ?? '';
+        if (fechaRemota > fechaLocal) {
+          await db.protocolos.update(local.id, dexieData);
+        }
+      }
+    }
+
+    // ── Fotos ─────────────────────────────────────────────────────────────────
+    const { data: fotosRemoto, error: errFotos } = await supabase
+      .from('fotos')
+      .select('*');
+
+    if (errFotos) throw errFotos;
+
+    for (const remoto of fotosRemoto ?? []) {
+      // Verificar existencia por local_id
+      const local = remoto.local_id ? await db.fotos.get(remoto.local_id) : null;
+
+      if (!local) {
+        const fotoData = {
+          protocoloLocalId: remoto.protocolo_local_id,
+          nombre:           remoto.nombre ?? null,
+          tipo:             remoto.tipo_mime ?? null,
+          dataUrl:          remoto.data_url,
+          descripcion:      remoto.descripcion ?? null,
+          sincronizada:     true,
+        };
+
+        if (remoto.local_id) {
+          await db.fotos.put({ id: remoto.local_id, ...fotoData });
+        } else {
+          await db.fotos.add(fotoData);
+        }
+      }
+      // Si ya existe → no se modifica (las fotos no se editan)
+    }
+  } catch (err) {
+    console.warn('[Sync] Error al descargar desde Supabase:', err?.message ?? err);
+  }
+}
+
 // ─── API pública ──────────────────────────────────────────────────────────────
 
 export async function sincronizar() {
