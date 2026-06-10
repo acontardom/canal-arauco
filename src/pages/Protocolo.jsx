@@ -18,6 +18,18 @@ const TIPOS_HORMIGON = ['G5', 'G20', 'G25'];
 const PLANTAS = ['Membrillar', 'Quilanco', 'Río San Martín'];
 const NOMBRES_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 const VOLVER_BASE = { tramo: '/tramos', caida: '/caidas', atravieso: '/atraviesos' };
+const ETIQUETAS_FOTO = ['Excavación', 'Moldaje', 'Enfierradura', 'Hormigón', 'Emplantillado', 'General'];
+const ETIQUETA_PROTOCOLO = {
+  PICE1: 'Excavación',
+  PICE2_RADIER: 'Hormigón',
+  PICE2_MURO: 'Hormigón',
+  PICE3: 'Moldaje',
+  PICE4_RADIER: 'Enfierradura',
+  PICE4_MURO: 'Enfierradura',
+  G5: 'Emplantillado',
+  HA_RADIER: 'Hormigón',
+  HA_MURO: 'Hormigón',
+};
 
 function leerComoDataUrl(file) {
   return new Promise((resolve) => {
@@ -336,6 +348,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [descargando, setDescargando] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
   const [toast, setToast] = useState(null);
+  const [filtroEtiqueta, setFiltroEtiqueta] = useState(ETIQUETA_PROTOCOLO[protocoloId] ?? 'Todas');
+  const [fotosNubeSeleccionadas, setFotosNubeSeleccionadas] = useState([]);
 
   const cargadoRef = useRef(false);
   const toastTimerRef = useRef(null);
@@ -362,6 +376,11 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     [protocolo?.id]
   ) ?? [];
 
+  const fotosTerreno = useLiveQuery(
+    () => db.fotos_terreno.where('tipo').equals(tipo).and(f => f.entidadId === entidadIdReal).toArray(),
+    [tipo, entidadIdReal]
+  ) ?? [];
+
   useEffect(() => {
     if (!cargando && !cargadoRef.current) {
       cargadoRef.current = true;
@@ -369,6 +388,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         setChecklist(normalizeChecklist(protocolo.datos?.checklist, itemsChecklist));
         setObservaciones(protocolo.datos?.observaciones ?? '');
         setCamiones(protocolo.datos?.camiones ?? []);
+        setFotosNubeSeleccionadas(protocolo.datos?.fotosNubeSeleccionadas ?? []);
         setEstado(protocolo.estado);
       }
     }
@@ -413,7 +433,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       const now = new Date().toISOString();
       const datos = esHA
         ? { camiones }
-        : { checklist, observaciones, camiones: [] };
+        : { checklist, observaciones, camiones: [], fotosNubeSeleccionadas };
 
       if (protocolo) {
         await db.protocolos.update(protocolo.id, {
@@ -477,6 +497,22 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     await db.fotos.delete(fotoId);
   }
 
+  function toggleFotoNube(fotoTerrenoId) {
+    setFotosNubeSeleccionadas(prev =>
+      prev.some(f => f.id === fotoTerrenoId)
+        ? prev.filter(f => f.id !== fotoTerrenoId)
+        : [...prev, { id: fotoTerrenoId, descripcion: '' }]
+    );
+  }
+
+  function quitarFotoNube(fotoTerrenoId) {
+    setFotosNubeSeleccionadas(prev => prev.filter(f => f.id !== fotoTerrenoId));
+  }
+
+  function setDescFotoNube(fotoTerrenoId, descripcion) {
+    setFotosNubeSeleccionadas(prev => prev.map(f => f.id === fotoTerrenoId ? { ...f, descripcion } : f));
+  }
+
   function abrirNuevoCamion() {
     setCamionModal({
       idx: -1,
@@ -515,6 +551,22 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const respondidos = esHA
     ? 0
     : itemsChecklist.filter(item => checklist[item.id]?.valor !== null).length;
+
+  const fotosTerrenoFiltradas = filtroEtiqueta === 'Todas'
+    ? fotosTerreno
+    : fotosTerreno.filter(f => f.etiquetas?.includes(filtroEtiqueta));
+
+  const fotosNubeData = fotosNubeSeleccionadas
+    .map(sel => {
+      const foto = fotosTerreno.find(f => f.id === sel.id);
+      return foto ? { id: `nube-${foto.id}`, fotoTerrenoId: foto.id, dataUrl: foto.dataUrl, descripcion: sel.descripcion ?? '', origen: 'nube' } : null;
+    })
+    .filter(Boolean);
+
+  const fotosCombinadas = [
+    ...fotos.map(f => ({ id: `nueva-${f.id}`, fotoId: f.id, dataUrl: f.dataUrl, descripcion: f.descripcion ?? '', origen: 'nueva' })),
+    ...fotosNubeData,
+  ];
 
   return (
     <div style={s.page}>
@@ -618,34 +670,85 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             />
           </Seccion>
 
-          {/* Fotos */}
-          <Seccion titulo={`Fotos${fotos.length > 0 ? ` (${fotos.length})` : ''}`}>
+          {/* Fotos del Protocolo */}
+          <Seccion titulo="Fotos del Protocolo">
+            {/* Subsección 1: seleccionar desde nube */}
+            <p style={s.subSeccionTitulo}>Seleccionar desde nube 📷</p>
+            <div style={s.chipsRow}>
+              {['Todas', ...ETIQUETAS_FOTO].map(et => (
+                <button
+                  key={et}
+                  style={{ ...s.chip, ...(filtroEtiqueta === et ? s.chipActivo : {}) }}
+                  onClick={() => setFiltroEtiqueta(et)}
+                >
+                  {et}
+                </button>
+              ))}
+            </div>
+            {fotosTerrenoFiltradas.length > 0 ? (
+              <div style={s.fotosGrid}>
+                {fotosTerrenoFiltradas.map(foto => {
+                  const seleccionada = fotosNubeSeleccionadas.some(f => f.id === foto.id);
+                  return (
+                    <div
+                      key={foto.id}
+                      style={{ ...s.fotoThumb, ...(seleccionada ? s.fotoThumbSeleccionada : {}), cursor: 'pointer' }}
+                      onClick={() => toggleFotoNube(foto.id)}
+                    >
+                      <img src={foto.dataUrl} alt="" style={s.fotoImg} />
+                      <div style={s.checkOverlay}>
+                        <input type="checkbox" checked={seleccionada} readOnly style={s.checkboxNube} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p style={s.sinFotos}>Sin fotos en la nube para esta entidad</p>
+            )}
+            <div style={s.badgeSeleccion}>
+              {fotosNubeSeleccionadas.length} {fotosNubeSeleccionadas.length === 1 ? 'foto seleccionada' : 'fotos seleccionadas'}
+            </div>
+
+            {/* Subsección 2: agregar nueva foto */}
+            <p style={s.subSeccionTitulo}>Agregar nueva foto 📸</p>
             <input ref={inputCamaraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFotoSeleccionada} />
             <input ref={inputGaleriaRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleFotoSeleccionada} />
             <div style={s.fotosBotones}>
               <button style={s.btnFoto} onClick={() => inputCamaraRef.current?.click()}>📷 Sacar foto</button>
               <button style={{ ...s.btnFoto, background: '#0f3460' }} onClick={() => inputGaleriaRef.current?.click()}>🖼 Adjuntar foto</button>
             </div>
-            {fotos.length > 0 ? (
+
+            {/* Fotos seleccionadas (combinadas) */}
+            <p style={s.subSeccionTitulo}>Fotos seleccionadas{fotosCombinadas.length > 0 ? ` (${fotosCombinadas.length})` : ''}</p>
+            {fotosCombinadas.length > 0 ? (
               <div style={s.fotosGrid}>
-                {fotos.map(foto => (
+                {fotosCombinadas.map(foto => (
                   <div key={foto.id} style={s.fotoCard}>
                     <div style={s.fotoThumb}>
-                      <img src={foto.dataUrl} alt={foto.nombre} style={s.fotoImg} />
-                      <button style={s.btnEliminarFoto} onClick={() => eliminarFoto(foto.id)} title="Eliminar">×</button>
+                      <img src={foto.dataUrl} alt="" style={s.fotoImg} />
+                      <button
+                        style={s.btnEliminarFoto}
+                        onClick={() => foto.origen === 'nueva' ? eliminarFoto(foto.fotoId) : quitarFotoNube(foto.fotoTerrenoId)}
+                        title="Quitar de la selección"
+                      >
+                        ×
+                      </button>
                     </div>
                     <input
                       type="text"
-                      defaultValue={foto.descripcion ?? ''}
+                      defaultValue={foto.descripcion}
                       placeholder="Descripción..."
                       style={s.fotoDescInput}
-                      onBlur={e => db.fotos.update(foto.id, { descripcion: e.target.value })}
+                      onBlur={e => foto.origen === 'nueva'
+                        ? db.fotos.update(foto.fotoId, { descripcion: e.target.value })
+                        : setDescFotoNube(foto.fotoTerrenoId, e.target.value)}
                     />
                   </div>
                 ))}
               </div>
             ) : (
-              <p style={s.sinFotos}>Sin fotos adjuntas</p>
+              <p style={s.sinFotos}>Sin fotos seleccionadas</p>
             )}
           </Seccion>
         </>
@@ -678,7 +781,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             style={{ ...s.btnAccion, ...s.btnExcel, opacity: descargando ? 0.6 : 1 }}
             onClick={async () => {
               setDescargando(true);
-              try { await generarPDF(protocolo, fotos, kmInicio, kmFin); }
+              try { await generarPDF(protocolo, esHA ? fotos : fotosCombinadas, kmInicio, kmFin); }
               catch (err) {
                 console.error('Error PDF:', err);
                 mostrarToast('Error al generar PDF', 'error');
@@ -764,13 +867,22 @@ const s = {
   textarea: { width: '100%', background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '8px', color: '#ccd6f6', fontSize: '14px', padding: '12px', resize: 'vertical', fontFamily: 'inherit', lineHeight: '1.5', outline: 'none' },
   fotosBotones: { display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' },
   btnFoto: { background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 16px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', flex: '1 1 140px' },
-  fotosGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' },
+  fotosGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '12px' },
   fotoCard: { display: 'flex', flexDirection: 'column', gap: '6px' },
   fotoThumb: { position: 'relative', aspectRatio: '1', borderRadius: '8px', overflow: 'hidden' },
+  fotoThumbSeleccionada: { outline: '3px solid #64ffda', outlineOffset: '-3px' },
   fotoImg: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
   btnEliminarFoto: { position: 'absolute', top: '4px', right: '4px', background: 'rgba(0,0,0,0.7)', color: '#fff', border: 'none', borderRadius: '50%', width: '22px', height: '22px', fontSize: '16px', lineHeight: '20px', cursor: 'pointer', padding: 0, textAlign: 'center' },
   fotoDescInput: { width: '100%', background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '6px', color: '#ccd6f6', fontSize: '11px', padding: '5px 7px', fontFamily: 'inherit', outline: 'none', lineHeight: '1.4' },
   sinFotos: { color: '#8892b0', fontSize: '13px', fontStyle: 'italic', textAlign: 'center', margin: '8px 0 0' },
+
+  subSeccionTitulo: { color: '#64ffda', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', margin: '18px 0 10px' },
+  chipsRow: { display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' },
+  chip: { background: '#0f3460', color: '#8892b0', border: '1px solid #1e3a5f', borderRadius: '14px', padding: '5px 12px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
+  chipActivo: { background: '#64ffda', color: '#0a1f3a', borderColor: '#64ffda' },
+  checkOverlay: { position: 'absolute', top: '6px', left: '6px', background: 'rgba(0,0,0,0.6)', borderRadius: '4px', padding: '2px', display: 'flex' },
+  checkboxNube: { width: '18px', height: '18px', cursor: 'pointer' },
+  badgeSeleccion: { background: '#0a2040', border: '1px solid #64ffda', borderRadius: '8px', padding: '8px 14px', color: '#ccd6f6', fontSize: '13px', fontWeight: 600, marginBottom: '4px', textAlign: 'center' },
 
   accionesCabecera: { display: 'flex', justifyContent: 'flex-end', marginBottom: '6px', minHeight: '20px' },
   syncLabel: { color: '#8892b0', fontSize: '12px' },
