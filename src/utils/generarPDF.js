@@ -181,6 +181,39 @@ function fmtArchivo(iso) {
   return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
 }
 
+function detectFormat(dataUrl) {
+  const m = /^data:image\/(\w+);/.exec(dataUrl ?? '');
+  const ext = m?.[1]?.toLowerCase();
+  if (ext === 'png') return 'PNG';
+  if (ext === 'webp') return 'WEBP';
+  return 'JPEG';
+}
+
+function blobToDataUrl(blob) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Resuelve la imagen de una foto a embeber: si tiene storage_url se descarga
+// desde la URL pública, si no se usa el dataUrl directamente.
+async function obtenerImagenBase64(foto) {
+  if (foto.storageUrl) {
+    try {
+      const resp = await fetch(foto.storageUrl);
+      const blob = await resp.blob();
+      const dataUrl = await blobToDataUrl(blob);
+      return { dataUrl, formato: detectFormat(dataUrl) };
+    } catch (err) {
+      console.warn('[PDF] Error al descargar foto desde storage:', err?.message ?? err);
+    }
+  }
+  if (foto.dataUrl) return { dataUrl: foto.dataUrl, formato: detectFormat(foto.dataUrl) };
+  return null;
+}
+
 // ─── Encabezado ───────────────────────────────────────────────────────────────
 
 async function agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio, kmFin) {
@@ -431,6 +464,56 @@ function agregarPieFirma(doc, yPos) {
   });
 }
 
+// ─── Páginas de registro fotográfico ──────────────────────────────────────────
+
+const FOTOS_POR_PAGINA = 4;
+
+async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, totalPaginas, kmInicio, kmFin) {
+  let y = await agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio, kmFin);
+  const km = resolveKm(protocolo, kmInicio, kmFin);
+
+  doc.setFont(undefined, 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(30, 30, 30);
+  doc.text(`REGISTRO FOTOGRÁFICO — KM ${km.inicio || '—'} hasta KM ${km.fin || '—'}`, PW / 2, y + 4, { align: 'center' });
+  y += 10;
+
+  const COLS = 2;
+  const GAP = 4;
+  const imgW = (CW - GAP) / COLS;
+  const imgH = 65;
+  const descH = 10;
+  const cellH = imgH + descH + GAP;
+
+  for (let i = 0; i < fotosBatch.length; i++) {
+    const foto = fotosBatch[i];
+    const col = i % COLS;
+    const row = Math.floor(i / COLS);
+    const x = ML + col * (imgW + GAP);
+    const cellY = y + row * cellH;
+
+    doc.setDrawColor(120, 120, 120);
+    doc.setLineWidth(0.2);
+    doc.rect(x, cellY, imgW, imgH);
+
+    const img = await obtenerImagenBase64(foto);
+    if (img) {
+      try { doc.addImage(img.dataUrl, img.formato, x + 1, cellY + 1, imgW - 2, imgH - 2); }
+      catch (err) { console.warn('[PDF] Error al incrustar imagen:', err?.message ?? err); }
+    }
+
+    doc.rect(x, cellY + imgH, imgW, descH);
+    if (foto.descripcion) {
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(30, 30, 30);
+      doc.text(foto.descripcion, x + 2, cellY + imgH + 6, { maxWidth: imgW - 4 });
+    }
+  }
+
+  agregarPieFirma(doc, PH - SIG_MARGIN_BOTTOM - SIG_H - 2);
+}
+
 // ─── Función principal ────────────────────────────────────────────────────────
 
 export async function generarPDF(protocolo, fotos = [], kmInicio = '', kmFin = '') {
@@ -438,20 +521,39 @@ export async function generarPDF(protocolo, fotos = [], kmInicio = '', kmFin = '
   const meta = PROTOCOLOS.find(p => p.id === protocolo.protocoloId);
   const soloFotos = meta?.soloFotos === true;
 
-  let y = await agregarEncabezado(doc, protocolo, 1, 1, kmInicio, kmFin);
+  const paginasFotos = Math.ceil(fotos.length / FOTOS_POR_PAGINA);
+  const totalPaginas = soloFotos ? Math.max(1, paginasFotos) : 1 + paginasFotos;
 
-  if (!soloFotos) {
+  if (soloFotos) {
+    if (fotos.length === 0) {
+      await agregarEncabezado(doc, protocolo, 1, totalPaginas, kmInicio, kmFin);
+      agregarPieFirma(doc, PH - SIG_MARGIN_BOTTOM - SIG_H - 2);
+    } else {
+      for (let i = 0; i < fotos.length; i += FOTOS_POR_PAGINA) {
+        const paginaActual = i / FOTOS_POR_PAGINA + 1;
+        if (paginaActual > 1) doc.addPage();
+        await agregarPaginaFotos(doc, protocolo, fotos.slice(i, i + FOTOS_POR_PAGINA), paginaActual, totalPaginas, kmInicio, kmFin);
+      }
+    }
+  } else {
+    let y = await agregarEncabezado(doc, protocolo, 1, totalPaginas, kmInicio, kmFin);
     y = agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin);
     y = agregarProcedimiento(doc, protocolo, y);
     y = agregarProtocoloControl(doc, protocolo, y);
-  }
 
-  let sigY = Math.max(y + 4, PH - SIG_MARGIN_BOTTOM - SIG_H - 2);
-  if (sigY + SIG_H > PH - SIG_MARGIN_BOTTOM) {
-    doc.addPage();
-    sigY = PH - SIG_MARGIN_BOTTOM - SIG_H - 2;
+    let sigY = Math.max(y + 4, PH - SIG_MARGIN_BOTTOM - SIG_H - 2);
+    if (sigY + SIG_H > PH - SIG_MARGIN_BOTTOM) {
+      doc.addPage();
+      sigY = PH - SIG_MARGIN_BOTTOM - SIG_H - 2;
+    }
+    agregarPieFirma(doc, sigY);
+
+    for (let i = 0; i < fotos.length; i += FOTOS_POR_PAGINA) {
+      doc.addPage();
+      const paginaActual = 1 + i / FOTOS_POR_PAGINA + 1;
+      await agregarPaginaFotos(doc, protocolo, fotos.slice(i, i + FOTOS_POR_PAGINA), paginaActual, totalPaginas, kmInicio, kmFin);
+    }
   }
-  agregarPieFirma(doc, sigY);
 
   const entidadStr = String(protocolo.entidadId).replace(/\s+/g, '');
   const fechaStr = fmtArchivo(protocolo.fechaModificacion);

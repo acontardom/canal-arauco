@@ -378,10 +378,56 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     [protocolo?.id]
   ) ?? [];
 
-  const fotosTerreno = useLiveQuery(
-    () => db.fotos_terreno.where('tipo').equals(tipo).and(f => f.entidadId === entidadIdReal).toArray(),
-    [tipo, entidadIdReal]
-  ) ?? [];
+  const [fotosTerreno, setFotosTerreno] = useState([]);
+
+  // Fotos desde la nube de fotos terreno: Supabase es la fuente principal,
+  // Dexie local es solo fallback si no hay conexión.
+  useEffect(() => {
+    let cancelado = false;
+
+    async function cargarFotosTerreno() {
+      if (supabase && navigator.onLine) {
+        try {
+          const { data, error } = await supabase
+            .from('fotos_terreno')
+            .select('*')
+            .eq('tipo', tipo)
+            .eq('entidad_id', String(entidadIdReal));
+          if (error) throw error;
+          if (!cancelado) {
+            setFotosTerreno((data ?? []).map(f => ({
+              id: f.id,
+              etiquetas: f.etiquetas ?? [],
+              descripcion: f.descripcion ?? '',
+              storageUrl: f.storage_url ?? null,
+              dataUrl: f.data_url ?? null,
+            })));
+          }
+          return;
+        } catch (err) {
+          console.warn('[FotosTerreno] Error Supabase, usando datos locales:', err?.message ?? err);
+        }
+      }
+
+      const locales = await db.fotos_terreno
+        .where('tipo').equals(tipo)
+        .and(f => f.entidadId === entidadIdReal)
+        .toArray();
+
+      if (!cancelado) {
+        setFotosTerreno(locales.map(f => ({
+          id: f.id,
+          etiquetas: f.etiquetas ?? [],
+          descripcion: f.descripcion ?? '',
+          storageUrl: f.storageUrl ?? null,
+          dataUrl: f.dataUrl ?? null,
+        })));
+      }
+    }
+
+    cargarFotosTerreno();
+    return () => { cancelado = true; };
+  }, [tipo, entidadIdReal]);
 
   useEffect(() => {
     if (!cargando && !cargadoRef.current) {
@@ -499,20 +545,21 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     await db.fotos.delete(fotoId);
   }
 
-  function toggleFotoNube(fotoTerrenoId) {
+  function toggleFotoNube(foto) {
+    const key = foto.storageUrl || foto.dataUrl;
     setFotosNubeSeleccionadas(prev =>
-      prev.some(f => f.id === fotoTerrenoId)
-        ? prev.filter(f => f.id !== fotoTerrenoId)
-        : [...prev, { id: fotoTerrenoId, descripcion: '' }]
+      prev.some(f => (f.storageUrl || f.dataUrl) === key)
+        ? prev.filter(f => (f.storageUrl || f.dataUrl) !== key)
+        : [...prev, { storageUrl: foto.storageUrl ?? null, dataUrl: foto.dataUrl ?? null, descripcion: '' }]
     );
   }
 
-  function quitarFotoNube(fotoTerrenoId) {
-    setFotosNubeSeleccionadas(prev => prev.filter(f => f.id !== fotoTerrenoId));
+  function quitarFotoNube(key) {
+    setFotosNubeSeleccionadas(prev => prev.filter(f => (f.storageUrl || f.dataUrl) !== key));
   }
 
-  function setDescFotoNube(fotoTerrenoId, descripcion) {
-    setFotosNubeSeleccionadas(prev => prev.map(f => f.id === fotoTerrenoId ? { ...f, descripcion } : f));
+  function setDescFotoNube(key, descripcion) {
+    setFotosNubeSeleccionadas(prev => prev.map(f => (f.storageUrl || f.dataUrl) === key ? { ...f, descripcion } : f));
   }
 
   function abrirNuevoCamion() {
@@ -558,15 +605,20 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     ? fotosTerreno
     : fotosTerreno.filter(f => f.etiquetas?.includes(filtroEtiqueta));
 
-  const fotosNubeData = fotosNubeSeleccionadas
-    .map(sel => {
-      const foto = fotosTerreno.find(f => f.id === sel.id);
-      return foto ? { id: `nube-${foto.id}`, fotoTerrenoId: foto.id, dataUrl: foto.dataUrl, descripcion: sel.descripcion ?? '', origen: 'nube' } : null;
-    })
-    .filter(Boolean);
+  const fotosNubeData = fotosNubeSeleccionadas.map(sel => {
+    const key = sel.storageUrl || sel.dataUrl;
+    return {
+      id: `nube-${key}`,
+      key,
+      dataUrl: sel.storageUrl || sel.dataUrl,
+      storageUrl: sel.storageUrl ?? null,
+      descripcion: sel.descripcion ?? '',
+      origen: 'nube',
+    };
+  });
 
   const fotosCombinadas = [
-    ...fotos.map(f => ({ id: `nueva-${f.id}`, fotoId: f.id, dataUrl: f.dataUrl, descripcion: f.descripcion ?? '', origen: 'nueva' })),
+    ...fotos.map(f => ({ id: `nueva-${f.id}`, fotoId: f.id, dataUrl: f.dataUrl, storageUrl: f.storageUrl ?? null, descripcion: f.descripcion ?? '', origen: 'nueva' })),
     ...fotosNubeData,
   ];
 
@@ -588,14 +640,15 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       {fotosTerrenoFiltradas.length > 0 ? (
         <div style={s.fotosGrid}>
           {fotosTerrenoFiltradas.map(foto => {
-            const seleccionada = fotosNubeSeleccionadas.some(f => f.id === foto.id);
+            const key = foto.storageUrl || foto.dataUrl;
+            const seleccionada = fotosNubeSeleccionadas.some(f => (f.storageUrl || f.dataUrl) === key);
             return (
               <div
                 key={foto.id}
                 style={{ ...s.fotoThumb, ...(seleccionada ? s.fotoThumbSeleccionada : {}), cursor: 'pointer' }}
-                onClick={() => toggleFotoNube(foto.id)}
+                onClick={() => toggleFotoNube(foto)}
               >
-                <img src={foto.dataUrl} alt="" style={s.fotoImg} />
+                <img src={key} alt="" style={s.fotoImg} />
                 <div style={s.checkOverlay}>
                   <input type="checkbox" checked={seleccionada} readOnly style={s.checkboxNube} />
                 </div>
@@ -629,7 +682,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                 <img src={foto.dataUrl} alt="" style={s.fotoImg} />
                 <button
                   style={s.btnEliminarFoto}
-                  onClick={() => foto.origen === 'nueva' ? eliminarFoto(foto.fotoId) : quitarFotoNube(foto.fotoTerrenoId)}
+                  onClick={() => foto.origen === 'nueva' ? eliminarFoto(foto.fotoId) : quitarFotoNube(foto.key)}
                   title="Quitar de la selección"
                 >
                   ×
@@ -642,7 +695,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                 style={s.fotoDescInput}
                 onBlur={e => foto.origen === 'nueva'
                   ? db.fotos.update(foto.fotoId, { descripcion: e.target.value })
-                  : setDescFotoNube(foto.fotoTerrenoId, e.target.value)}
+                  : setDescFotoNube(foto.key, e.target.value)}
               />
             </div>
           ))}
