@@ -143,8 +143,17 @@ const PH = 297;   // page height
 const ML = 14;    // margin left
 const MR = 14;    // margin right
 const CW = PW - ML - MR; // content width = 182mm
-const SIG_H = 27;             // alto del bloque de firmas
-const SIG_MARGIN_BOTTOM = 14; // margen inferior reservado para firmas
+const SIG_BLOCK_H = 35;  // alto reservado para el pie de firma (siempre al fondo de la página)
+const SIG_Y = PH - SIG_BLOCK_H; // posición Y fija del pie de firma
+
+// Escalas de tipografía/espaciado para las tablas de la página 1, de mayor a
+// menor, usadas para que el contenido quepa siempre antes del pie de firma.
+const ESCALAS_PAGINA1 = [
+  { fontSize: 8.5, cellPadding: 2.5, gap: 4 },
+  { fontSize: 7.5, cellPadding: 1.5, gap: 2.5 },
+  { fontSize: 7,   cellPadding: 1,   gap: 1.5 },
+  { fontSize: 6.5, cellPadding: 0.75, gap: 1 },
+];
 
 // Resuelve los KM reales: usa los pasados (Configuración) si existen, si no cae a KM_DATA
 function resolveKm(protocolo, kmInicio, kmFin) {
@@ -216,7 +225,7 @@ async function obtenerImagenBase64(foto) {
 
 // ─── Encabezado ───────────────────────────────────────────────────────────────
 
-async function agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio, kmFin) {
+function agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio, kmFin, logoB64) {
   const meta = PROTOCOLOS.find(p => p.id === protocolo.protocoloId);
   const nombreProtocolo = NOMBRE_PICE[protocolo.protocoloId] ?? meta?.nombre ?? protocolo.protocoloId;
 
@@ -228,7 +237,6 @@ async function agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmI
   const TABLE_W = CW - LOGO_W - GAP;
 
   // Logo
-  const logoB64 = await loadLogoB64();
   doc.setDrawColor(180, 180, 180);
   doc.setLineWidth(0.3);
   doc.rect(ML, TOP, LOGO_W, LOGO_H);
@@ -291,7 +299,8 @@ async function agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmI
 
 // ─── Tabla info (página 1) ────────────────────────────────────────────────────
 
-function agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin) {
+function agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin, opts = {}) {
+  const { fontSize = 8.5, cellPadding = 2.5, gap = 4 } = opts;
   const textos = TEXTOS_PROTOCOLO[protocolo.protocoloId] ?? { objetivo: '', alcance: '', normativa: '' };
   const km = resolveKm(protocolo, kmInicio, kmFin);
   const entidad = `${NOMBRES_TIPO[protocolo.tipo] ?? protocolo.tipo} ${protocolo.entidadId}`;
@@ -299,7 +308,7 @@ function agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin) {
 
   autoTable(doc, {
     startY: y,
-    margin: { left: ML, right: MR },
+    margin: { left: ML, right: MR, bottom: SIG_BLOCK_H },
     tableWidth: CW,
     body: [
       ['Objetivo', textos.objetivo || ''],
@@ -313,8 +322,8 @@ function agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin) {
       1: { cellWidth: CW - 45 },
     },
     styles: {
-      fontSize: 8.5,
-      cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
+      fontSize,
+      cellPadding: { top: cellPadding, bottom: cellPadding, left: 3, right: 3 },
       lineColor: [120, 120, 120],
       lineWidth: 0.2,
       textColor: [30, 30, 30],
@@ -322,18 +331,19 @@ function agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin) {
     theme: 'grid',
   });
 
-  return doc.lastAutoTable.finalY + 4;
+  return doc.lastAutoTable.finalY + gap;
 }
 
 // ─── Sección PROCEDIMIENTO (página 1) ─────────────────────────────────────────
 
-function agregarProcedimiento(doc, protocolo, y) {
+function agregarProcedimiento(doc, protocolo, y, opts = {}) {
+  const { fontSize = 8.5, cellPadding = 2.5, gap = 4 } = opts;
   const pasos = TEXTOS_PROTOCOLO[protocolo.protocoloId]?.procedimiento ?? [];
   if (pasos.length === 0) return y;
 
   autoTable(doc, {
     startY: y,
-    margin: { left: ML, right: MR },
+    margin: { left: ML, right: MR, bottom: SIG_BLOCK_H },
     tableWidth: CW,
     head: [[
       { content: 'PROCEDIMIENTO', styles: { fillColor: [44, 62, 80], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' } },
@@ -343,8 +353,8 @@ function agregarProcedimiento(doc, protocolo, y) {
       0: { cellWidth: CW, halign: 'center' },
     },
     styles: {
-      fontSize: 8.5,
-      cellPadding: 2.5,
+      fontSize,
+      cellPadding,
       lineColor: [120, 120, 120],
       lineWidth: 0.2,
       textColor: [30, 30, 30],
@@ -353,12 +363,13 @@ function agregarProcedimiento(doc, protocolo, y) {
     theme: 'grid',
   });
 
-  return doc.lastAutoTable.finalY + 4;
+  return doc.lastAutoTable.finalY + gap;
 }
 
 // ─── Tabla PROTOCOLO DE CONTROL (página 1) ────────────────────────────────────
 
-function agregarProtocoloControl(doc, protocolo, y) {
+function agregarProtocoloControl(doc, protocolo, y, opts = {}) {
+  const { fontSize = 8.5, cellPadding = 2, gap = 4 } = opts;
   const items = CHECKLISTS[protocolo.protocoloId] ?? [];
   if (items.length === 0) return y;
 
@@ -391,7 +402,7 @@ function agregarProtocoloControl(doc, protocolo, y) {
 
   autoTable(doc, {
     startY: y,
-    margin: { left: ML, right: MR },
+    margin: { left: ML, right: MR, bottom: SIG_BLOCK_H },
     tableWidth: CW,
     head: [
       [{ content: 'PROTOCOLO DE CONTROL', colSpan: 5, styles: { fillColor: [44, 62, 80], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' } }],
@@ -406,8 +417,8 @@ function agregarProtocoloControl(doc, protocolo, y) {
       4: { cellWidth: CW - 55 - 12 - 12 - 12 },
     },
     styles: {
-      fontSize: 8.5,
-      cellPadding: 2,
+      fontSize,
+      cellPadding,
       lineColor: [120, 120, 120],
       lineWidth: 0.2,
       textColor: [30, 30, 30],
@@ -423,7 +434,7 @@ function agregarProtocoloControl(doc, protocolo, y) {
     },
   });
 
-  return doc.lastAutoTable.finalY + 4;
+  return doc.lastAutoTable.finalY + gap;
 }
 
 // ─── Pie de firma ─────────────────────────────────────────────────────────────
@@ -468,8 +479,8 @@ function agregarPieFirma(doc, yPos) {
 
 const FOTOS_POR_PAGINA = 4;
 
-async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, totalPaginas, kmInicio, kmFin) {
-  let y = await agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio, kmFin);
+async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, totalPaginas, kmInicio, kmFin, logoB64) {
+  let y = agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio, kmFin, logoB64);
   const km = resolveKm(protocolo, kmInicio, kmFin);
 
   doc.setFont(undefined, 'bold');
@@ -511,47 +522,57 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
     }
   }
 
-  agregarPieFirma(doc, PH - SIG_MARGIN_BOTTOM - SIG_H - 2);
+  agregarPieFirma(doc, SIG_Y);
+}
+
+// ─── Página 1 (info + procedimiento + protocolo de control) ──────────────────
+
+// Construye la página 1 con la escala dada y devuelve la posición Y final del contenido.
+function construirPagina1(doc, protocolo, kmInicio, kmFin, totalPaginas, logoB64, opts) {
+  let y = agregarEncabezado(doc, protocolo, 1, totalPaginas, kmInicio, kmFin, logoB64);
+  y = agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin, opts);
+  y = agregarProcedimiento(doc, protocolo, y, opts);
+  y = agregarProtocoloControl(doc, protocolo, y, opts);
+  return y;
 }
 
 // ─── Función principal ────────────────────────────────────────────────────────
 
 export async function generarPDF(protocolo, fotos = [], kmInicio = '', kmFin = '') {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const meta = PROTOCOLOS.find(p => p.id === protocolo.protocoloId);
   const soloFotos = meta?.soloFotos === true;
+  const logoB64 = await loadLogoB64();
 
   const paginasFotos = Math.ceil(fotos.length / FOTOS_POR_PAGINA);
   const totalPaginas = soloFotos ? Math.max(1, paginasFotos) : 1 + paginasFotos;
 
+  let doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
   if (soloFotos) {
     if (fotos.length === 0) {
-      await agregarEncabezado(doc, protocolo, 1, totalPaginas, kmInicio, kmFin);
-      agregarPieFirma(doc, PH - SIG_MARGIN_BOTTOM - SIG_H - 2);
+      agregarEncabezado(doc, protocolo, 1, totalPaginas, kmInicio, kmFin, logoB64);
+      agregarPieFirma(doc, SIG_Y);
     } else {
       for (let i = 0; i < fotos.length; i += FOTOS_POR_PAGINA) {
         const paginaActual = i / FOTOS_POR_PAGINA + 1;
         if (paginaActual > 1) doc.addPage();
-        await agregarPaginaFotos(doc, protocolo, fotos.slice(i, i + FOTOS_POR_PAGINA), paginaActual, totalPaginas, kmInicio, kmFin);
+        await agregarPaginaFotos(doc, protocolo, fotos.slice(i, i + FOTOS_POR_PAGINA), paginaActual, totalPaginas, kmInicio, kmFin, logoB64);
       }
     }
   } else {
-    let y = await agregarEncabezado(doc, protocolo, 1, totalPaginas, kmInicio, kmFin);
-    y = agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin);
-    y = agregarProcedimiento(doc, protocolo, y);
-    y = agregarProtocoloControl(doc, protocolo, y);
-
-    let sigY = Math.max(y + 4, PH - SIG_MARGIN_BOTTOM - SIG_H - 2);
-    if (sigY + SIG_H > PH - SIG_MARGIN_BOTTOM) {
-      doc.addPage();
-      sigY = PH - SIG_MARGIN_BOTTOM - SIG_H - 2;
+    // Probar escalas decrecientes hasta que el contenido quepa antes del pie de firma
+    let y;
+    for (let i = 0; i < ESCALAS_PAGINA1.length; i++) {
+      doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      y = construirPagina1(doc, protocolo, kmInicio, kmFin, totalPaginas, logoB64, ESCALAS_PAGINA1[i]);
+      if (y <= SIG_Y) break;
     }
-    agregarPieFirma(doc, sigY);
+    agregarPieFirma(doc, SIG_Y);
 
     for (let i = 0; i < fotos.length; i += FOTOS_POR_PAGINA) {
       doc.addPage();
       const paginaActual = 1 + i / FOTOS_POR_PAGINA + 1;
-      await agregarPaginaFotos(doc, protocolo, fotos.slice(i, i + FOTOS_POR_PAGINA), paginaActual, totalPaginas, kmInicio, kmFin);
+      await agregarPaginaFotos(doc, protocolo, fotos.slice(i, i + FOTOS_POR_PAGINA), paginaActual, totalPaginas, kmInicio, kmFin, logoB64);
     }
   }
 
