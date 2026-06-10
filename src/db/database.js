@@ -23,4 +23,10 @@ db.version(3).stores({
     '++id, protocoloLocalId, nombre, tipo, dataUrl, sincronizada, storageUrl, subidaStorage',
 });
 
+// v4: nueva tabla fotos_terreno (Nube de Fotos)
+db.version(4).stores({
+  fotos_terreno:
+    '++id, tipo, entidadId, etiquetas, descripcion, dataUrl, storageUrl, subidaStorage, usuarioNombre, fechaCaptura, sincronizada',
+});
+
 export default db;

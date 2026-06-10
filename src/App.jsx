@@ -5,6 +5,7 @@ import Navbar from './components/Navbar';
 import Inicio from './pages/Inicio';
 import Dashboard from './pages/Dashboard';
 import Proximamente from './pages/Proximamente';
+import SubirFotos from './pages/SubirFotos';
 import Tramos from './pages/Tramos';
 import TramoDetalle from './pages/TramoDetalle';
 import Caidas from './pages/Caidas';
@@ -81,6 +82,8 @@ export default function App() {
             <Route path="/" element={<Inicio />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/proximamente" element={<Proximamente />} />
+            <Route path="/subir-fotos" element={<SubirFotos />} />
+            <Route path="/subir-fotos/:tipo/:entidadId" element={<SubirFotos />} />
             <Route path="/tramos" element={<Tramos />} />
             <Route path="/tramos/:tramoId" element={<TramoDetalle />} />
             <Route path="/caidas" element={<Caidas />} />

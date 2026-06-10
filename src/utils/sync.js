@@ -72,6 +72,66 @@ async function subirFotosPendientes() {
   }
 }
 
+// ─── Subida de fotos de terreno pendientes a Supabase Storage ────────────────
+
+async function subirFotosTerrenoPendientes() {
+  const pendientes = await db.fotos_terreno
+    .filter(f => !f.subidaStorage)
+    .toArray();
+
+  for (const foto of pendientes) {
+    try {
+      const storageUrl = await uploadFoto(foto.dataUrl, {
+        tipo:      foto.tipo,
+        entidadId: foto.entidadId,
+        carpeta:   'terreno',
+      });
+
+      if (storageUrl) {
+        await db.fotos_terreno.update(foto.id, { storageUrl, subidaStorage: true });
+      }
+    } catch (err) {
+      console.warn(`[Sync] FotoTerreno Storage ${foto.id}:`, err?.message ?? err);
+    }
+  }
+}
+
+// ─── Sincronización de fotos de terreno ──────────────────────────────────────
+
+async function sincronizarFotosTerreno() {
+  const pendientes = await db.fotos_terreno
+    .filter(f => !f.sincronizada)
+    .toArray();
+
+  for (const foto of pendientes) {
+    try {
+      const { error } = await supabase
+        .from('fotos_terreno')
+        .upsert(
+          {
+            local_id:       foto.id,
+            tipo:           foto.tipo,
+            entidad_id:     String(foto.entidadId),
+            etiquetas:      foto.etiquetas ?? [],
+            descripcion:    foto.descripcion ?? null,
+            data_url:       foto.dataUrl,
+            storage_url:    foto.storageUrl ?? null,
+            subida_storage: foto.subidaStorage ?? false,
+            usuario_nombre: foto.usuarioNombre ?? null,
+            fecha_captura:  foto.fechaCaptura ?? null,
+          },
+          { onConflict: 'local_id' }
+        );
+
+      if (error) throw error;
+
+      await db.fotos_terreno.update(foto.id, { sincronizada: true });
+    } catch (err) {
+      console.warn(`[Sync] FotoTerreno ${foto.id}:`, err?.message ?? err);
+    }
+  }
+}
+
 // ─── Sincronización de fotos ──────────────────────────────────────────────────
 
 async function sincronizarFotos() {
@@ -198,6 +258,39 @@ export async function descargarDesdeSupabase() {
       }
       // Si ya existe → no se modifica (las fotos no se editan)
     }
+
+    // ── Fotos de terreno ─────────────────────────────────────────────────────
+    const { data: fotosTerrenoRemoto, error: errFotosTerreno } = await supabase
+      .from('fotos_terreno')
+      .select('*');
+
+    if (errFotosTerreno) throw errFotosTerreno;
+
+    for (const remoto of fotosTerrenoRemoto ?? []) {
+      const local = remoto.local_id ? await db.fotos_terreno.get(remoto.local_id) : null;
+
+      if (!local) {
+        const fotoData = {
+          tipo:          remoto.tipo,
+          entidadId:     remoto.tipo === 'caida' ? Number(remoto.entidad_id) : remoto.entidad_id,
+          etiquetas:     remoto.etiquetas ?? [],
+          descripcion:   remoto.descripcion ?? null,
+          dataUrl:       remoto.data_url,
+          storageUrl:    remoto.storage_url ?? null,
+          subidaStorage: remoto.subida_storage ?? false,
+          usuarioNombre: remoto.usuario_nombre ?? null,
+          fechaCaptura:  remoto.fecha_captura ?? null,
+          sincronizada:  true,
+        };
+
+        if (remoto.local_id) {
+          await db.fotos_terreno.put({ id: remoto.local_id, ...fotoData });
+        } else {
+          await db.fotos_terreno.add(fotoData);
+        }
+      }
+      // Si ya existe → no se modifica (las fotos no se editan)
+    }
   } catch (err) {
     console.warn('[Sync] Error al descargar desde Supabase:', err?.message ?? err);
   }
@@ -211,6 +304,8 @@ export async function sincronizar() {
     await sincronizarProtocolos();
     await subirFotosPendientes();
     await sincronizarFotos();
+    await subirFotosTerrenoPendientes();
+    await sincronizarFotosTerreno();
   } catch (err) {
     console.warn('[Sync] Error general:', err?.message ?? err);
   }

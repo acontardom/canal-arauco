@@ -33,7 +33,7 @@ export default function Inicio() {
         <>
           <section style={s.bloqueTerreno}>
             <h2 style={s.bloqueTitulo}>Terreno</h2>
-            <button style={s.btnTerreno} onClick={() => navigate('/proximamente')}>
+            <button style={s.btnTerreno} onClick={() => navigate('/subir-fotos')}>
               📷 Subir Fotos
             </button>
             <button style={s.btnTerreno} onClick={() => navigate('/proximamente')}>
