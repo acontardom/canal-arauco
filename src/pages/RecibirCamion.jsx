@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
@@ -56,8 +55,8 @@ export default function RecibirCamion() {
   const navigate = useNavigate();
   const { usuario } = useUser();
 
-  const [tipo, setTipo] = useState(null);
-  const [entidadId, setEntidadId] = useState(null);
+  const [tipo, setTipo] = useState('tramo');
+  const [entidadId, setEntidadId] = useState(String(TRAMOS[0]));
   const [form, setForm] = useState(initialForm);
   const [ultimoCamion, setUltimoCamion] = useState(null);
   const [guardando, setGuardando] = useState(false);
@@ -70,15 +69,9 @@ export default function RecibirCamion() {
 
   const entidadIdReal = tipo === 'caida' ? Number(entidadId) : entidadId;
 
-  const camionesTipo = useLiveQuery(
-    () => tipo ? db.camiones.where('tipoEntidad').equals(tipo).toArray() : Promise.resolve([]),
-    [tipo]
-  ) ?? [];
-
-  const conteoPorEntidad = {};
-  for (const c of camionesTipo) {
-    const key = String(c.entidadId);
-    conteoPorEntidad[key] = (conteoPorEntidad[key] ?? 0) + 1;
+  function handleTipoChange(nuevoTipo) {
+    setTipo(nuevoTipo);
+    setEntidadId(String(LISTAS[nuevoTipo][0]));
   }
 
   function mostrarToast(msg, t = 'ok') {
@@ -219,44 +212,6 @@ export default function RecibirCamion() {
     setForm(initialForm);
   }
 
-  // ── Paso 1: elegir tipo de entidad ────────────────────────────────────────
-  if (!tipo) {
-    return (
-      <div style={s.page}>
-        <button style={s.btnVolver} onClick={() => navigate('/')}>← Inicio</button>
-        <h1 style={s.titulo}>Recibir Camión</h1>
-        <p style={s.subtitulo}>Selecciona el tipo de elemento</p>
-        <div style={s.tiposGrid}>
-          <button style={s.btnTipoGrande} onClick={() => setTipo('tramo')}>Tramo</button>
-          <button style={s.btnTipoGrande} onClick={() => setTipo('caida')}>Caída</button>
-          <button style={s.btnTipoGrande} onClick={() => setTipo('atravieso')}>Atravieso</button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Paso 1b: elegir entidad ────────────────────────────────────────────────
-  if (entidadId == null) {
-    const lista = LISTAS[tipo];
-    return (
-      <div style={s.page}>
-        <button style={s.btnVolver} onClick={() => setTipo(null)}>← Volver</button>
-        <h1 style={s.titulo}>{NOMBRE_TIPO[tipo]}s</h1>
-        <div style={s.entidadGrid}>
-          {lista.map(id => {
-            const conteo = conteoPorEntidad[String(id)] ?? 0;
-            return (
-              <div key={id} style={s.entidadCard} onClick={() => setEntidadId(String(id))}>
-                <span>{NOMBRE_TIPO[tipo]} {id}</span>
-                {conteo > 0 && <span style={s.badge}>🚛 {conteo} {conteo === 1 ? 'camión' : 'camiones'}</span>}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
   // ── Resumen tras guardar ───────────────────────────────────────────────────
   if (ultimoCamion) {
     const c = ultimoCamion;
@@ -279,11 +234,31 @@ export default function RecibirCamion() {
     );
   }
 
-  // ── Paso 2: formulario de recepción ────────────────────────────────────────
+  // ── Formulario de recepción ────────────────────────────────────────────────
   return (
     <div style={s.page}>
-      <button style={s.btnVolver} onClick={() => setEntidadId(null)}>← Volver</button>
-      <h1 style={s.titulo}>Recibir Camión — {NOMBRE_TIPO[tipo]} {entidadId}</h1>
+      <button style={s.btnVolver} onClick={() => navigate('/')}>← Inicio</button>
+      <h1 style={s.titulo}>Recibir Camión</h1>
+
+      <p style={s.sectionTitle}>Entidad Principal</p>
+      <div style={s.row}>
+        <div style={s.campo}>
+          <label style={s.label}>Tipo</label>
+          <select style={s.input} value={tipo} onChange={e => handleTipoChange(e.target.value)}>
+            <option value="tramo">Tramo</option>
+            <option value="caida">Caída</option>
+            <option value="atravieso">Atravieso</option>
+          </select>
+        </div>
+        <div style={s.campo}>
+          <label style={s.label}>Entidad</label>
+          <select style={s.input} value={entidadId} onChange={e => setEntidadId(e.target.value)}>
+            {LISTAS[tipo].map(id => (
+              <option key={id} value={id}>{NOMBRE_TIPO[tipo]} {id}</option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       <div style={s.tiposGridHorizontal}>
         {TIPOS_HORMIGON.map(t => (
@@ -477,28 +452,6 @@ const s = {
     cursor: 'pointer', fontSize: '14px', padding: 0, alignSelf: 'flex-start',
   },
   titulo: { color: '#ccd6f6', fontSize: '20px', fontWeight: 700, margin: 0 },
-  subtitulo: { color: '#8892b0', fontSize: '13px', margin: 0 },
-
-  tiposGrid: { display: 'flex', flexDirection: 'column', gap: '10px' },
-  btnTipoGrande: {
-    background: '#16213e', color: '#ccd6f6', border: '1px solid #0f3460',
-    borderRadius: '12px', padding: '20px 18px', fontSize: '17px', fontWeight: 700,
-    cursor: 'pointer', textAlign: 'left',
-  },
-
-  entidadGrid: {
-    display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '10px',
-  },
-  entidadCard: {
-    background: '#16213e', borderRadius: '10px', padding: '16px',
-    border: '1px solid #0f3460', cursor: 'pointer',
-    color: '#ccd6f6', fontWeight: 600, fontSize: '14px', textAlign: 'center',
-    display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center',
-  },
-  badge: {
-    background: '#0a2040', border: '1px solid #10b981', borderRadius: '6px',
-    padding: '2px 8px', color: '#10b981', fontSize: '11px', fontWeight: 700,
-  },
 
   tiposGridHorizontal: { display: 'flex', gap: '10px' },
   btnHormigon: {
