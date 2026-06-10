@@ -1,5 +1,6 @@
 import { db } from '../db/database';
 import { supabase } from '../config/supabase';
+import { uploadFoto } from './uploadFoto';
 
 // ─── Sincronización de protocolos ─────────────────────────────────────────────
 
@@ -44,6 +45,33 @@ async function sincronizarProtocolos() {
   }
 }
 
+// ─── Subida de fotos pendientes a Supabase Storage ────────────────────────────
+
+async function subirFotosPendientes() {
+  const pendientes = await db.fotos
+    .filter(f => !f.subidaStorage)
+    .toArray();
+
+  for (const foto of pendientes) {
+    try {
+      const protocoloLocal = await db.protocolos.get(foto.protocoloLocalId);
+      if (!protocoloLocal) continue;
+
+      const storageUrl = await uploadFoto(foto.dataUrl, {
+        tipo:      protocoloLocal.tipo,
+        entidadId: protocoloLocal.entidadId,
+        nombre:    foto.nombre,
+      });
+
+      if (storageUrl) {
+        await db.fotos.update(foto.id, { storageUrl, subidaStorage: true });
+      }
+    } catch (err) {
+      console.warn(`[Sync] Foto Storage ${foto.id}:`, err?.message ?? err);
+    }
+  }
+}
+
 // ─── Sincronización de fotos ──────────────────────────────────────────────────
 
 async function sincronizarFotos() {
@@ -69,6 +97,8 @@ async function sincronizarFotos() {
             tipo_mime:         foto.tipo ?? null,
             data_url:          foto.dataUrl,
             descripcion:       foto.descripcion ?? null,
+            storage_url:       foto.storageUrl ?? null,
+            subida_storage:    foto.subidaStorage ?? false,
           },
           { onConflict: 'local_id' }
         );
@@ -155,6 +185,8 @@ export async function descargarDesdeSupabase() {
           tipo:             remoto.tipo_mime ?? null,
           dataUrl:          remoto.data_url,
           descripcion:      remoto.descripcion ?? null,
+          storageUrl:       remoto.storage_url ?? null,
+          subidaStorage:    remoto.subida_storage ?? false,
           sincronizada:     true,
         };
 
@@ -177,6 +209,7 @@ export async function sincronizar() {
   if (!supabase || !navigator.onLine) return;
   try {
     await sincronizarProtocolos();
+    await subirFotosPendientes();
     await sincronizarFotos();
   } catch (err) {
     console.warn('[Sync] Error general:', err?.message ?? err);

@@ -8,6 +8,8 @@ import { generarPDF } from '../utils/generarPDF';
 import { useKm } from '../hooks/useKm';
 import { sincronizar } from '../utils/sync';
 import { supabase } from '../config/supabase';
+import { comprimirFoto } from '../utils/comprimirFoto';
+import { uploadFoto } from '../utils/uploadFoto';
 
 const OPCION_COLOR = { si: '#10b981', no: '#ef4444', na: '#f59e0b' };
 const PROBETA_VOL = 0.0101;
@@ -443,8 +445,22 @@ export default function Protocolo() {
     try {
       const protocoloLocalId = await obtenerOCrearId();
       for (const file of files) {
-        const dataUrl = await leerComoDataUrl(file);
-        await db.fotos.add({ protocoloLocalId, nombre: file.name, tipo: file.type, dataUrl, sincronizada: false });
+        const dataUrl = await comprimirFoto(file);
+        const fotoId = await db.fotos.add({
+          protocoloLocalId, nombre: file.name, tipo: file.type, dataUrl,
+          sincronizada: false, storageUrl: null, subidaStorage: false,
+        });
+
+        if (supabase && navigator.onLine) {
+          try {
+            const storageUrl = await uploadFoto(dataUrl, { tipo, entidadId: entidadIdReal, nombre: file.name });
+            if (storageUrl) {
+              await db.fotos.update(fotoId, { storageUrl, subidaStorage: true });
+            }
+          } catch (err) {
+            console.warn('[Foto] Error al subir a Storage:', err?.message ?? err);
+          }
+        }
       }
       mostrarToast(files.length > 1 ? `${files.length} fotos agregadas` : 'Foto agregada');
     } catch {

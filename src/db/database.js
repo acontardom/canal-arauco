@@ -17,4 +17,10 @@ db.version(2).stores({
     '++id, tipo, entidad, entidadId, protocoloId, estado, usuarioNombre, fechaCreacion, fechaModificacion, datos, supabaseId, sincronizada',
 });
 
+// v3: agrega storageUrl y subidaStorage a fotos (Supabase Storage)
+db.version(3).stores({
+  fotos:
+    '++id, protocoloLocalId, nombre, tipo, dataUrl, sincronizada, storageUrl, subidaStorage',
+});
+
 export default db;
