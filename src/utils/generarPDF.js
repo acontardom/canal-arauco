@@ -497,6 +497,93 @@ export async function generarPDF(protocolo, fotos = [], kmInicio = '', kmFin = '
 
   let y = drawEncabezado(doc, logoB64, protocolo, kmInicio, kmFin);
 
+  if (protocolo.protocoloId === 'G5') {
+    // ── G5 Emplantillado: solo registro fotográfico ──────────────────────────
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(15, 52, 96);
+    doc.text(`Registro Fotográfico — km: ${km.inicio || '—'} hasta ${km.fin || '—'}`, ML, y + 6);
+    y += 12;
+
+    const PHOTO_W = (CW - 8) / 2;   // ~87mm
+    const PHOTO_H = 80;             // mm
+    const DESC_H  = 9;              // mm
+    const ROW_H   = PHOTO_H + DESC_H + 6;
+
+    const posiciones = [
+      { col: 0, row: 0 },
+      { col: 1, row: 0 },
+      { col: 0, row: 1 },
+      { col: 1, row: 1 },
+    ];
+
+    if (fotos.length > 0) {
+      for (let batch = 0; batch < Math.ceil(fotos.length / 4); batch++) {
+        let startY;
+        if (batch === 0) {
+          startY = y;
+        } else {
+          doc.addPage();
+          startY = drawEncabezadoFotos(doc, protocolo);
+        }
+        const batchFotos = fotos.slice(batch * 4, batch * 4 + 4);
+
+        for (let i = 0; i < batchFotos.length; i++) {
+          const foto = batchFotos[i];
+          const pos  = posiciones[i];
+          const px   = ML + pos.col * (PHOTO_W + 8);
+          const py   = startY + pos.row * ROW_H;
+
+          try {
+            const dataUrl = await ensureJpeg(foto.dataUrl);
+            if (dataUrl) {
+              doc.addImage(dataUrl, detectFormat(dataUrl), px, py, PHOTO_W, PHOTO_H);
+            } else {
+              throw new Error('empty');
+            }
+          } catch {
+            doc.setFillColor(240, 240, 240);
+            doc.setDrawColor(200, 200, 200);
+            doc.rect(px, py, PHOTO_W, PHOTO_H, 'FD');
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(8);
+            doc.setTextColor(180, 180, 180);
+            doc.text('[Foto no disponible]', px + PHOTO_W / 2, py + PHOTO_H / 2, { align: 'center' });
+          }
+
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(60, 60, 60);
+          const desc = foto.descripcion ? foto.descripcion : `Foto ${batch * 4 + i + 1}`;
+          const descLines = doc.splitTextToSize(desc, PHOTO_W);
+          doc.text(descLines[0] ?? '', px, py + PHOTO_H + 5.5);
+        }
+
+        y = startY + Math.ceil(batchFotos.length / 2) * ROW_H;
+      }
+    } else {
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(10);
+      doc.setTextColor(140, 140, 140);
+      doc.text('No hay fotos registradas para este protocolo.', ML, y + 6);
+      y += 12;
+    }
+
+    let sigYG5 = Math.max(y + 4, PH - SIG_MARGIN_BOTTOM - SIG_H - 2);
+    if (sigYG5 + SIG_H > PH - SIG_MARGIN_BOTTOM) {
+      doc.addPage();
+      sigYG5 = PH - SIG_MARGIN_BOTTOM - SIG_H - 2;
+    }
+    drawFirma(doc, sigYG5);
+
+    addPageNumbers(doc);
+    const tipoLabelG5  = TIPO_ARCHIVO[protocolo.tipo] ?? protocolo.tipo;
+    const entidadStrG5 = String(protocolo.entidadId).replace(/\s+/g, '');
+    const fechaStrG5   = fmtArchivo(protocolo.fechaModificacion);
+    doc.save(`${protocolo.protocoloId}_${tipoLabelG5}${entidadStrG5}_${fechaStrG5}.pdf`);
+    return;
+  }
+
   // Cuerpo: campos descriptivos
   autoTable(doc, {
     startY: y,

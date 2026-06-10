@@ -335,6 +335,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const volverUrl = `${VOLVER_BASE[tipo] ?? '/'}/${entidadId}`;
   // Protocolos de Control H.A. — solo muestran la vista de camiones
   const esHA = protocoloId === 'HA_RADIER' || protocoloId === 'HA_MURO';
+  // Protocolos solo-fotos (ej. G5 Emplantillado) — sin checklist ni observaciones
+  const soloFotos = protocoloInfo?.soloFotos === true;
   // Evaluado una sola vez al montar — suficiente para PWA móvil
   const isMobile = window.innerWidth < 768;
 
@@ -568,6 +570,89 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     ...fotosNubeData,
   ];
 
+  const seccionFotos = (
+    <Seccion titulo="Fotos del Protocolo">
+      {/* Subsección 1: seleccionar desde nube */}
+      <p style={s.subSeccionTitulo}>Seleccionar desde nube 📷</p>
+      <div style={s.chipsRow}>
+        {['Todas', ...ETIQUETAS_FOTO].map(et => (
+          <button
+            key={et}
+            style={{ ...s.chip, ...(filtroEtiqueta === et ? s.chipActivo : {}) }}
+            onClick={() => setFiltroEtiqueta(et)}
+          >
+            {et}
+          </button>
+        ))}
+      </div>
+      {fotosTerrenoFiltradas.length > 0 ? (
+        <div style={s.fotosGrid}>
+          {fotosTerrenoFiltradas.map(foto => {
+            const seleccionada = fotosNubeSeleccionadas.some(f => f.id === foto.id);
+            return (
+              <div
+                key={foto.id}
+                style={{ ...s.fotoThumb, ...(seleccionada ? s.fotoThumbSeleccionada : {}), cursor: 'pointer' }}
+                onClick={() => toggleFotoNube(foto.id)}
+              >
+                <img src={foto.dataUrl} alt="" style={s.fotoImg} />
+                <div style={s.checkOverlay}>
+                  <input type="checkbox" checked={seleccionada} readOnly style={s.checkboxNube} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p style={s.sinFotos}>Sin fotos en la nube para esta entidad</p>
+      )}
+      <div style={s.badgeSeleccion}>
+        {fotosNubeSeleccionadas.length} {fotosNubeSeleccionadas.length === 1 ? 'foto seleccionada' : 'fotos seleccionadas'}
+      </div>
+
+      {/* Subsección 2: agregar nueva foto */}
+      <p style={s.subSeccionTitulo}>Agregar nueva foto 📸</p>
+      <input ref={inputCamaraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFotoSeleccionada} />
+      <input ref={inputGaleriaRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleFotoSeleccionada} />
+      <div style={s.fotosBotones}>
+        <button style={s.btnFoto} onClick={() => inputCamaraRef.current?.click()}>📷 Sacar foto</button>
+        <button style={{ ...s.btnFoto, background: '#0f3460' }} onClick={() => inputGaleriaRef.current?.click()}>🖼 Adjuntar foto</button>
+      </div>
+
+      {/* Fotos seleccionadas (combinadas) */}
+      <p style={s.subSeccionTitulo}>Fotos seleccionadas{fotosCombinadas.length > 0 ? ` (${fotosCombinadas.length})` : ''}</p>
+      {fotosCombinadas.length > 0 ? (
+        <div style={s.fotosGrid}>
+          {fotosCombinadas.map(foto => (
+            <div key={foto.id} style={s.fotoCard}>
+              <div style={s.fotoThumb}>
+                <img src={foto.dataUrl} alt="" style={s.fotoImg} />
+                <button
+                  style={s.btnEliminarFoto}
+                  onClick={() => foto.origen === 'nueva' ? eliminarFoto(foto.fotoId) : quitarFotoNube(foto.fotoTerrenoId)}
+                  title="Quitar de la selección"
+                >
+                  ×
+                </button>
+              </div>
+              <input
+                type="text"
+                defaultValue={foto.descripcion}
+                placeholder="Descripción..."
+                style={s.fotoDescInput}
+                onBlur={e => foto.origen === 'nueva'
+                  ? db.fotos.update(foto.fotoId, { descripcion: e.target.value })
+                  : setDescFotoNube(foto.fotoTerrenoId, e.target.value)}
+              />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p style={s.sinFotos}>Sin fotos seleccionadas</p>
+      )}
+    </Seccion>
+  );
+
   return (
     <div style={s.page}>
       <div style={s.header}>
@@ -606,6 +691,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             </div>
           )}
         </Seccion>
+      ) : soloFotos ? (
+        /* ── Vista solo-fotos (ej. G5 Emplantillado) ─────────────────────────── */
+        seccionFotos
       ) : (
         /* ── Vista estándar — checklist + observaciones + fotos ─────────────── */
         <>
@@ -670,87 +758,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             />
           </Seccion>
 
-          {/* Fotos del Protocolo */}
-          <Seccion titulo="Fotos del Protocolo">
-            {/* Subsección 1: seleccionar desde nube */}
-            <p style={s.subSeccionTitulo}>Seleccionar desde nube 📷</p>
-            <div style={s.chipsRow}>
-              {['Todas', ...ETIQUETAS_FOTO].map(et => (
-                <button
-                  key={et}
-                  style={{ ...s.chip, ...(filtroEtiqueta === et ? s.chipActivo : {}) }}
-                  onClick={() => setFiltroEtiqueta(et)}
-                >
-                  {et}
-                </button>
-              ))}
-            </div>
-            {fotosTerrenoFiltradas.length > 0 ? (
-              <div style={s.fotosGrid}>
-                {fotosTerrenoFiltradas.map(foto => {
-                  const seleccionada = fotosNubeSeleccionadas.some(f => f.id === foto.id);
-                  return (
-                    <div
-                      key={foto.id}
-                      style={{ ...s.fotoThumb, ...(seleccionada ? s.fotoThumbSeleccionada : {}), cursor: 'pointer' }}
-                      onClick={() => toggleFotoNube(foto.id)}
-                    >
-                      <img src={foto.dataUrl} alt="" style={s.fotoImg} />
-                      <div style={s.checkOverlay}>
-                        <input type="checkbox" checked={seleccionada} readOnly style={s.checkboxNube} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p style={s.sinFotos}>Sin fotos en la nube para esta entidad</p>
-            )}
-            <div style={s.badgeSeleccion}>
-              {fotosNubeSeleccionadas.length} {fotosNubeSeleccionadas.length === 1 ? 'foto seleccionada' : 'fotos seleccionadas'}
-            </div>
-
-            {/* Subsección 2: agregar nueva foto */}
-            <p style={s.subSeccionTitulo}>Agregar nueva foto 📸</p>
-            <input ref={inputCamaraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFotoSeleccionada} />
-            <input ref={inputGaleriaRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleFotoSeleccionada} />
-            <div style={s.fotosBotones}>
-              <button style={s.btnFoto} onClick={() => inputCamaraRef.current?.click()}>📷 Sacar foto</button>
-              <button style={{ ...s.btnFoto, background: '#0f3460' }} onClick={() => inputGaleriaRef.current?.click()}>🖼 Adjuntar foto</button>
-            </div>
-
-            {/* Fotos seleccionadas (combinadas) */}
-            <p style={s.subSeccionTitulo}>Fotos seleccionadas{fotosCombinadas.length > 0 ? ` (${fotosCombinadas.length})` : ''}</p>
-            {fotosCombinadas.length > 0 ? (
-              <div style={s.fotosGrid}>
-                {fotosCombinadas.map(foto => (
-                  <div key={foto.id} style={s.fotoCard}>
-                    <div style={s.fotoThumb}>
-                      <img src={foto.dataUrl} alt="" style={s.fotoImg} />
-                      <button
-                        style={s.btnEliminarFoto}
-                        onClick={() => foto.origen === 'nueva' ? eliminarFoto(foto.fotoId) : quitarFotoNube(foto.fotoTerrenoId)}
-                        title="Quitar de la selección"
-                      >
-                        ×
-                      </button>
-                    </div>
-                    <input
-                      type="text"
-                      defaultValue={foto.descripcion}
-                      placeholder="Descripción..."
-                      style={s.fotoDescInput}
-                      onBlur={e => foto.origen === 'nueva'
-                        ? db.fotos.update(foto.fotoId, { descripcion: e.target.value })
-                        : setDescFotoNube(foto.fotoTerrenoId, e.target.value)}
-                    />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p style={s.sinFotos}>Sin fotos seleccionadas</p>
-            )}
-          </Seccion>
+          {seccionFotos}
         </>
       )}
 
