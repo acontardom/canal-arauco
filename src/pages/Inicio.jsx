@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import { USUARIOS } from '../constants/estructura';
@@ -6,7 +5,6 @@ import { USUARIOS } from '../constants/estructura';
 export default function Inicio() {
   const { usuario, seleccionarUsuario, cerrarSesion } = useUser();
   const navigate = useNavigate();
-  const [mostrarTipos, setMostrarTipos] = useState(false);
 
   return (
     <div style={s.page}>
@@ -48,16 +46,9 @@ export default function Inicio() {
           </div>
 
           <section style={s.bloqueGestion}>
-            <button style={s.btnGestion} onClick={() => setMostrarTipos(v => !v)}>
+            <button style={s.btnGestion} onClick={() => navigate('/generar-protocolo')}>
               📋 Generar Protocolo
             </button>
-            {mostrarTipos && (
-              <div style={s.tipos}>
-                <button style={s.btnTipo} onClick={() => navigate('/tramos')}>Tramos</button>
-                <button style={s.btnTipo} onClick={() => navigate('/caidas')}>Caídas</button>
-                <button style={s.btnTipo} onClick={() => navigate('/atraviesos')}>Atraviesos</button>
-              </div>
-            )}
           </section>
         </>
       )}
@@ -104,12 +95,6 @@ const s = {
   btnGestion: {
     background: '#16213e', color: '#ccd6f6', border: '1px solid #0f3460',
     borderRadius: '12px', padding: '16px 18px', fontSize: '15px', fontWeight: 600, cursor: 'pointer',
-    textAlign: 'left',
-  },
-  tipos: { display: 'flex', flexDirection: 'column', gap: '8px', paddingLeft: '4px' },
-  btnTipo: {
-    background: 'transparent', color: '#8892b0', border: '1px solid #0f3460',
-    borderRadius: '10px', padding: '12px 16px', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
     textAlign: 'left',
   },
 };

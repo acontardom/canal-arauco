@@ -20,8 +20,8 @@ export default function SubirFotos() {
   const navigate = useNavigate();
   const { usuario } = useUser();
 
-  const [tipo, setTipo] = useState(tipoParam ?? null);
-  const [entidadId, setEntidadId] = useState(entidadIdParam ?? null);
+  const [tipo, setTipo] = useState(tipoParam ?? 'tramo');
+  const [entidadId, setEntidadId] = useState(entidadIdParam ?? String(TRAMOS[0]));
   const [pendientes, setPendientes] = useState([]);
   const [guardando, setGuardando] = useState(false);
   const [toast, setToast] = useState(null);
@@ -33,11 +33,14 @@ export default function SubirFotos() {
   const entidadIdReal = tipo === 'caida' ? Number(entidadId) : entidadId;
 
   const guardadas = useLiveQuery(
-    () => (tipo && entidadId != null)
-      ? db.fotos_terreno.where('tipo').equals(tipo).and(f => f.entidadId === entidadIdReal).count()
-      : Promise.resolve(0),
+    () => db.fotos_terreno.where('tipo').equals(tipo).and(f => f.entidadId === entidadIdReal).count(),
     [tipo, entidadId]
   ) ?? 0;
+
+  function handleTipoChange(nuevoTipo) {
+    setTipo(nuevoTipo);
+    setEntidadId(String(LISTAS[nuevoTipo][0]));
+  }
 
   function mostrarToast(msg, t = 'ok') {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -107,45 +110,30 @@ export default function SubirFotos() {
     }
   }
 
-  // ── Paso 1: elegir tipo de entidad ────────────────────────────────────────
-  if (!tipo) {
-    return (
-      <div style={s.page}>
-        <button style={s.btnVolver} onClick={() => navigate('/')}>← Inicio</button>
-        <h1 style={s.titulo}>Subir Fotos</h1>
-        <p style={s.subtitulo}>Selecciona el tipo de elemento</p>
-        <div style={s.tiposGrid}>
-          <button style={s.btnTipoGrande} onClick={() => setTipo('tramo')}>Tramo</button>
-          <button style={s.btnTipoGrande} onClick={() => setTipo('caida')}>Caída</button>
-          <button style={s.btnTipoGrande} onClick={() => setTipo('atravieso')}>Atravieso</button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Paso 1b: elegir entidad ────────────────────────────────────────────────
-  if (entidadId == null) {
-    const lista = LISTAS[tipo];
-    return (
-      <div style={s.page}>
-        <button style={s.btnVolver} onClick={() => setTipo(null)}>← Volver</button>
-        <h1 style={s.titulo}>{NOMBRE_TIPO[tipo]}s</h1>
-        <div style={s.entidadGrid}>
-          {lista.map(id => (
-            <div key={id} style={s.entidadCard} onClick={() => setEntidadId(String(id))}>
-              {NOMBRE_TIPO[tipo]} {id}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Paso 2: capturar fotos ─────────────────────────────────────────────────
   return (
     <div style={s.page}>
-      <button style={s.btnVolver} onClick={() => setEntidadId(null)}>← Volver</button>
-      <h1 style={s.titulo}>{NOMBRE_TIPO[tipo]} {entidadId}</h1>
+      <button style={s.btnVolver} onClick={() => navigate('/')}>← Inicio</button>
+      <h1 style={s.titulo}>Subir Fotos</h1>
+
+      <div style={s.row}>
+        <div style={s.campo}>
+          <label style={s.label}>Tipo</label>
+          <select style={s.input} value={tipo} onChange={e => handleTipoChange(e.target.value)}>
+            <option value="tramo">Tramo</option>
+            <option value="caida">Caída</option>
+            <option value="atravieso">Atravieso</option>
+          </select>
+        </div>
+        <div style={s.campo}>
+          <label style={s.label}>Entidad</label>
+          <select style={s.input} value={entidadId} onChange={e => setEntidadId(e.target.value)}>
+            {LISTAS[tipo].map(id => (
+              <option key={id} value={id}>{NOMBRE_TIPO[tipo]} {id}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       <div style={s.contador}>📷 {guardadas} {guardadas === 1 ? 'foto guardada' : 'fotos guardadas'}</div>
 
       <input ref={inputCamaraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleCapturar} />
@@ -210,22 +198,14 @@ const s = {
     cursor: 'pointer', fontSize: '14px', padding: 0, alignSelf: 'flex-start',
   },
   titulo: { color: '#ccd6f6', fontSize: '22px', fontWeight: 700, margin: 0 },
-  subtitulo: { color: '#8892b0', fontSize: '13px', margin: 0 },
 
-  tiposGrid: { display: 'flex', flexDirection: 'column', gap: '10px' },
-  btnTipoGrande: {
-    background: '#16213e', color: '#ccd6f6', border: '1px solid #0f3460',
-    borderRadius: '12px', padding: '20px 18px', fontSize: '17px', fontWeight: 700,
-    cursor: 'pointer', textAlign: 'left',
-  },
-
-  entidadGrid: {
-    display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '10px',
-  },
-  entidadCard: {
-    background: '#16213e', borderRadius: '10px', padding: '16px',
-    border: '1px solid #0f3460', cursor: 'pointer',
-    color: '#ccd6f6', fontWeight: 600, fontSize: '14px', textAlign: 'center',
+  row: { display: 'flex', gap: '10px' },
+  campo: { flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' },
+  label: { color: '#8892b0', fontSize: '12px', fontWeight: 600 },
+  input: {
+    background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '7px',
+    color: '#ccd6f6', fontSize: '14px', padding: '10px 12px', fontFamily: 'inherit',
+    outline: 'none', width: '100%', boxSizing: 'border-box',
   },
 
   contador: {

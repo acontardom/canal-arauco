@@ -305,8 +305,11 @@ function CamionModal({ camion: initialData, onSave, onCancelar, onEliminar }) {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export default function Protocolo() {
-  const { tipo, entidadId, protocoloId } = useParams();
+export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, protocoloId: protocoloIdProp, embedded = false }) {
+  const params = useParams();
+  const tipo = tipoProp ?? params.tipo;
+  const entidadId = entidadIdProp ?? params.entidadId;
+  const protocoloId = protocoloIdProp ?? params.protocoloId;
   const navigate = useNavigate();
   const { usuario } = useUser();
   const { kmInicio, kmFin } = useKm(tipo, entidadId);
@@ -516,7 +519,9 @@ export default function Protocolo() {
   return (
     <div style={s.page}>
       <div style={s.header}>
-        <button style={s.btnVolver} onClick={() => navigate(volverUrl)}>← Volver</button>
+        {!embedded && (
+          <button style={s.btnVolver} onClick={() => navigate(volverUrl)}>← Volver</button>
+        )}
         <div style={s.headerInfo}>
           <h1 style={s.titulo}>{titulo}</h1>
           <EstadoBadge estado={estado} />

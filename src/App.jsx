@@ -14,6 +14,7 @@ import CaidaDetalle from './pages/CaidaDetalle';
 import Atraviesos from './pages/Atraviesos';
 import AtraviesoDetalle from './pages/AtraviesoDetalle';
 import Protocolo from './pages/Protocolo';
+import GenerarProtocolo from './pages/GenerarProtocolo';
 import Configuracion from './pages/Configuracion';
 import { descargarDesdeSupabase, iniciarSyncAutomatico } from './utils/sync';
 import { supabase } from './config/supabase';
@@ -93,6 +94,7 @@ export default function App() {
             <Route path="/atraviesos" element={<Atraviesos />} />
             <Route path="/atraviesos/:atraviesoId" element={<AtraviesoDetalle />} />
             <Route path="/protocolo/:tipo/:entidadId/:protocoloId" element={<Protocolo />} />
+            <Route path="/generar-protocolo" element={<GenerarProtocolo />} />
             <Route path="/configuracion" element={<Configuracion />} />
           </Routes>
         </Layout>
