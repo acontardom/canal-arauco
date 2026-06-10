@@ -36,7 +36,7 @@ export default function Inicio() {
             <button style={s.btnTerreno} onClick={() => navigate('/subir-fotos')}>
               📷 Subir Fotos
             </button>
-            <button style={s.btnTerreno} onClick={() => navigate('/proximamente')}>
+            <button style={s.btnTerreno} onClick={() => navigate('/recibir-camion')}>
               🚛 Recibir Camión
             </button>
           </section>

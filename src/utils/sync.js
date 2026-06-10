@@ -172,6 +172,109 @@ async function sincronizarFotos() {
   }
 }
 
+// ─── Subida de fotos de camiones pendientes a Supabase Storage ───────────────
+
+async function subirFotosCamionesPendientes() {
+  const camiones = await db.camiones.toArray();
+
+  for (const camion of camiones) {
+    let cambiado = false;
+    const entidadPath = `${camion.tipoEntidad}/${camion.entidadId}`;
+
+    if (camion.fotoGuia && !camion.fotoGuia.subidaStorage) {
+      try {
+        const storageUrl = await uploadFoto(camion.fotoGuia.dataUrl, {
+          tipo: 'camiones', entidadId: entidadPath, nombre: 'guia',
+        });
+        if (storageUrl) {
+          camion.fotoGuia = { ...camion.fotoGuia, storageUrl, subidaStorage: true };
+          cambiado = true;
+        }
+      } catch (err) {
+        console.warn(`[Sync] Camion ${camion.id} fotoGuia:`, err?.message ?? err);
+      }
+    }
+
+    if (camion.fotosEnsayo?.length) {
+      for (let i = 0; i < camion.fotosEnsayo.length; i++) {
+        const foto = camion.fotosEnsayo[i];
+        if (foto.subidaStorage) continue;
+        try {
+          const storageUrl = await uploadFoto(foto.dataUrl, {
+            tipo: 'camiones', entidadId: entidadPath, nombre: `ensayo_${i}`,
+          });
+          if (storageUrl) {
+            camion.fotosEnsayo[i] = { ...foto, storageUrl, subidaStorage: true };
+            cambiado = true;
+          }
+        } catch (err) {
+          console.warn(`[Sync] Camion ${camion.id} fotoEnsayo ${i}:`, err?.message ?? err);
+        }
+      }
+    }
+
+    if (cambiado) {
+      await db.camiones.update(camion.id, {
+        fotoGuia: camion.fotoGuia,
+        fotosEnsayo: camion.fotosEnsayo,
+        sincronizado: false,
+      });
+    }
+  }
+}
+
+// ─── Sincronización de camiones ──────────────────────────────────────────────
+
+async function sincronizarCamiones() {
+  const pendientes = await db.camiones
+    .filter(c => !c.sincronizado)
+    .toArray();
+
+  for (const camion of pendientes) {
+    try {
+      const payload = {
+        local_id:                camion.id,
+        tipo_entidad:            camion.tipoEntidad,
+        entidad_id:              String(camion.entidadId),
+        entidad_secundaria_tipo: camion.entidadSecundariaTipo ?? null,
+        entidad_secundaria_id:   camion.entidadSecundariaId != null ? String(camion.entidadSecundariaId) : null,
+        tipo_hormigon:           camion.tipoHormigon,
+        volumen:                 camion.volumen || null,
+        numero_guia:             camion.numeroGuia || null,
+        planta:                  camion.planta || null,
+        cono:                    camion.cono || null,
+        temp_hormigon:           camion.tempHormigon || null,
+        temp_ambiente:           camion.tempAmbiente || null,
+        hora_carga:              camion.horaCarga || null,
+        hora_descarga:           camion.horaDescarga || null,
+        tiempo_traslado:         camion.tiempoTraslado || null,
+        peso_hoya_hormigon:      camion.pesoHoyaHormigon || null,
+        pu_calculado:            camion.puCalculado || null,
+        observaciones:           camion.observaciones ?? null,
+        usuario_nombre:          camion.usuarioNombre ?? null,
+        fecha_recepcion:         camion.fechaRecepcion ?? null,
+        foto_guia:               camion.fotoGuia ?? null,
+        fotos_ensayo:            camion.fotosEnsayo ?? [],
+      };
+
+      const { data, error } = await supabase
+        .from('camiones')
+        .upsert(payload, { onConflict: 'local_id' })
+        .select('id')
+        .single();
+
+      if (error) throw error;
+
+      await db.camiones.update(camion.id, {
+        supabaseId:   data.id,
+        sincronizado: true,
+      });
+    } catch (err) {
+      console.warn(`[Sync] Camion ${camion.id}:`, err?.message ?? err);
+    }
+  }
+}
+
 // ─── Descarga desde Supabase → Dexie ─────────────────────────────────────────
 
 export async function descargarDesdeSupabase() {
@@ -291,6 +394,58 @@ export async function descargarDesdeSupabase() {
       }
       // Si ya existe → no se modifica (las fotos no se editan)
     }
+
+    // ── Camiones ──────────────────────────────────────────────────────────────
+    const { data: camionesRemoto, error: errCamiones } = await supabase
+      .from('camiones')
+      .select('*');
+
+    if (errCamiones) throw errCamiones;
+
+    for (const remoto of camionesRemoto ?? []) {
+      let local = remoto.local_id ? await db.camiones.get(remoto.local_id) : null;
+
+      if (!local && remoto.id) {
+        local = await db.camiones.where('supabaseId').equals(remoto.id).first();
+      }
+
+      if (!local) {
+        const camionData = {
+          tipoEntidad:            remoto.tipo_entidad,
+          entidadId:              remoto.tipo_entidad === 'caida' ? Number(remoto.entidad_id) : remoto.entidad_id,
+          entidadSecundariaTipo:  remoto.entidad_secundaria_tipo ?? null,
+          entidadSecundariaId:    remoto.entidad_secundaria_tipo === 'caida' && remoto.entidad_secundaria_id != null
+                                    ? Number(remoto.entidad_secundaria_id)
+                                    : remoto.entidad_secundaria_id ?? null,
+          tipoHormigon:           remoto.tipo_hormigon,
+          volumen:                remoto.volumen ?? '',
+          numeroGuia:             remoto.numero_guia ?? '',
+          planta:                 remoto.planta ?? '',
+          cono:                   remoto.cono ?? '',
+          tempHormigon:           remoto.temp_hormigon ?? '',
+          tempAmbiente:           remoto.temp_ambiente ?? '',
+          horaCarga:              remoto.hora_carga ?? '',
+          horaDescarga:           remoto.hora_descarga ?? '',
+          tiempoTraslado:         remoto.tiempo_traslado ?? '',
+          pesoHoyaHormigon:       remoto.peso_hoya_hormigon ?? '',
+          puCalculado:            remoto.pu_calculado ?? '',
+          observaciones:          remoto.observaciones ?? '',
+          usuarioNombre:          remoto.usuario_nombre ?? null,
+          fechaRecepcion:         remoto.fecha_recepcion ?? null,
+          fotoGuia:               remoto.foto_guia ?? null,
+          fotosEnsayo:            remoto.fotos_ensayo ?? [],
+          supabaseId:             remoto.id,
+          sincronizado:           true,
+        };
+
+        if (remoto.local_id) {
+          await db.camiones.put({ id: remoto.local_id, ...camionData });
+        } else {
+          await db.camiones.add(camionData);
+        }
+      }
+      // Si ya existe → no se modifica (los camiones no se editan)
+    }
   } catch (err) {
     console.warn('[Sync] Error al descargar desde Supabase:', err?.message ?? err);
   }
@@ -306,6 +461,8 @@ export async function sincronizar() {
     await sincronizarFotos();
     await subirFotosTerrenoPendientes();
     await sincronizarFotosTerreno();
+    await subirFotosCamionesPendientes();
+    await sincronizarCamiones();
   } catch (err) {
     console.warn('[Sync] Error general:', err?.message ?? err);
   }

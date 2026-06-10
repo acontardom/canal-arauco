@@ -29,4 +29,10 @@ db.version(4).stores({
     '++id, tipo, entidadId, etiquetas, descripcion, dataUrl, storageUrl, subidaStorage, usuarioNombre, fechaCaptura, sincronizada',
 });
 
+// v5: nueva tabla camiones (Recepción de Camiones)
+db.version(5).stores({
+  camiones:
+    '++id, tipoEntidad, entidadId, entidadSecundariaTipo, entidadSecundariaId, tipoHormigon, volumen, numeroGuia, planta, cono, tempHormigon, tempAmbiente, horaCarga, horaDescarga, tiempoTraslado, pesoHoyaHormigon, puCalculado, observaciones, usuarioNombre, fechaRecepcion, sincronizado, supabaseId',
+});
+
 export default db;
