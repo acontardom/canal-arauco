@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { UserProvider } from './context/UserContext';
 import Navbar from './components/Navbar';
+import Inicio from './pages/Inicio';
 import Dashboard from './pages/Dashboard';
+import Proximamente from './pages/Proximamente';
 import Tramos from './pages/Tramos';
 import TramoDetalle from './pages/TramoDetalle';
 import Caidas from './pages/Caidas';
@@ -76,7 +78,9 @@ export default function App() {
       <UserProvider>
         <Layout cargandoSync={cargandoSync}>
           <Routes>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/" element={<Inicio />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/proximamente" element={<Proximamente />} />
             <Route path="/tramos" element={<Tramos />} />
             <Route path="/tramos/:tramoId" element={<TramoDetalle />} />
             <Route path="/caidas" element={<Caidas />} />

@@ -8,26 +8,30 @@ export default function Navbar() {
 
   return (
     <nav style={styles.nav}>
-      <span style={styles.titulo}>Canal Arauco</span>
+      <NavLink to="/" style={styles.titulo}>Canal Arauco</NavLink>
 
-      <div style={styles.links}>
-        <NavLink to="/" end style={navStyle}>Dashboard</NavLink>
-        <NavLink to="/tramos" style={navStyle}>Tramos</NavLink>
-        <NavLink to="/caidas" style={navStyle}>Caídas</NavLink>
-        <NavLink to="/atraviesos" style={navStyle}>Atraviesos</NavLink>
-        {isDesktop && (
+      {isDesktop && (
+        <div style={styles.links}>
+          <NavLink to="/dashboard" style={navStyle}>Dashboard</NavLink>
+          <NavLink to="/tramos" style={navStyle}>Tramos</NavLink>
+          <NavLink to="/caidas" style={navStyle}>Caídas</NavLink>
+          <NavLink to="/atraviesos" style={navStyle}>Atraviesos</NavLink>
           <NavLink to="/configuracion" style={navStyle} title="Configuración KM">
             ⚙ Config
           </NavLink>
-        )}
-      </div>
+        </div>
+      )}
 
-      <div style={styles.usuario}>
-        <span style={styles.nombreUsuario}>{usuario}</span>
-        <button style={styles.btnCambiar} onClick={cerrarSesion} title="Cambiar usuario">
-          ↩
-        </button>
-      </div>
+      {usuario && (
+        <div style={styles.usuario}>
+          <span style={styles.nombreUsuario}>{usuario}</span>
+          {isDesktop && (
+            <button style={styles.btnCambiar} onClick={cerrarSesion} title="Cambiar usuario">
+              ↩
+            </button>
+          )}
+        </div>
+      )}
     </nav>
   );
 }
@@ -66,6 +70,7 @@ const styles = {
     letterSpacing: '0.5px',
     flexShrink: 0,
     whiteSpace: 'nowrap',
+    textDecoration: 'none',
   },
   links: {
     display: 'flex',

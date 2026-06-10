@@ -86,6 +86,9 @@ export const CHECKLISTS = {
 export const USUARIOS = [
   'Álvaro Muñoz',
   'Diego Oñate',
+  'Marcelo Contardo',
+  'Francisco Contardo',
+  'Arturo Contardo',
   'Otro',
 ];
 
