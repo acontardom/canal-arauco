@@ -224,9 +224,9 @@ function agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio,
   const meta = PROTOCOLOS.find(p => p.id === protocolo.protocoloId);
   const nombreProtocolo = NOMBRE_PICE[protocolo.protocoloId] ?? meta?.nombre ?? protocolo.protocoloId;
 
-  const TOP = 14;
-  const LOGO_W = 35;
-  const LOGO_H = 25;
+  const TOP = 8;
+  const LOGO_W = 30;
+  const LOGO_H = 18;
   const GAP = 2;
   const TABLE_X = ML + LOGO_W + GAP;
   const TABLE_W = CW - LOGO_W - GAP;
@@ -267,8 +267,8 @@ function agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio,
       1: { cellWidth: 58 },
     },
     styles: {
-      fontSize: 7.5,
-      cellPadding: 1.5,
+      fontSize: 7,
+      cellPadding: 1,
       lineColor: [120, 120, 120],
       lineWidth: 0.2,
       textColor: [30, 30, 30],
@@ -279,7 +279,7 @@ function agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio,
       if (data.row.index === 0 && data.column.index === 0) {
         data.cell.styles.fontStyle = 'bold';
         data.cell.styles.halign = 'center';
-        data.cell.styles.fontSize = 8;
+        data.cell.styles.fontSize = 7.5;
       }
       if (data.row.index === 2 && data.column.index === 0) {
         data.cell.styles.fontStyle = 'bold';
@@ -289,7 +289,7 @@ function agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio,
   });
 
   const tableBottom = doc.lastAutoTable.finalY;
-  return Math.max(TOP + LOGO_H, tableBottom) + 5;
+  return Math.max(TOP + LOGO_H, tableBottom) + 3;
 }
 
 // ─── Tabla info (página 1) ────────────────────────────────────────────────────
@@ -312,12 +312,12 @@ function agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin) {
       ['Responsable', 'Encargado de Calidad / Administrador de Contrato'],
     ],
     columnStyles: {
-      0: { cellWidth: 45, fontStyle: 'bold', fillColor: [240, 240, 240] },
+      0: { cellWidth: 45, fontStyle: 'bold', fillColor: [240, 240, 240], fontSize: 9 },
       1: { cellWidth: CW - 45 },
     },
     styles: {
-      fontSize: 8.5,
-      cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
+      fontSize: 8,
+      cellPadding: 2,
       lineColor: [120, 120, 120],
       lineWidth: 0.2,
       textColor: [30, 30, 30],
@@ -325,7 +325,7 @@ function agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin) {
     theme: 'grid',
   });
 
-  return doc.lastAutoTable.finalY + 4;
+  return doc.lastAutoTable.finalY + 3;
 }
 
 // ─── Sección PROCEDIMIENTO (página 1) ─────────────────────────────────────────
@@ -339,15 +339,15 @@ function agregarProcedimiento(doc, protocolo, y) {
     margin: { left: ML, right: MR, ...CONTENT_MARGIN },
     tableWidth: CW,
     head: [[
-      { content: 'PROCEDIMIENTO', styles: { fillColor: [44, 62, 80], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' } },
+      { content: 'PROCEDIMIENTO', styles: { fillColor: [44, 62, 80], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center', fontSize: 9 } },
     ]],
     body: pasos.map(paso => [paso]),
     columnStyles: {
       0: { cellWidth: CW, halign: 'center' },
     },
     styles: {
-      fontSize: 8.5,
-      cellPadding: 2.5,
+      fontSize: 8,
+      cellPadding: 2,
       lineColor: [120, 120, 120],
       lineWidth: 0.2,
       textColor: [30, 30, 30],
@@ -356,7 +356,7 @@ function agregarProcedimiento(doc, protocolo, y) {
     theme: 'grid',
   });
 
-  return doc.lastAutoTable.finalY + 4;
+  return doc.lastAutoTable.finalY + 3;
 }
 
 // ─── Tabla PROTOCOLO DE CONTROL (página 1) ────────────────────────────────────
@@ -397,7 +397,7 @@ function agregarProtocoloControl(doc, protocolo, y) {
     margin: { left: ML, right: MR, ...CONTENT_MARGIN },
     tableWidth: CW,
     head: [
-      [{ content: 'PROTOCOLO DE CONTROL', colSpan: 5, styles: { fillColor: [44, 62, 80], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' } }],
+      [{ content: 'PROTOCOLO DE CONTROL', colSpan: 5, styles: { fillColor: [44, 62, 80], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center', fontSize: 9 } }],
       ['Ítem de Control', 'SI', 'NO', 'N/A', 'Observaciones'],
     ],
     body,
@@ -409,7 +409,7 @@ function agregarProtocoloControl(doc, protocolo, y) {
       4: { cellWidth: CW - 55 - 12 - 12 - 12 },
     },
     styles: {
-      fontSize: 8.5,
+      fontSize: 8,
       cellPadding: 2,
       lineColor: [120, 120, 120],
       lineWidth: 0.2,
@@ -422,11 +422,12 @@ function agregarProtocoloControl(doc, protocolo, y) {
         data.cell.styles.textColor = [30, 30, 30];
         data.cell.styles.fontStyle = 'bold';
         data.cell.styles.halign = 'center';
+        data.cell.styles.fontSize = 9;
       }
     },
   });
 
-  return doc.lastAutoTable.finalY + 4;
+  return doc.lastAutoTable.finalY + 3;
 }
 
 // ─── Pie de firma ─────────────────────────────────────────────────────────────
@@ -524,22 +525,28 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
 // ─── Página 1 (info + procedimiento + protocolo de control) ──────────────────
 
 // Orden estricto: encabezado → tabla info → procedimiento → protocolo de
-// control → pie de firma (fijo al fondo). Si el checklist no entra y autotable
-// genera páginas adicionales (gracias a CONTENT_MARGIN.bottom), cada una de
-// esas páginas recibe también su encabezado y su pie de firma al fondo.
+// control → pie de firma (fijo al fondo). Las fuentes/paddings reducidos de
+// las tablas de contenido garantizan que todo quepa antes de PH-50; el pie
+// de firma se dibuja siempre en la página 1, nunca en una página nueva.
 function construirPagina1(doc, protocolo, kmInicio, kmFin, totalPaginas, logoB64) {
   let y = agregarEncabezado(doc, protocolo, 1, totalPaginas, kmInicio, kmFin, logoB64);
   y = agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin);
   y = agregarProcedimiento(doc, protocolo, y);
   y = agregarProtocoloControl(doc, protocolo, y);
 
-  const paginasContenido = doc.internal.getNumberOfPages();
-  for (let p = 2; p <= paginasContenido; p++) {
-    doc.setPage(p);
-    agregarEncabezado(doc, protocolo, p, totalPaginas, kmInicio, kmFin, logoB64);
+  // Si autotable llegó a generar páginas extra por desbordamiento, se
+  // descartan: el contenido de la página 1 debe quedar en una sola hoja.
+  while (doc.internal.getNumberOfPages() > 1) {
+    doc.deletePage(doc.internal.getNumberOfPages());
   }
-  for (let p = 1; p <= paginasContenido; p++) {
-    doc.setPage(p);
+  doc.setPage(1);
+
+  if (y < PH - 50) {
+    // Hay espacio holgado: el pie de firma se dibuja sin solaparse con el contenido.
+    agregarPieFirma(doc, PIE_FIRMA_Y);
+  } else {
+    // El contenido llega justo al límite: el pie se dibuja igual en PIE_FIRMA_Y,
+    // pudiendo solaparse levemente con la última fila, pero nunca en página nueva.
     agregarPieFirma(doc, PIE_FIRMA_Y);
   }
 }
