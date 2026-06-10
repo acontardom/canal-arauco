@@ -70,6 +70,7 @@ export const CHECKLISTS = {
     { id: 'traslapes',             label: 'Traslapes' },
     { id: 'limpieza',              label: 'Limpieza' },
     { id: 'aprobacion',            label: 'Aprobación' },
+    { id: 'refuerzo_enfierradura', label: 'Refuerzo de enfierradura' },
   ],
   PICE4_MURO: [
     { id: 'diametros_conforme',    label: 'Diámetros conforme' },
@@ -79,6 +80,7 @@ export const CHECKLISTS = {
     { id: 'traslapes',             label: 'Traslapes' },
     { id: 'limpieza',              label: 'Limpieza' },
     { id: 'aprobacion',            label: 'Aprobación' },
+    { id: 'refuerzo_enfierradura', label: 'Refuerzo de enfierradura' },
   ],
   G5: [],
 };
