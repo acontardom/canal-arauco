@@ -19,6 +19,8 @@ const PH = 297;   // page height
 const ML = 14;    // margin left
 const MR = 14;    // margin right
 const CW = PW - ML - MR; // content width = 182mm
+const SIG_H = 27;             // alto del bloque de firmas
+const SIG_MARGIN_BOTTOM = 14; // margen inferior reservado para firmas
 
 // ─── Textos fijos por protocolo ───────────────────────────────────────────────
 const TEXTOS = {
@@ -262,6 +264,196 @@ function drawEncabezadoFotos(doc, protocolo) {
   return 14 + 12 + 4; // nextY = 30
 }
 
+// ─── Encabezado páginas de fotos por camión (Control H.A.) ───────────────────
+
+function drawEncabezadoFotosCamion(doc, protocolo, numero) {
+  const meta = PROTOCOLOS.find(p => p.id === protocolo.protocoloId);
+  const entidad = `${NOMBRES_TIPO[protocolo.tipo] ?? protocolo.tipo} ${protocolo.entidadId}`;
+
+  doc.setFillColor(15, 52, 96);
+  doc.rect(ML, 14, CW, 12, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(255, 255, 255);
+  doc.text(
+    `Registro fotográfico — ${entidad} — Camión #${numero} — ${meta?.nombre ?? protocolo.protocoloId}`,
+    ML + CW / 2, 14 + 8,
+    { align: 'center' },
+  );
+
+  return 14 + 12 + 4; // nextY = 30
+}
+
+// ─── Fotos de un camión (Control H.A.) ───────────────────────────────────────
+// Misma grilla 2x2 que el resto de protocolos: una página nueva por cada 4 fotos.
+// Devuelve la coordenada Y inferior de la última fila de fotos dibujada.
+
+async function drawFotosCamion(doc, protocolo, numero, fotosCamion) {
+  const PHOTO_W = (CW - 8) / 2;   // ~87mm
+  const PHOTO_H = 90;             // mm
+  const DESC_H  = 9;              // mm
+  const ROW_H   = PHOTO_H + DESC_H + 6;
+
+  const posiciones = [
+    { col: 0, row: 0 },
+    { col: 1, row: 0 },
+    { col: 0, row: 1 },
+    { col: 1, row: 1 },
+  ];
+
+  let lastY = 0;
+
+  for (let batch = 0; batch < Math.ceil(fotosCamion.length / 4); batch++) {
+    doc.addPage();
+    const startY = drawEncabezadoFotosCamion(doc, protocolo, numero);
+    const batchFotos = fotosCamion.slice(batch * 4, batch * 4 + 4);
+
+    for (let i = 0; i < batchFotos.length; i++) {
+      const foto = batchFotos[i];
+      const pos  = posiciones[i];
+      const px   = ML + pos.col * (PHOTO_W + 8);
+      const py   = startY + pos.row * ROW_H;
+
+      try {
+        const dataUrl = await ensureJpeg(foto.dataUrl);
+        if (dataUrl) {
+          doc.addImage(dataUrl, detectFormat(dataUrl), px, py, PHOTO_W, PHOTO_H);
+        } else {
+          throw new Error('empty');
+        }
+      } catch {
+        doc.setFillColor(240, 240, 240);
+        doc.setDrawColor(200, 200, 200);
+        doc.rect(px, py, PHOTO_W, PHOTO_H, 'FD');
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(8);
+        doc.setTextColor(180, 180, 180);
+        doc.text('[Foto no disponible]', px + PHOTO_W / 2, py + PHOTO_H / 2, { align: 'center' });
+      }
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(60, 60, 60);
+      const desc = foto.descripcion
+        ? foto.descripcion
+        : `Foto ${batch * 4 + i + 1}`;
+      const descLines = doc.splitTextToSize(desc, PHOTO_W);
+      doc.text(descLines[0] ?? '', px, py + PHOTO_H + 5.5);
+
+      lastY = Math.max(lastY, py + PHOTO_H + DESC_H);
+    }
+  }
+
+  return lastY;
+}
+
+// ─── Bloque de datos de un camión (Control H.A.) ─────────────────────────────
+// Dibuja título "Camión #N" + tabla de datos + ensayo PU + observaciones.
+// Devuelve la coordenada Y siguiente disponible.
+
+function drawCamionDatos(doc, c, y) {
+  const LABEL_W = 70;
+  const tableStyles = {
+    fontSize: 8.5,
+    cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
+    lineColor: [190, 200, 220],
+    lineWidth: 0.3,
+    textColor: [40, 40, 40],
+  };
+  const columnStyles = {
+    0: { cellWidth: LABEL_W, fontStyle: 'bold', fillColor: [232, 240, 251], textColor: [15, 52, 96] },
+    1: { cellWidth: CW - LABEL_W },
+  };
+
+  // Título "Camión #N" con separador visual
+  if (y > PH - SIG_MARGIN_BOTTOM - 30) {
+    doc.addPage();
+    y = 20;
+  }
+  doc.setDrawColor(15, 52, 96);
+  doc.setLineWidth(0.6);
+  doc.line(ML, y, ML + CW, y);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(15, 52, 96);
+  doc.text(`Camión #${c.numero}`, ML, y + 6);
+  y += 10;
+
+  // Tabla de datos del camión
+  autoTable(doc, {
+    startY: y,
+    margin: { top: 20, left: ML, right: MR },
+    body: [
+      ['Tipo hormigón y volumen',     c.tipoHormigon || '—'],
+      ['N° guía y planta',            c.guia || '—'],
+      ['Asentamiento de cono (cm)',   c.cono || '—'],
+      ['Temperatura (°C)',            c.temperatura || '—'],
+      ['Hora de carga',               c.horaCarga || '—'],
+      ['Hora de descarga',            c.horaDescarga || '—'],
+      ['Tiempo de traslado (min)',    c.tiempoTraslado || '—'],
+    ],
+    columnStyles,
+    styles: tableStyles,
+    theme: 'grid',
+  });
+  y = doc.lastAutoTable.finalY + 4;
+
+  // Ensayo Peso Unitario
+  if (y > PH - SIG_MARGIN_BOTTOM - 8) {
+    doc.addPage();
+    y = 20;
+  }
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text('ENSAYO PESO UNITARIO — PROBETA 10.1 L', ML, y + 4);
+  y += 6;
+
+  const puTexto = c.puResultado
+    ? `${Number(c.puResultado).toLocaleString('es-CL')} kg/m³`
+    : '—';
+
+  autoTable(doc, {
+    startY: y,
+    margin: { top: 20, left: ML, right: MR },
+    body: [
+      ['Probeta vacía (kg)',        c.puProbetaVacia || '—'],
+      ['Probeta + hormigón (kg)',   c.puProbetaLlena || '—'],
+      [
+        { content: 'PU calculado (kg/m³)', styles: { fontStyle: 'bold', fontSize: 9.5, fillColor: [220, 237, 255], textColor: [15, 52, 96] } },
+        { content: puTexto,                styles: { fontStyle: 'bold', fontSize: 9.5, fillColor: [220, 237, 255], textColor: [15, 52, 96] } },
+      ],
+    ],
+    columnStyles,
+    styles: tableStyles,
+    theme: 'grid',
+  });
+  y = doc.lastAutoTable.finalY + 4;
+
+  // Observaciones del camión
+  if (c.observaciones) {
+    if (y > PH - SIG_MARGIN_BOTTOM - 16) {
+      doc.addPage();
+      y = 20;
+    }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('OBSERVACIONES DEL CAMIÓN', ML, y + 4);
+    y += 6;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(40, 40, 40);
+    const lines = doc.splitTextToSize(c.observaciones, CW);
+    doc.text(lines, ML, y + 3.5);
+    y += lines.length * 4 + 4;
+  }
+
+  return y;
+}
+
 // ─── Pie de página (número) ───────────────────────────────────────────────────
 
 function addPageNumbers(doc) {
@@ -281,9 +473,11 @@ export async function generarPDF(protocolo, fotos = [], kmInicio = '', kmFin = '
   const meta = PROTOCOLOS.find(p => p.id === protocolo.protocoloId);
   const entidad = `${NOMBRES_TIPO[protocolo.tipo] ?? protocolo.tipo} ${protocolo.entidadId}`;
 
+  const esHA = protocolo.protocoloId === 'HA_RADIER' || protocolo.protocoloId === 'HA_MURO';
   const itemsChecklist = CHECKLISTS[protocolo.protocoloId] ?? [];
   const checklist      = protocolo.datos?.checklist ?? {};
   const observaciones  = protocolo.datos?.observaciones ?? '';
+  const camiones       = protocolo.datos?.camiones ?? [];
   const textos = TEXTOS[protocolo.protocoloId] ?? { objetivo: '', alcance: '', normativa: '' };
 
   const km = resolveKm(protocolo, kmInicio, kmFin);
@@ -324,6 +518,39 @@ export async function generarPDF(protocolo, fotos = [], kmInicio = '', kmFin = '
     margin: { left: ML, right: MR },
   });
   y = doc.lastAutoTable.finalY + 5;
+
+  if (esHA) {
+    // ── Control H.A.: una sección por camión ───────────────────────────────
+    if (camiones.length === 0) {
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(10);
+      doc.setTextColor(140, 140, 140);
+      doc.text('No hay camiones registrados para este protocolo.', ML, y + 6);
+      y += 12;
+    } else {
+      for (const c of camiones) {
+        y = drawCamionDatos(doc, c, y);
+        if (c.fotos?.length > 0) {
+          y = await drawFotosCamion(doc, protocolo, c.numero, c.fotos);
+        }
+      }
+    }
+
+    // Firma: solo en la última página
+    let sigYHA = Math.max(y + 4, PH - SIG_MARGIN_BOTTOM - SIG_H - 2);
+    if (sigYHA + SIG_H > PH - SIG_MARGIN_BOTTOM) {
+      doc.addPage();
+      sigYHA = PH - SIG_MARGIN_BOTTOM - SIG_H - 2;
+    }
+    drawFirma(doc, sigYHA);
+
+    addPageNumbers(doc);
+    const tipoLabelHA  = TIPO_ARCHIVO[protocolo.tipo] ?? protocolo.tipo;
+    const entidadStrHA = String(protocolo.entidadId).replace(/\s+/g, '');
+    const fechaStrHA   = fmtArchivo(protocolo.fechaModificacion);
+    doc.save(`${protocolo.protocoloId}_${tipoLabelHA}${entidadStrHA}_${fechaStrHA}.pdf`);
+    return;
+  }
 
   // Checklist (solo si hay items)
   if (itemsChecklist.length > 0) {
@@ -399,8 +626,6 @@ export async function generarPDF(protocolo, fotos = [], kmInicio = '', kmFin = '
   }
 
   // Firma en página 1: empuja hacia abajo si hay espacio, o usa posición fija
-  const SIG_H = 27;
-  const SIG_MARGIN_BOTTOM = 14;
   let sigY1 = Math.max(y + 4, PH - SIG_MARGIN_BOTTOM - SIG_H - 2);
   if (sigY1 + SIG_H > PH - SIG_MARGIN_BOTTOM) {
     doc.addPage();
