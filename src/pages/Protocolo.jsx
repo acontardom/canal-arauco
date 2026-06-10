@@ -11,6 +11,8 @@ import { supabase } from '../config/supabase';
 
 const OPCION_COLOR = { si: '#10b981', no: '#ef4444', na: '#f59e0b' };
 const PROBETA_VOL = 0.0101;
+const NOMBRES_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
+const VOLVER_BASE = { tramo: '/tramos', caida: '/caidas', atravieso: '/atraviesos' };
 
 function leerComoDataUrl(file) {
   return new Promise((resolve) => {
@@ -250,9 +252,9 @@ export default function Protocolo() {
   const protocoloInfo = PROTOCOLOS.find(p => p.id === protocoloId);
   const itemsChecklist = CHECKLISTS[protocoloId] ?? [];
   const emptyChecklist = Object.fromEntries(itemsChecklist.map(i => [i.id, { valor: null, obs: '' }]));
-  const nombreEntidad = tipo === 'tramo' ? `Tramo ${entidadId}` : `Caída ${entidadId}`;
+  const nombreEntidad = `${NOMBRES_TIPO[tipo] ?? tipo} ${entidadId}`;
   const titulo = `${nombreEntidad} — ${protocoloInfo?.nombre ?? protocoloId}`;
-  const volverUrl = tipo === 'tramo' ? `/tramos/${entidadId}` : `/caidas/${entidadId}`;
+  const volverUrl = `${VOLVER_BASE[tipo] ?? '/'}/${entidadId}`;
   // Protocolos de Control H.A. — solo muestran la vista de camiones
   const esHA = protocoloId === 'HA_RADIER' || protocoloId === 'HA_MURO';
   // Evaluado una sola vez al montar — suficiente para PWA móvil

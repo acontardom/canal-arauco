@@ -7,6 +7,8 @@ import Tramos from './pages/Tramos';
 import TramoDetalle from './pages/TramoDetalle';
 import Caidas from './pages/Caidas';
 import CaidaDetalle from './pages/CaidaDetalle';
+import Atraviesos from './pages/Atraviesos';
+import AtraviesoDetalle from './pages/AtraviesoDetalle';
 import Protocolo from './pages/Protocolo';
 import Configuracion from './pages/Configuracion';
 import { descargarDesdeSupabase, iniciarSyncAutomatico } from './utils/sync';
@@ -79,6 +81,8 @@ export default function App() {
             <Route path="/tramos/:tramoId" element={<TramoDetalle />} />
             <Route path="/caidas" element={<Caidas />} />
             <Route path="/caidas/:caidaId" element={<CaidaDetalle />} />
+            <Route path="/atraviesos" element={<Atraviesos />} />
+            <Route path="/atraviesos/:atraviesoId" element={<AtraviesoDetalle />} />
             <Route path="/protocolo/:tipo/:entidadId/:protocoloId" element={<Protocolo />} />
             <Route path="/configuracion" element={<Configuracion />} />
           </Routes>

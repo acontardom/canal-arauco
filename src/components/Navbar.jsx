@@ -14,6 +14,7 @@ export default function Navbar() {
         <NavLink to="/" end style={navStyle}>Dashboard</NavLink>
         <NavLink to="/tramos" style={navStyle}>Tramos</NavLink>
         <NavLink to="/caidas" style={navStyle}>Caídas</NavLink>
+        <NavLink to="/atraviesos" style={navStyle}>Atraviesos</NavLink>
         {isDesktop && (
           <NavLink to="/configuracion" style={navStyle} title="Configuración KM">
             ⚙ Config

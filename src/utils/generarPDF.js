@@ -1,7 +1,17 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import logoUrl from '../assets/Logo_ExMaq.jpg';
-import { PROTOCOLOS, CHECKLISTS } from '../constants/estructura';
+import { PROTOCOLOS, CHECKLISTS, KM_DATA } from '../constants/estructura';
+
+const NOMBRES_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
+const TIPO_ARCHIVO = { tramo: 'Tramo', caida: 'Caida', atravieso: 'Atravieso' };
+
+// Resuelve los KM reales: usa los pasados (Configuración) si existen, si no cae a KM_DATA
+function resolveKm(protocolo, kmInicio, kmFin) {
+  if (kmInicio || kmFin) return { inicio: kmInicio, fin: kmFin };
+  const datos = KM_DATA[protocolo.tipo]?.[String(protocolo.entidadId)];
+  return { inicio: datos?.inicio ?? '', fin: datos?.fin ?? '' };
+}
 
 // ─── Layout constants (A4 mm) ─────────────────────────────────────────────────
 const PW = 210;   // page width
@@ -156,9 +166,7 @@ function drawFirma(doc, y) {
 
 function drawEncabezado(doc, logoB64, protocolo, kmInicio, kmFin) {
   const meta = PROTOCOLOS.find(p => p.id === protocolo.protocoloId);
-  const entidad = protocolo.tipo === 'tramo'
-    ? `Tramo ${protocolo.entidadId}`
-    : `Caída ${protocolo.entidadId}`;
+  const entidad = `${NOMBRES_TIPO[protocolo.tipo] ?? protocolo.tipo} ${protocolo.entidadId}`;
 
   // ── Fila 1: logo + títulos ────────────────────────────────────────────────
   const ROW1_H = 28;
@@ -237,9 +245,7 @@ function drawEncabezado(doc, logoB64, protocolo, kmInicio, kmFin) {
 
 function drawEncabezadoFotos(doc, protocolo) {
   const meta = PROTOCOLOS.find(p => p.id === protocolo.protocoloId);
-  const entidad = protocolo.tipo === 'tramo'
-    ? `Tramo ${protocolo.entidadId}`
-    : `Caída ${protocolo.entidadId}`;
+  const entidad = `${NOMBRES_TIPO[protocolo.tipo] ?? protocolo.tipo} ${protocolo.entidadId}`;
 
   doc.setFillColor(15, 52, 96);
   doc.rect(ML, 14, CW, 12, 'F');
@@ -273,17 +279,16 @@ function addPageNumbers(doc) {
 
 export async function generarPDF(protocolo, fotos = [], kmInicio = '', kmFin = '') {
   const meta = PROTOCOLOS.find(p => p.id === protocolo.protocoloId);
-  const entidad = protocolo.tipo === 'tramo'
-    ? `Tramo ${protocolo.entidadId}`
-    : `Caída ${protocolo.entidadId}`;
+  const entidad = `${NOMBRES_TIPO[protocolo.tipo] ?? protocolo.tipo} ${protocolo.entidadId}`;
 
   const itemsChecklist = CHECKLISTS[protocolo.protocoloId] ?? [];
   const checklist      = protocolo.datos?.checklist ?? {};
   const observaciones  = protocolo.datos?.observaciones ?? '';
   const textos = TEXTOS[protocolo.protocoloId] ?? { objetivo: '', alcance: '', normativa: '' };
 
+  const km = resolveKm(protocolo, kmInicio, kmFin);
   const actividadParts = [];
-  if (kmInicio || kmFin) actividadParts.push(`km ${kmInicio || '—'} hasta ${kmFin || '—'}`);
+  if (km.inicio || km.fin) actividadParts.push(`km ${km.inicio || '—'} hasta ${km.fin || '—'}`);
   actividadParts.push(`Elemento: ${entidad}`);
   const actividad = actividadParts.join(' — ');
 
@@ -467,7 +472,7 @@ export async function generarPDF(protocolo, fotos = [], kmInicio = '', kmFin = '
   addPageNumbers(doc);
 
   // ── Descargar ─────────────────────────────────────────────────────────────
-  const tipoLabel  = protocolo.tipo === 'tramo' ? 'Tramo' : 'Caida';
+  const tipoLabel  = TIPO_ARCHIVO[protocolo.tipo] ?? protocolo.tipo;
   const entidadStr = String(protocolo.entidadId).replace(/\s+/g, '');
   const fechaStr   = fmtArchivo(protocolo.fechaModificacion);
   doc.save(`${protocolo.protocoloId}_${tipoLabel}${entidadStr}_${fechaStr}.pdf`);

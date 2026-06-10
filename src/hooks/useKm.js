@@ -1,9 +1,10 @@
 const LS_KEY = 'config_km';
 
+const PREFIJOS = { tramo: 'TRAMO', caida: 'CAIDA', atravieso: 'ATRAVIESO' };
+
 function kmKey(tipo, id) {
-  return tipo === 'tramo'
-    ? `TRAMO_${String(id).toUpperCase()}`
-    : `CAIDA_${id}`;
+  const prefijo = PREFIJOS[tipo] ?? tipo.toUpperCase();
+  return `${prefijo}_${String(id).toUpperCase()}`;
 }
 
 function readConfig() {
