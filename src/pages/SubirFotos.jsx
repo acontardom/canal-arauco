@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
@@ -36,6 +36,13 @@ export default function SubirFotos() {
     () => db.fotos_terreno.where('tipo').equals(tipo).and(f => f.entidadId === entidadIdReal).count(),
     [tipo, entidadId]
   ) ?? 0;
+
+  // Forzar sincronización al montar para subir cualquier foto pendiente en Dexie
+  useEffect(() => {
+    if (supabase && navigator.onLine) {
+      sincronizar();
+    }
+  }, []);
 
   function handleTipoChange(nuevoTipo) {
     setTipo(nuevoTipo);

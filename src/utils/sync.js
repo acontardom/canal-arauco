@@ -103,9 +103,11 @@ async function sincronizarFotosTerreno() {
     .filter(f => !f.sincronizada)
     .toArray();
 
+  console.log('Sincronizando fotos_terreno pendientes:', pendientes.length);
+
   for (const foto of pendientes) {
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('fotos_terreno')
         .upsert(
           {
@@ -121,7 +123,10 @@ async function sincronizarFotosTerreno() {
             fecha_captura:  foto.fechaCaptura ?? null,
           },
           { onConflict: 'local_id' }
-        );
+        )
+        .select();
+
+      console.log('Resultado upsert fotos_terreno:', data, error);
 
       if (error) throw error;
 
