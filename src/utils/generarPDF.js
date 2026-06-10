@@ -439,11 +439,20 @@ function agregarProtocoloControl(doc, protocolo, y, opts = {}) {
 
 // ─── Pie de firma ─────────────────────────────────────────────────────────────
 
-function agregarPieFirma(doc, yPos) {
+const SIG_TOTAL_H = 35; // alto total aprox del pie de firma (4 filas)
+
+// Tabla de pie de firma — unificada (4 filas), nunca se divide entre páginas
+// y siempre queda pegada al fondo de la página en la que se dibuja.
+function agregarPieFirma(doc, cursorY) {
+  if (cursorY + SIG_TOTAL_H > PH - 10) {
+    doc.addPage();
+  }
+
+  const startY = PH - 40;
   const colW = CW / 3;
 
   autoTable(doc, {
-    startY: yPos,
+    startY,
     margin: { left: ML, right: MR },
     tableWidth: CW,
     body: [
@@ -466,6 +475,7 @@ function agregarPieFirma(doc, yPos) {
       halign: 'center',
     },
     theme: 'grid',
+    pageBreak: 'avoid',
     didParseCell: (data) => {
       if (data.row.index === 0) {
         data.cell.styles.fontStyle = 'bold';
@@ -522,7 +532,8 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
     }
   }
 
-  agregarPieFirma(doc, SIG_Y);
+  const numRows = Math.ceil(fotosBatch.length / COLS);
+  agregarPieFirma(doc, y + numRows * cellH);
 }
 
 // ─── Página 1 (info + procedimiento + protocolo de control) ──────────────────
@@ -550,8 +561,8 @@ export async function generarPDF(protocolo, fotos = [], kmInicio = '', kmFin = '
 
   if (soloFotos) {
     if (fotos.length === 0) {
-      agregarEncabezado(doc, protocolo, 1, totalPaginas, kmInicio, kmFin, logoB64);
-      agregarPieFirma(doc, SIG_Y);
+      const y = agregarEncabezado(doc, protocolo, 1, totalPaginas, kmInicio, kmFin, logoB64);
+      agregarPieFirma(doc, y);
     } else {
       for (let i = 0; i < fotos.length; i += FOTOS_POR_PAGINA) {
         const paginaActual = i / FOTOS_POR_PAGINA + 1;
@@ -567,7 +578,7 @@ export async function generarPDF(protocolo, fotos = [], kmInicio = '', kmFin = '
       y = construirPagina1(doc, protocolo, kmInicio, kmFin, totalPaginas, logoB64, ESCALAS_PAGINA1[i]);
       if (y <= SIG_Y) break;
     }
-    agregarPieFirma(doc, SIG_Y);
+    agregarPieFirma(doc, y);
 
     for (let i = 0; i < fotos.length; i += FOTOS_POR_PAGINA) {
       doc.addPage();
