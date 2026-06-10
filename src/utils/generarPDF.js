@@ -21,6 +21,7 @@ const MR = 14;    // margin right
 const CW = PW - ML - MR; // content width = 182mm
 const SIG_H = 27;             // alto del bloque de firmas
 const SIG_MARGIN_BOTTOM = 14; // margen inferior reservado para firmas
+const PESO_HOYA = 6.9;         // kg, peso fijo de la hoya vacía (ensayo PU)
 
 // ─── Textos fijos por protocolo ───────────────────────────────────────────────
 const TEXTOS = {
@@ -385,10 +386,13 @@ function drawCamionDatos(doc, c, y) {
     startY: y,
     margin: { top: 20, left: ML, right: MR },
     body: [
-      ['Tipo hormigón y volumen',     c.tipoHormigon || '—'],
-      ['N° guía y planta',            c.guia || '—'],
+      ['Tipo hormigón',               c.tipoHormigon || '—'],
+      ['Volumen (m³)',                c.volumen || '—'],
+      ['N° Guía',                     c.guia || '—'],
+      ['Planta',                      c.planta || '—'],
       ['Asentamiento de cono (cm)',   c.cono || '—'],
-      ['Temperatura (°C)',            c.temperatura || '—'],
+      ['Temperatura hormigón (°C)',   c.temperaturaHormigon || '—'],
+      ['Temperatura ambiente (°C)',   c.temperaturaAmbiente || '—'],
       ['Hora de carga',               c.horaCarga || '—'],
       ['Hora de descarga',            c.horaDescarga || '—'],
       ['Tiempo de traslado (min)',    c.tiempoTraslado || '—'],
@@ -407,7 +411,7 @@ function drawCamionDatos(doc, c, y) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(100, 116, 139);
-  doc.text('ENSAYO PESO UNITARIO — PROBETA 10.1 L', ML, y + 4);
+  doc.text('ENSAYO PESO UNITARIO', ML, y + 4);
   y += 6;
 
   const puTexto = c.puResultado
@@ -418,8 +422,8 @@ function drawCamionDatos(doc, c, y) {
     startY: y,
     margin: { top: 20, left: ML, right: MR },
     body: [
-      ['Probeta vacía (kg)',        c.puProbetaVacia || '—'],
-      ['Probeta + hormigón (kg)',   c.puProbetaLlena || '—'],
+      ['Peso de la hoya (kg)',       PESO_HOYA.toFixed(1).replace('.', ',')],
+      ['Peso hoya + hormigón (kg)',  c.puPesoTotal || '—'],
       [
         { content: 'PU calculado (kg/m³)', styles: { fontStyle: 'bold', fontSize: 9.5, fillColor: [220, 237, 255], textColor: [15, 52, 96] } },
         { content: puTexto,                styles: { fontStyle: 'bold', fontSize: 9.5, fillColor: [220, 237, 255], textColor: [15, 52, 96] } },

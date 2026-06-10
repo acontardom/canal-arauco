@@ -11,6 +11,9 @@ import { supabase } from '../config/supabase';
 
 const OPCION_COLOR = { si: '#10b981', no: '#ef4444', na: '#f59e0b' };
 const PROBETA_VOL = 0.0101;
+const PESO_HOYA = 6.9;
+const TIPOS_HORMIGON = ['G5', 'G20', 'G25'];
+const PLANTAS = ['Membrillar', 'Quilanco', 'Río San Martín'];
 const NOMBRES_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 const VOLVER_BASE = { tramo: '/tramos', caida: '/caidas', atravieso: '/atraviesos' };
 
@@ -22,19 +25,22 @@ function leerComoDataUrl(file) {
   });
 }
 
-function calcTiempoTraslado(horaCarga, horaDescarga) {
-  if (!horaCarga || !horaDescarga) return '';
-  const [h1, m1] = horaCarga.split(':').map(Number);
-  const [h2, m2] = horaDescarga.split(':').map(Number);
-  const diff = (h2 * 60 + m2) - (h1 * 60 + m1);
-  return diff >= 0 ? String(diff) : '';
+// Suma minutos a una hora "HH:MM" y devuelve "HH:MM" (con vuelta de día)
+function sumarMinutos(hora, minutos) {
+  const [h, m] = hora.split(':').map(Number);
+  const total = ((h * 60 + m + minutos) % 1440 + 1440) % 1440;
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
 
-function calcPU(pesoVacia, pesoLlena) {
-  const v = parseFloat(pesoVacia);
-  const l = parseFloat(pesoLlena);
-  if (isNaN(v) || isNaN(l) || l <= v) return '';
-  return String(Math.round((l - v) / PROBETA_VOL));
+// Tiempo de traslado simulado: entero aleatorio entre 35 y 50 minutos
+function randomTraslado() {
+  return Math.floor(Math.random() * (50 - 35 + 1)) + 35;
+}
+
+function calcPU(pesoTotal) {
+  const t = parseFloat(pesoTotal);
+  if (isNaN(t) || t <= PESO_HOYA) return '';
+  return String(Math.round((t - PESO_HOYA) / PROBETA_VOL));
 }
 
 // Convierte cualquier formato previo del checklist al formato {valor, obs}
@@ -99,15 +105,23 @@ function CamionModal({ camion: initialData, onSave, onCancelar, onEliminar }) {
   const [data, setData] = useState(initialData);
   const inputCamaraRef = useRef(null);
   const inputGaleriaRef = useRef(null);
+  const inputGuiaRef = useRef(null);
 
   function set(field, value) {
     setData(prev => {
       const next = { ...prev, [field]: value };
-      if (field === 'horaCarga' || field === 'horaDescarga') {
-        next.tiempoTraslado = calcTiempoTraslado(next.horaCarga, next.horaDescarga);
+      if (field === 'horaCarga') {
+        if (value) {
+          const minutos = randomTraslado();
+          next.tiempoTraslado = String(minutos);
+          next.horaDescarga = sumarMinutos(value, minutos);
+        } else {
+          next.tiempoTraslado = '';
+          next.horaDescarga = '';
+        }
       }
-      if (field === 'puProbetaVacia' || field === 'puProbetaLlena') {
-        next.puResultado = calcPU(next.puProbetaVacia, next.puProbetaLlena);
+      if (field === 'puPesoTotal') {
+        next.puResultado = calcPU(next.puPesoTotal);
       }
       return next;
     });
@@ -133,6 +147,14 @@ function CamionModal({ camion: initialData, onSave, onCancelar, onEliminar }) {
     }));
   }
 
+  async function handleFotoGuia(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const dataUrl = await leerComoDataUrl(file);
+    setData(prev => ({ ...prev, fotoGuia: { dataUrl } }));
+    e.target.value = '';
+  }
+
   return (
     <div style={s.overlay}>
       <div style={sm.container}>
@@ -142,65 +164,100 @@ function CamionModal({ camion: initialData, onSave, onCancelar, onEliminar }) {
         </div>
 
         <div style={sm.body}>
-          <label style={sm.label}>Tipo hormigón / volumen</label>
-          <input style={sm.input} placeholder="G20 — 8.5 m³" value={data.tipoHormigon} onChange={e => set('tipoHormigon', e.target.value)} />
+          {/* Tipo hormigón + Volumen */}
+          <div style={sm.row}>
+            <div style={sm.half}>
+              <label style={sm.label}>Tipo hormigón</label>
+              <select style={sm.input} value={data.tipoHormigon ?? ''} onChange={e => set('tipoHormigon', e.target.value)}>
+                <option value="">Seleccionar...</option>
+                {TIPOS_HORMIGON.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div style={sm.half}>
+              <label style={sm.label}>Volumen (m³)</label>
+              <input style={sm.input} type="number" step="0.1" placeholder="8.5" value={data.volumen ?? ''} onChange={e => set('volumen', e.target.value)} />
+            </div>
+          </div>
 
-          <label style={sm.label}>N° guía / planta</label>
-          <input style={sm.input} placeholder="G-1234 / Planta Los Ángeles" value={data.guia} onChange={e => set('guia', e.target.value)} />
+          {/* N° Guía + Planta */}
+          <div style={sm.row}>
+            <div style={sm.half}>
+              <label style={sm.label}>N° Guía</label>
+              <input style={sm.input} type="number" placeholder="0" value={data.guia ?? ''} onChange={e => set('guia', e.target.value)} />
+            </div>
+            <div style={sm.half}>
+              <label style={sm.label}>Planta</label>
+              <select style={sm.input} value={data.planta ?? ''} onChange={e => set('planta', e.target.value)}>
+                <option value="">Seleccionar...</option>
+                {PLANTAS.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+          </div>
 
+          {/* Cono + Temperatura hormigón + Temperatura ambiente */}
           <div style={sm.row}>
             <div style={sm.half}>
               <label style={sm.label}>Cono (cm)</label>
-              <input style={sm.input} type="number" placeholder="0" value={data.cono} onChange={e => set('cono', e.target.value)} />
+              <input style={sm.input} type="number" placeholder="0" value={data.cono ?? ''} onChange={e => set('cono', e.target.value)} />
             </div>
             <div style={sm.half}>
-              <label style={sm.label}>Temperatura (°C)</label>
-              <input style={sm.input} type="number" placeholder="0" value={data.temperatura} onChange={e => set('temperatura', e.target.value)} />
+              <label style={sm.label}>Temp. hormigón (°C)</label>
+              <input style={sm.input} type="number" placeholder="0" value={data.temperaturaHormigon ?? ''} onChange={e => set('temperaturaHormigon', e.target.value)} />
+            </div>
+            <div style={sm.half}>
+              <label style={sm.label}>Temp. ambiente (°C)</label>
+              <input style={sm.input} type="number" placeholder="0" value={data.temperaturaAmbiente ?? ''} onChange={e => set('temperaturaAmbiente', e.target.value)} />
             </div>
           </div>
 
+          {/* Hora de carga → descarga (auto) → traslado (auto) */}
           <div style={sm.row}>
             <div style={sm.half}>
               <label style={sm.label}>Hora de carga</label>
-              <input style={sm.input} type="time" value={data.horaCarga} onChange={e => set('horaCarga', e.target.value)} />
+              <input style={sm.input} type="time" value={data.horaCarga ?? ''} onChange={e => set('horaCarga', e.target.value)} />
             </div>
             <div style={sm.half}>
               <label style={sm.label}>Hora de descarga</label>
-              <input style={sm.input} type="time" value={data.horaDescarga} onChange={e => set('horaDescarga', e.target.value)} />
+              <input style={{ ...sm.input, ...sm.inputReadOnly }} type="time" value={data.horaDescarga ?? ''} readOnly tabIndex={-1} />
             </div>
           </div>
+          {data.tiempoTraslado && (
+            <div style={sm.calcBadge}>Tiempo de traslado: {data.tiempoTraslado} min</div>
+          )}
 
-          <label style={sm.label}>Tiempo de traslado (min)</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <input
-              style={{ ...sm.input, flex: 1 }}
-              type="number"
-              placeholder="Auto"
-              value={data.tiempoTraslado}
-              onChange={e => set('tiempoTraslado', e.target.value)}
-            />
-            {data.tiempoTraslado && <span style={sm.calcBadge}>{data.tiempoTraslado} min</span>}
-          </div>
-
-          <p style={sm.sectionTitle}>Ensayo Peso Unitario — probeta 10.1 L</p>
+          {/* Ensayo Peso Unitario */}
+          <p style={sm.sectionTitle}>Ensayo Peso Unitario</p>
           <div style={sm.row}>
             <div style={sm.half}>
-              <label style={sm.label}>Probeta vacía (kg)</label>
-              <input style={sm.input} type="number" step="0.001" placeholder="0.000" value={data.puProbetaVacia} onChange={e => set('puProbetaVacia', e.target.value)} />
+              <label style={sm.label}>Peso de la hoya (kg)</label>
+              <div style={sm.fixedValue}>{PESO_HOYA.toFixed(1).replace('.', ',')} kg</div>
             </div>
             <div style={sm.half}>
-              <label style={sm.label}>Probeta + hormigón (kg)</label>
-              <input style={sm.input} type="number" step="0.001" placeholder="0.000" value={data.puProbetaLlena} onChange={e => set('puProbetaLlena', e.target.value)} />
+              <label style={sm.label}>Peso hoya + hormigón (kg)</label>
+              <input style={sm.input} type="number" step="0.001" placeholder="0.000" value={data.puPesoTotal ?? ''} onChange={e => set('puPesoTotal', e.target.value)} />
             </div>
           </div>
           {data.puResultado && (
             <div style={sm.resultado}>PU = <strong>{Number(data.puResultado).toLocaleString('es-CL')} kg/m³</strong></div>
           )}
 
-          <label style={sm.label}>Observaciones del camión</label>
-          <textarea style={sm.textarea} rows={3} value={data.observaciones} onChange={e => set('observaciones', e.target.value)} placeholder="Notas del camión..." />
+          {/* Foto Guía de Despacho — slot único reemplazable */}
+          <p style={sm.sectionTitle}>Foto Guía de Despacho</p>
+          <input ref={inputGuiaRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFotoGuia} />
+          {data.fotoGuia ? (
+            <div style={sm.fotoGuiaWrap}>
+              <div style={sm.fotoGuiaThumb}>
+                <img src={data.fotoGuia.dataUrl} alt="" style={s.fotoImg} />
+                <button style={s.btnEliminarFoto} onClick={() => set('fotoGuia', null)}>×</button>
+              </div>
+              <button style={{ ...sm.btnFotoSm, background: '#0f3460' }} onClick={() => inputGuiaRef.current?.click()}>Cambiar foto</button>
+            </div>
+          ) : (
+            <button style={sm.btnFotoSm} onClick={() => inputGuiaRef.current?.click()}>📷 Agregar foto</button>
+          )}
 
-          <p style={sm.sectionTitle}>Fotos del camión</p>
+          {/* Fotos del Ensayo — múltiples, con descripción */}
+          <p style={sm.sectionTitle}>Fotos del Ensayo</p>
           <input ref={inputCamaraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFoto} />
           <input ref={inputGaleriaRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleFoto} />
           <div style={s.fotosBotones}>
@@ -226,6 +283,10 @@ function CamionModal({ camion: initialData, onSave, onCancelar, onEliminar }) {
               ))}
             </div>
           )}
+
+          {/* Observaciones — al final */}
+          <label style={sm.label}>Observaciones del camión</label>
+          <textarea style={sm.textareaObs} rows={3} value={data.observaciones ?? ''} onChange={e => set('observaciones', e.target.value)} placeholder="Notas del camión..." />
         </div>
 
         <div style={sm.footer}>
@@ -403,11 +464,13 @@ export default function Protocolo() {
       data: {
         id: Date.now().toString(),
         numero: camiones.length + 1,
-        tipoHormigon: '', guia: '',
-        cono: '', temperatura: '',
+        tipoHormigon: '', volumen: '',
+        guia: '', planta: '',
+        cono: '', temperaturaHormigon: '', temperaturaAmbiente: '',
         horaCarga: '', horaDescarga: '', tiempoTraslado: '',
-        puProbetaVacia: '', puProbetaLlena: '', puResultado: '',
-        observaciones: '', fotos: [],
+        puPesoTotal: '', puResultado: '',
+        fotoGuia: null, fotos: [],
+        observaciones: '',
       },
     });
   }
@@ -456,9 +519,11 @@ export default function Protocolo() {
                 <div key={c.id} style={s.camionFila} onClick={() => setCamionModal({ idx, data: { ...c } })}>
                   <div style={s.camionNum}>#{c.numero}</div>
                   <div style={s.camionInfo}>
-                    <span style={s.camionTipo}>{c.tipoHormigon || '—'}</span>
+                    <span style={s.camionTipo}>
+                      {[c.tipoHormigon, c.volumen && `${c.volumen} m³`].filter(Boolean).join(' — ') || '—'}
+                    </span>
                     <span style={s.camionMeta}>
-                      {[c.guia && `G: ${c.guia}`, c.cono && `Cono: ${c.cono}cm`, c.temperatura && `${c.temperatura}°C`]
+                      {[c.guia && `G: ${c.guia}`, c.cono && `Cono: ${c.cono}cm`, c.temperaturaHormigon && `${c.temperaturaHormigon}°C`]
                         .filter(Boolean).join(' · ')}
                     </span>
                   </div>
@@ -717,9 +782,14 @@ const sm = {
   textarea: { background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '7px', color: '#ccd6f6', fontSize: '14px', padding: '10px 12px', fontFamily: 'inherit', outline: 'none', width: '100%', resize: 'vertical' },
   row: { display: 'flex', gap: '10px' },
   half: { flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' },
-  calcBadge: { background: '#10b981', color: '#fff', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', fontWeight: 700, whiteSpace: 'nowrap' },
+  calcBadge: { background: '#10b981', color: '#fff', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', fontWeight: 700, whiteSpace: 'nowrap', textAlign: 'center' },
   resultado: { background: '#0a2040', border: '1px solid #10b981', borderRadius: '8px', padding: '10px 14px', color: '#ccd6f6', fontSize: '14px' },
   btnFotoSm: { background: '#10b981', color: '#fff', border: 'none', borderRadius: '7px', padding: '8px 14px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', flex: '1 1 100px' },
+  inputReadOnly: { opacity: 0.6, cursor: 'not-allowed' },
+  fixedValue: { background: '#0a1f3a', border: '1px solid #1e3a5f', borderRadius: '7px', color: '#8892b0', fontSize: '14px', padding: '10px 12px', width: '100%', boxSizing: 'border-box' },
+  textareaObs: { background: '#0f3460', border: '1.5px solid #3a5a8a', borderRadius: '7px', color: '#ccd6f6', fontSize: '14px', padding: '10px 12px', fontFamily: 'inherit', outline: 'none', width: '100%', resize: 'vertical', minHeight: '76px', boxSizing: 'border-box' },
+  fotoGuiaWrap: { display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '140px' },
+  fotoGuiaThumb: { position: 'relative', width: '140px', height: '140px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #1e3a5f' },
   footer: { display: 'flex', gap: '8px', padding: '14px 20px', borderTop: '1px solid #0f3460', flexShrink: 0 },
   btnEliminar: { background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' },
   btnCancelar: { flex: 1, background: '#0f3460', color: '#ccd6f6', border: 'none', borderRadius: '8px', padding: '12px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' },
