@@ -388,11 +388,13 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     async function cargarFotosTerreno() {
       if (supabase && navigator.onLine) {
         try {
+          console.log('Buscando fotos para:', { tipo, entidadId: entidadIdReal });
           const { data, error } = await supabase
             .from('fotos_terreno')
             .select('*')
             .eq('tipo', tipo)
             .eq('entidad_id', String(entidadIdReal));
+          console.log('Resultado Supabase fotos_terreno:', data, error);
           if (error) throw error;
           if (!cancelado) {
             setFotosTerreno((data ?? []).map(f => ({
