@@ -144,11 +144,15 @@ const ML = 14;    // margin left
 const MR = 14;    // margin right
 const CW = PW - ML - MR; // content width = 182mm
 
-// El pie de firma se dibuja siempre en una posición fija respecto del fondo
-// de cada página. Las tablas de contenido reservan ese espacio mediante
-// `margin.bottom` para que autotable pagine antes de invadirlo.
-const PIE_FIRMA_Y = PH - 42; // posición Y fija del pie de firma en cada página
-const CONTENT_MARGIN = { top: 10, bottom: 50 }; // reserva de espacio para encabezado/pie en autotable
+// El pie de firma se dibuja pegado debajo del último contenido (startY:
+// finalY + PIE_FIRMA_GAP), no a una posición fija al fondo de página.
+const PIE_FIRMA_GAP = 8;  // mm de separación entre el contenido y el pie de firma
+const PIE_FIRMA_H = 29;   // alto aprox. del pie de firma (4 filas)
+const CONTENT_MARGIN = { top: 10, bottom: 10 }; // margen de autotable (sin reserva fija de pie)
+
+// Tipografía/espaciado normal y reducido (si el contenido no cabe en una página)
+const ESCALA_NORMAL = { fontSize: 8, headFontSize: 9, cellPadding: 2 };
+const ESCALA_REDUCIDA = { fontSize: 7.5, headFontSize: 8.5, cellPadding: 1.5 };
 
 // Resuelve los KM reales: usa los pasados (Configuración) si existen, si no cae a KM_DATA
 function resolveKm(protocolo, kmInicio, kmFin) {
@@ -294,7 +298,7 @@ function agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio,
 
 // ─── Tabla info (página 1) ────────────────────────────────────────────────────
 
-function agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin) {
+function agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin, escala = ESCALA_NORMAL) {
   const textos = TEXTOS_PROTOCOLO[protocolo.protocoloId] ?? { objetivo: '', alcance: '', normativa: '' };
   const km = resolveKm(protocolo, kmInicio, kmFin);
   const entidad = `${NOMBRES_TIPO[protocolo.tipo] ?? protocolo.tipo} ${protocolo.entidadId}`;
@@ -312,12 +316,12 @@ function agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin) {
       ['Responsable', 'Encargado de Calidad / Administrador de Contrato'],
     ],
     columnStyles: {
-      0: { cellWidth: 45, fontStyle: 'bold', fillColor: [240, 240, 240], fontSize: 9 },
+      0: { cellWidth: 45, fontStyle: 'bold', fillColor: [240, 240, 240], fontSize: escala.headFontSize },
       1: { cellWidth: CW - 45 },
     },
     styles: {
-      fontSize: 8,
-      cellPadding: 2,
+      fontSize: escala.fontSize,
+      cellPadding: escala.cellPadding,
       lineColor: [120, 120, 120],
       lineWidth: 0.2,
       textColor: [30, 30, 30],
@@ -330,7 +334,7 @@ function agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin) {
 
 // ─── Sección PROCEDIMIENTO (página 1) ─────────────────────────────────────────
 
-function agregarProcedimiento(doc, protocolo, y) {
+function agregarProcedimiento(doc, protocolo, y, escala = ESCALA_NORMAL) {
   const pasos = TEXTOS_PROTOCOLO[protocolo.protocoloId]?.procedimiento ?? [];
   if (pasos.length === 0) return y;
 
@@ -339,15 +343,15 @@ function agregarProcedimiento(doc, protocolo, y) {
     margin: { left: ML, right: MR, ...CONTENT_MARGIN },
     tableWidth: CW,
     head: [[
-      { content: 'PROCEDIMIENTO', styles: { fillColor: [44, 62, 80], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center', fontSize: 9 } },
+      { content: 'PROCEDIMIENTO', styles: { fillColor: [44, 62, 80], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center', fontSize: escala.headFontSize } },
     ]],
     body: pasos.map(paso => [paso]),
     columnStyles: {
       0: { cellWidth: CW, halign: 'center' },
     },
     styles: {
-      fontSize: 8,
-      cellPadding: 2,
+      fontSize: escala.fontSize,
+      cellPadding: escala.cellPadding,
       lineColor: [120, 120, 120],
       lineWidth: 0.2,
       textColor: [30, 30, 30],
@@ -361,7 +365,7 @@ function agregarProcedimiento(doc, protocolo, y) {
 
 // ─── Tabla PROTOCOLO DE CONTROL (página 1) ────────────────────────────────────
 
-function agregarProtocoloControl(doc, protocolo, y) {
+function agregarProtocoloControl(doc, protocolo, y, escala = ESCALA_NORMAL) {
   const items = CHECKLISTS[protocolo.protocoloId] ?? [];
   if (items.length === 0) return y;
 
@@ -397,7 +401,7 @@ function agregarProtocoloControl(doc, protocolo, y) {
     margin: { left: ML, right: MR, ...CONTENT_MARGIN },
     tableWidth: CW,
     head: [
-      [{ content: 'PROTOCOLO DE CONTROL', colSpan: 5, styles: { fillColor: [44, 62, 80], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center', fontSize: 9 } }],
+      [{ content: 'PROTOCOLO DE CONTROL', colSpan: 5, styles: { fillColor: [44, 62, 80], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center', fontSize: escala.headFontSize } }],
       ['Ítem de Control', 'SI', 'NO', 'N/A', 'Observaciones'],
     ],
     body,
@@ -409,8 +413,8 @@ function agregarProtocoloControl(doc, protocolo, y) {
       4: { cellWidth: CW - 55 - 12 - 12 - 12 },
     },
     styles: {
-      fontSize: 8,
-      cellPadding: 2,
+      fontSize: escala.fontSize,
+      cellPadding: escala.cellPadding,
       lineColor: [120, 120, 120],
       lineWidth: 0.2,
       textColor: [30, 30, 30],
@@ -422,7 +426,7 @@ function agregarProtocoloControl(doc, protocolo, y) {
         data.cell.styles.textColor = [30, 30, 30];
         data.cell.styles.fontStyle = 'bold';
         data.cell.styles.halign = 'center';
-        data.cell.styles.fontSize = 9;
+        data.cell.styles.fontSize = escala.headFontSize;
       }
     },
   });
@@ -433,8 +437,8 @@ function agregarProtocoloControl(doc, protocolo, y) {
 // ─── Pie de firma ─────────────────────────────────────────────────────────────
 
 // Tabla de pie de firma — unificada (4 filas), pageBreak:'avoid' evita que se
-// divida entre páginas. Se dibuja siempre en `startY` (posición fija al fondo
-// de la página, ver PIE_FIRMA_OFFSET).
+// divida entre páginas. Se dibuja pegada debajo del contenido (`startY`),
+// nunca en una posición fija al fondo de página.
 function agregarPieFirma(doc, startY) {
   const colW = CW / 3;
 
@@ -519,36 +523,21 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
     }
   }
 
-  agregarPieFirma(doc, PIE_FIRMA_Y);
+  const numRows = Math.ceil(fotosBatch.length / COLS);
+  agregarPieFirma(doc, y + numRows * cellH + PIE_FIRMA_GAP);
 }
 
 // ─── Página 1 (info + procedimiento + protocolo de control) ──────────────────
 
 // Orden estricto: encabezado → tabla info → procedimiento → protocolo de
-// control → pie de firma (fijo al fondo). Las fuentes/paddings reducidos de
-// las tablas de contenido garantizan que todo quepa antes de PH-50; el pie
-// de firma se dibuja siempre en la página 1, nunca en una página nueva.
-function construirPagina1(doc, protocolo, kmInicio, kmFin, totalPaginas, logoB64) {
+// control. Devuelve la posición Y final del contenido (doc.lastAutoTable.finalY)
+// para que el pie de firma se dibuje pegado debajo, sin saltos de página.
+function construirPagina1(doc, protocolo, kmInicio, kmFin, totalPaginas, logoB64, escala = ESCALA_NORMAL) {
   let y = agregarEncabezado(doc, protocolo, 1, totalPaginas, kmInicio, kmFin, logoB64);
-  y = agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin);
-  y = agregarProcedimiento(doc, protocolo, y);
-  y = agregarProtocoloControl(doc, protocolo, y);
-
-  // Si autotable llegó a generar páginas extra por desbordamiento, se
-  // descartan: el contenido de la página 1 debe quedar en una sola hoja.
-  while (doc.internal.getNumberOfPages() > 1) {
-    doc.deletePage(doc.internal.getNumberOfPages());
-  }
-  doc.setPage(1);
-
-  if (y < PH - 50) {
-    // Hay espacio holgado: el pie de firma se dibuja sin solaparse con el contenido.
-    agregarPieFirma(doc, PIE_FIRMA_Y);
-  } else {
-    // El contenido llega justo al límite: el pie se dibuja igual en PIE_FIRMA_Y,
-    // pudiendo solaparse levemente con la última fila, pero nunca en página nueva.
-    agregarPieFirma(doc, PIE_FIRMA_Y);
-  }
+  y = agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin, escala);
+  y = agregarProcedimiento(doc, protocolo, y, escala);
+  y = agregarProtocoloControl(doc, protocolo, y, escala);
+  return doc.lastAutoTable.finalY;
 }
 
 // ─── Función principal ────────────────────────────────────────────────────────
@@ -561,12 +550,12 @@ export async function generarPDF(protocolo, fotos = [], kmInicio = '', kmFin = '
   const paginasFotos = Math.ceil(fotos.length / FOTOS_POR_PAGINA);
   const totalPaginas = soloFotos ? Math.max(1, paginasFotos) : 1 + paginasFotos;
 
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  let doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   if (soloFotos) {
     if (fotos.length === 0) {
-      agregarEncabezado(doc, protocolo, 1, totalPaginas, kmInicio, kmFin, logoB64);
-      agregarPieFirma(doc, PIE_FIRMA_Y);
+      const y = agregarEncabezado(doc, protocolo, 1, totalPaginas, kmInicio, kmFin, logoB64);
+      agregarPieFirma(doc, y + PIE_FIRMA_GAP);
     } else {
       for (let i = 0; i < fotos.length; i += FOTOS_POR_PAGINA) {
         const paginaActual = i / FOTOS_POR_PAGINA + 1;
@@ -575,7 +564,14 @@ export async function generarPDF(protocolo, fotos = [], kmInicio = '', kmFin = '
       }
     }
   } else {
-    construirPagina1(doc, protocolo, kmInicio, kmFin, totalPaginas, logoB64);
+    // Construir página 1 con tipografía normal; si el contenido + pie de
+    // firma no caben en una sola hoja A4, reconstruir con la escala reducida.
+    let finalY = construirPagina1(doc, protocolo, kmInicio, kmFin, totalPaginas, logoB64, ESCALA_NORMAL);
+    if (finalY + PIE_FIRMA_GAP + PIE_FIRMA_H > PH) {
+      doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      finalY = construirPagina1(doc, protocolo, kmInicio, kmFin, totalPaginas, logoB64, ESCALA_REDUCIDA);
+    }
+    agregarPieFirma(doc, finalY + PIE_FIRMA_GAP);
 
     for (let i = 0; i < fotos.length; i += FOTOS_POR_PAGINA) {
       doc.addPage();
