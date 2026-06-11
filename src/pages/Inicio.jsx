@@ -1,7 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import { USUARIOS } from '../constants/estructura';
-import UsuarioSelector from '../components/UsuarioSelector';
 
 export default function Inicio() {
   const { usuario, seleccionarUsuario } = useUser();
@@ -12,7 +11,6 @@ export default function Inicio() {
       {usuario ? (
         <div style={s.saludo}>
           <h1 style={s.saludoTexto}>Hola, {usuario.split(' ')[0]} 👋</h1>
-          <UsuarioSelector nombreStyle={s.nombreUsuario} />
         </div>
       ) : (
         <div style={s.selector}>
@@ -63,9 +61,8 @@ export default function Inicio() {
 const s = {
   page: { maxWidth: '480px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' },
 
-  saludo: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+  saludo: { display: 'flex', alignItems: 'center' },
   saludoTexto: { color: '#ccd6f6', fontSize: '22px', fontWeight: 700, margin: 0 },
-  nombreUsuario: { fontSize: '14px', maxWidth: '160px' },
 
   selector: { background: '#16213e', borderRadius: '14px', padding: '24px', border: '1px solid #0f3460' },
   titulo: { color: '#ccd6f6', fontSize: '20px', fontWeight: 700, margin: '0 0 4px' },
