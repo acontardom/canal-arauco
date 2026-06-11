@@ -13,6 +13,7 @@ export default function Navbar() {
       {isDesktop && (
         <div style={styles.links}>
           <NavLink to="/dashboard" style={navStyle}>Dashboard</NavLink>
+          <NavLink to="/matriz" style={navStyle}>Matriz</NavLink>
           <NavLink to="/tramos" style={navStyle}>Tramos</NavLink>
           <NavLink to="/caidas" style={navStyle}>Caídas</NavLink>
           <NavLink to="/atraviesos" style={navStyle}>Atraviesos</NavLink>

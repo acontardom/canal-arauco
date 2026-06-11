@@ -4,6 +4,7 @@ import { UserProvider } from './context/UserContext';
 import Navbar from './components/Navbar';
 import Inicio from './pages/Inicio';
 import Dashboard from './pages/Dashboard';
+import DashboardMatriz from './pages/DashboardMatriz';
 import Proximamente from './pages/Proximamente';
 import SubirFotos from './pages/SubirFotos';
 import RecibirCamion from './pages/RecibirCamion';
@@ -83,6 +84,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Inicio />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/matriz" element={<DashboardMatriz />} />
             <Route path="/proximamente" element={<Proximamente />} />
             <Route path="/subir-fotos" element={<SubirFotos />} />
             <Route path="/subir-fotos/:tipo/:entidadId" element={<SubirFotos />} />
