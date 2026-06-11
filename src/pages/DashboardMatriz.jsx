@@ -3,41 +3,48 @@ import { useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
 import { TRAMOS, CAIDAS, ATRAVIESOS, PROTOCOLOS } from '../constants/estructura';
 
-const COL_ABREV = {
-  PICE1:        'EXC',
-  PICE2_RADIER: 'H-R',
-  PICE2_MURO:   'H-M',
-  PICE3:        'MOL',
-  PICE4_RADIER: 'E-R',
-  PICE4_MURO:   'E-M',
+const COL_LABEL = {
+  PICE1:        'EXCAVACIÓN',
+  PICE2_RADIER: 'H. RADIER',
+  PICE2_MURO:   'H. MURO',
+  PICE3:        'MOLDAJES',
+  PICE4_RADIER: 'E. RADIER',
+  PICE4_MURO:   'E. MURO',
   G5:           'G5',
-  HA_RADIER:    'HA-R',
-  HA_MURO:      'HA-M',
+  HA_RADIER:    'HA RADIER',
+  HA_MURO:      'HA MURO',
 };
 
-const COLOR_PENDIENTE = '#e0e0e0';
-const COLOR_AMARILLO  = '#FFD700';
-const COLOR_VERDE     = '#27ae60';
+const COLOR_PENDIENTE  = '#2a2a3e';
+const COLOR_COMPLETADO = '#3d7ebf';
+const COLOR_ENVIADO    = '#27ae60';
 
-function celdaEstado(estado) {
-  if (estado === 'enviado') return { bg: COLOR_VERDE, color: '#fff', marca: '✓' };
-  if (estado === 'borrador' || estado === 'completado') return { bg: COLOR_AMARILLO, color: '#1a1a2e', marca: '✓' };
-  return { bg: COLOR_PENDIENTE, color: '#1a1a2e', marca: '' };
+function colorEstado(estado) {
+  if (estado === 'enviado') return COLOR_ENVIADO;
+  if (estado === 'borrador' || estado === 'completado') return COLOR_COMPLETADO;
+  return COLOR_PENDIENTE;
 }
 
 const isMobile = window.innerWidth < 768;
 
 function MatrizCell({ tipo, entidadId, protocolo, mapa, navigate, nombreEntidad }) {
   const estado = mapa[`${tipo}-${entidadId}-${protocolo.id}`];
-  const { bg, color, marca } = celdaEstado(estado);
+  const bg = colorEstado(estado);
   return (
     <td
-      style={{ ...s.celda, background: bg, color }}
+      style={{ ...s.celda, background: bg }}
       title={`${nombreEntidad} — ${protocolo.nombre}: ${estado ?? 'pendiente'}`}
       onClick={() => navigate(`/protocolo/${tipo}/${entidadId}/${protocolo.id}`)}
-    >
-      {marca}
-    </td>
+    />
+  );
+}
+
+function ColGroup() {
+  return (
+    <colgroup>
+      <col style={{ width: `${ROW_HEADER_W}px` }} />
+      {PROTOCOLOS.map(p => <col key={p.id} />)}
+    </colgroup>
   );
 }
 
@@ -46,7 +53,7 @@ function EncabezadoColumnas() {
     <tr>
       <th style={s.cornerCell} />
       {PROTOCOLOS.map(p => (
-        <th key={p.id} style={s.colHeader}>{COL_ABREV[p.id]}</th>
+        <th key={p.id} style={s.colHeader}>{COL_LABEL[p.id]}</th>
       ))}
     </tr>
   );
@@ -71,17 +78,18 @@ export default function DashboardMatriz() {
           <span style={{ ...s.swatch, background: COLOR_PENDIENTE }} /> Pendiente
         </span>
         <span style={s.leyendaItem}>
-          <span style={{ ...s.swatch, background: COLOR_AMARILLO }} /> Borrador / Completado
+          <span style={{ ...s.swatch, background: COLOR_COMPLETADO }} /> Completado
         </span>
         <span style={s.leyendaItem}>
-          <span style={{ ...s.swatch, background: COLOR_VERDE }} /> Enviado
+          <span style={{ ...s.swatch, background: COLOR_ENVIADO }} /> Enviado
         </span>
       </div>
 
-      <div style={{ ...s.contenedor, flexDirection: isMobile ? 'column' : 'row' }}>
+      <div style={s.contenedor}>
         {/* ── Tabla TRAMOS ──────────────────────────────────────────────── */}
         <div style={s.tablaWrap}>
           <table style={s.tabla}>
+            <ColGroup />
             <thead>
               <tr>
                 <th colSpan={PROTOCOLOS.length + 1} style={s.tituloTabla}>TRAMOS</th>
@@ -112,6 +120,7 @@ export default function DashboardMatriz() {
         {/* ── Tabla CAÍDAS + ATRAVIESOS ────────────────────────────────── */}
         <div style={s.tablaWrap}>
           <table style={s.tabla}>
+            <ColGroup />
             <thead>
               <tr>
                 <th colSpan={PROTOCOLOS.length + 1} style={s.tituloTabla}>CAÍDAS</th>
@@ -166,43 +175,58 @@ export default function DashboardMatriz() {
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 
-const CELL = 20;
-const HEAD_CELL = 22;
-const ROW_HEADER_W = 30;
+const CELL = 32;
+const ROW_HEADER_W = 44;
+const HEADER_H = 130;
 
 const s = {
-  page: { maxWidth: '900px', margin: '0 auto' },
-  titulo: { color: '#ccd6f6', fontSize: '24px', fontWeight: 700, marginBottom: '12px' },
+  page: { maxWidth: '1120px', margin: '0 auto' },
+  titulo: { color: '#ccd6f6', fontSize: '24px', fontWeight: 700, marginBottom: '16px', textAlign: 'center' },
 
-  leyenda: { display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '20px' },
-  leyendaItem: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#ccd6f6' },
-  swatch: { width: '14px', height: '14px', borderRadius: '3px', display: 'inline-block', border: '1px solid #0f3460' },
+  leyenda: { display: 'flex', gap: '28px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '28px' },
+  leyendaItem: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: '#ccd6f6' },
+  swatch: { width: '18px', height: '18px', borderRadius: '4px', display: 'inline-block', border: '1px solid #0f3460' },
 
-  contenedor: { display: 'flex', gap: '20px', alignItems: 'flex-start' },
-  tablaWrap: { overflowX: 'auto', border: '1px solid #0f3460', borderRadius: '8px' },
-  tabla: { borderCollapse: 'collapse', tableLayout: 'fixed' },
+  contenedor: {
+    display: 'flex',
+    flexDirection: isMobile ? 'column' : 'row',
+    gap: '24px',
+    justifyContent: 'center',
+    alignItems: isMobile ? 'stretch' : 'flex-start',
+  },
+  tablaWrap: {
+    flex: isMobile ? '1 1 100%' : '0 1 48%',
+    maxWidth: isMobile ? 'none' : '520px',
+    overflowX: 'auto',
+    border: '1px solid #0f3460',
+    borderRadius: '10px',
+    marginBottom: isMobile ? '8px' : 0,
+  },
+  tabla: { borderCollapse: 'collapse', tableLayout: 'fixed', width: '100%', minWidth: '360px' },
 
   tituloTabla: {
-    background: '#0f3460', color: '#64ffda', fontSize: '13px', fontWeight: 700,
-    textAlign: 'center', padding: '6px 0', letterSpacing: '0.6px',
+    background: '#0f3460', color: '#64ffda', fontSize: '17px', fontWeight: 800,
+    textAlign: 'center', padding: '12px 0', letterSpacing: '2px', textTransform: 'uppercase',
   },
   separadorFila: {
-    background: '#1e3a5f', color: '#64ffda', fontSize: '11px', fontWeight: 700,
-    textAlign: 'center', padding: '4px 0', letterSpacing: '0.6px',
+    background: '#1e3a5f', color: '#64ffda', fontSize: '13px', fontWeight: 700,
+    textAlign: 'center', padding: '8px 0', letterSpacing: '1.5px',
   },
   colHeader: {
-    width: `${CELL}px`, height: `${HEAD_CELL}px`, background: '#0f3460', color: '#8892b0',
-    fontSize: '9px', fontWeight: 700, textAlign: 'center', border: '1px solid #1a1a2e', padding: 0,
+    height: `${HEADER_H}px`, background: '#0f3460', color: '#8892b0',
+    fontSize: '11px', fontWeight: 700, textAlign: 'center', verticalAlign: 'bottom',
+    border: '1px solid #1a1a2e', padding: '8px 4px',
+    writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap',
   },
   cornerCell: {
     width: `${ROW_HEADER_W}px`, background: '#0f3460', border: '1px solid #1a1a2e',
   },
   rowHeader: {
     width: `${ROW_HEADER_W}px`, height: `${CELL}px`, background: '#0f3460', color: '#ccd6f6',
-    fontSize: '10px', fontWeight: 700, textAlign: 'center', border: '1px solid #1a1a2e', padding: 0,
+    fontSize: '12px', fontWeight: 700, textAlign: 'center', border: '1px solid #1a1a2e', padding: '6px 4px',
   },
   celda: {
-    width: `${CELL}px`, height: `${CELL}px`, textAlign: 'center', fontSize: '11px', fontWeight: 700,
-    border: '1px solid #1a1a2e', padding: 0, cursor: 'pointer',
+    height: `${CELL}px`, minWidth: `${CELL}px`, border: '1px solid #1a1a2e',
+    padding: '8px', cursor: 'pointer', boxSizing: 'border-box',
   },
 };
