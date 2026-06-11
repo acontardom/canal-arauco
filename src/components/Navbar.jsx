@@ -1,38 +1,22 @@
 import { NavLink } from 'react-router-dom';
-import { useUser } from '../context/UserContext';
+import UsuarioSelector from './UsuarioSelector';
 
 const isDesktop = window.innerWidth >= 768;
 
 export default function Navbar() {
-  const { usuario, cerrarSesion } = useUser();
-
   return (
     <nav style={styles.nav}>
       <NavLink to="/" style={styles.titulo}>Canal Arauco</NavLink>
 
       {isDesktop && (
         <div style={styles.links}>
-          <NavLink to="/dashboard" style={navStyle}>Dashboard</NavLink>
           <NavLink to="/matriz" style={navStyle}>Matriz</NavLink>
-          <NavLink to="/tramos" style={navStyle}>Tramos</NavLink>
-          <NavLink to="/caidas" style={navStyle}>Caídas</NavLink>
-          <NavLink to="/atraviesos" style={navStyle}>Atraviesos</NavLink>
-          <NavLink to="/configuracion" style={navStyle} title="Configuración KM">
-            ⚙ Config
-          </NavLink>
+          <NavLink to="/dashboard" style={navStyle}>Dashboard</NavLink>
+          <NavLink to="/generar-protocolo" style={navStyle}>Generar Protocolo</NavLink>
         </div>
       )}
 
-      {usuario && (
-        <div style={styles.usuario}>
-          <span style={styles.nombreUsuario}>{usuario}</span>
-          {isDesktop && (
-            <button style={styles.btnCambiar} onClick={cerrarSesion} title="Cambiar usuario">
-              ↩
-            </button>
-          )}
-        </div>
-      )}
+      <UsuarioSelector />
     </nav>
   );
 }
@@ -76,33 +60,6 @@ const styles = {
   links: {
     display: 'flex',
     gap: '4px',
-    flexShrink: 0,
-  },
-  usuario: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    justifyContent: 'flex-end',
-    minWidth: 0,
-    overflow: 'hidden',
-  },
-  nombreUsuario: {
-    color: '#8892b0',
-    fontSize: '12px',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-    minWidth: 0,
-  },
-  btnCambiar: {
-    background: 'transparent',
-    border: '1px solid #0f3460',
-    borderRadius: '6px',
-    color: '#8892b0',
-    cursor: 'pointer',
-    fontSize: '14px',
-    padding: '2px 8px',
-    lineHeight: '1.6',
     flexShrink: 0,
   },
 };

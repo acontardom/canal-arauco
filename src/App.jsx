@@ -5,6 +5,7 @@ import Navbar from './components/Navbar';
 import Inicio from './pages/Inicio';
 import Dashboard from './pages/Dashboard';
 import DashboardMatriz from './pages/DashboardMatriz';
+import CentroControl from './pages/CentroControl';
 import Proximamente from './pages/Proximamente';
 import SubirFotos from './pages/SubirFotos';
 import RecibirCamion from './pages/RecibirCamion';
@@ -83,6 +84,7 @@ export default function App() {
         <Layout cargandoSync={cargandoSync}>
           <Routes>
             <Route path="/" element={<Inicio />} />
+            <Route path="/control" element={<CentroControl />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/matriz" element={<DashboardMatriz />} />
             <Route path="/proximamente" element={<Proximamente />} />

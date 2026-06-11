@@ -1,9 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import { USUARIOS } from '../constants/estructura';
+import UsuarioSelector from '../components/UsuarioSelector';
 
 export default function Inicio() {
-  const { usuario, seleccionarUsuario, cerrarSesion } = useUser();
+  const { usuario, seleccionarUsuario } = useUser();
   const navigate = useNavigate();
 
   return (
@@ -11,7 +12,7 @@ export default function Inicio() {
       {usuario ? (
         <div style={s.saludo}>
           <h1 style={s.saludoTexto}>Hola, {usuario.split(' ')[0]} 👋</h1>
-          <button style={s.btnCambiar} onClick={cerrarSesion}>Cambiar</button>
+          <UsuarioSelector nombreStyle={s.nombreUsuario} />
         </div>
       ) : (
         <div style={s.selector}>
@@ -49,6 +50,9 @@ export default function Inicio() {
             <button style={s.btnGestion} onClick={() => navigate('/generar-protocolo')}>
               📋 Generar Protocolo
             </button>
+            <button style={s.btnGestion} onClick={() => navigate('/control')}>
+              📊 Centro de Control
+            </button>
           </section>
         </>
       )}
@@ -61,10 +65,7 @@ const s = {
 
   saludo: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   saludoTexto: { color: '#ccd6f6', fontSize: '22px', fontWeight: 700, margin: 0 },
-  btnCambiar: {
-    background: 'transparent', border: '1px solid #0f3460', color: '#8892b0',
-    borderRadius: '8px', padding: '8px 14px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-  },
+  nombreUsuario: { fontSize: '14px', maxWidth: '160px' },
 
   selector: { background: '#16213e', borderRadius: '14px', padding: '24px', border: '1px solid #0f3460' },
   titulo: { color: '#ccd6f6', fontSize: '20px', fontWeight: 700, margin: '0 0 4px' },
