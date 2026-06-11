@@ -20,7 +20,7 @@ export default function Tramos() {
   ) ?? [];
 
   const completadosPor = protocolos.reduce((acc, p) => {
-    if (p.estado === 'completado') acc[p.entidadId] = (acc[p.entidadId] || 0) + 1;
+    if (p.estado === 'completado' || p.estado === 'enviado') acc[p.entidadId] = (acc[p.entidadId] || 0) + 1;
     return acc;
   }, {});
 

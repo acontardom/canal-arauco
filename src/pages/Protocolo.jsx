@@ -86,9 +86,17 @@ function EstadoBadge({ estado }) {
     pendiente:  { color: '#8892b0', label: 'Pendiente' },
     borrador:   { color: '#f59e0b', label: 'Borrador' },
     completado: { color: '#10b981', label: 'Completado' },
+    enviado:    { color: '#3b82f6', label: '📤 Enviado' },
   };
   const { color, label } = cfg[estado] ?? cfg.pendiente;
   return <span style={{ ...s.estadoBadge, color, borderColor: color }}>{label}</span>;
+}
+
+function formatearFechaEnvio(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('es-CL', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
 }
 
 function Toast({ toast }) {
@@ -100,15 +108,22 @@ function Toast({ toast }) {
   );
 }
 
-function ModalConfirmar({ onConfirmar, onCancelar }) {
+function ModalConfirmar({
+  titulo = '¿Marcar como completado?',
+  texto = 'Se registrará como completado. Podrás editarlo si es necesario.',
+  textoConfirmar = 'Confirmar',
+  colorConfirmar = '#10b981',
+  onConfirmar,
+  onCancelar,
+}) {
   return (
     <div style={s.overlay}>
       <div style={s.modal}>
-        <h2 style={s.modalTitulo}>¿Marcar como completado?</h2>
-        <p style={s.modalTexto}>Se registrará como completado. Podrás editarlo si es necesario.</p>
+        <h2 style={s.modalTitulo}>{titulo}</h2>
+        <p style={s.modalTexto}>{texto}</p>
         <div style={s.modalBotones}>
           <button style={s.btnModalCancelar} onClick={onCancelar}>Cancelar</button>
-          <button style={s.btnModalConfirmar} onClick={onConfirmar}>Confirmar</button>
+          <button style={{ ...s.btnModalConfirmar, background: colorConfirmar }} onClick={onConfirmar}>{textoConfirmar}</button>
         </div>
       </div>
     </div>
@@ -345,8 +360,11 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [camiones, setCamiones] = useState([]);
   const [camionModal, setCamionModal] = useState(null);
   const [estado, setEstado] = useState('pendiente');
+  const [fechaEnvio, setFechaEnvio] = useState(null);
   const [guardando, setGuardando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
+  const [confirmandoEnvio, setConfirmandoEnvio] = useState(false);
+  const [confirmandoDesbloqueo, setConfirmandoDesbloqueo] = useState(false);
   const [descargando, setDescargando] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
   const [toast, setToast] = useState(null);
@@ -440,6 +458,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         setCamiones(protocolo.datos?.camiones ?? []);
         setFotosNubeSeleccionadas(protocolo.datos?.fotosNubeSeleccionadas ?? []);
         setEstado(protocolo.estado);
+        setFechaEnvio(protocolo.fechaEnvio ?? null);
       }
     }
   }, [cargando, protocolo]);
@@ -476,7 +495,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     });
   }
 
-  async function guardar(nuevoEstado) {
+  async function guardar(nuevoEstado, extra = {}, mensaje = null) {
     if (guardando) return;
     setGuardando(true);
     try {
@@ -485,21 +504,24 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         ? { camiones }
         : { checklist, observaciones, camiones: [], fotosNubeSeleccionadas };
 
+      const campos = {
+        estado: nuevoEstado, usuarioNombre: usuario,
+        fechaModificacion: now, datos, sincronizada: false,
+        ...extra,
+      };
+
       if (protocolo) {
-        await db.protocolos.update(protocolo.id, {
-          estado: nuevoEstado, usuarioNombre: usuario,
-          fechaModificacion: now, datos, sincronizada: false,
-        });
+        await db.protocolos.update(protocolo.id, campos);
       } else {
         await db.protocolos.add({
           tipo, entidad: tipo, entidadId: entidadIdReal, protocoloId,
-          estado: nuevoEstado, usuarioNombre: usuario,
-          fechaCreacion: now, fechaModificacion: now, datos, sincronizada: false,
+          fechaCreacion: now, ...campos,
         });
       }
 
       setEstado(nuevoEstado);
-      mostrarToast(nuevoEstado === 'completado' ? '✓ Protocolo completado' : '✓ Borrador guardado');
+      if ('fechaEnvio' in extra) setFechaEnvio(extra.fechaEnvio);
+      mostrarToast(mensaje ?? (nuevoEstado === 'completado' ? '✓ Protocolo completado' : '✓ Borrador guardado'));
 
       if (supabase && navigator.onLine) {
         setSincronizando(true);
@@ -599,6 +621,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   if (cargando) return <div style={s.cargando}>Cargando...</div>;
 
+  const readOnly = estado === 'enviado';
+
   const respondidos = esHA
     ? 0
     : itemsChecklist.filter(item => checklist[item.id]?.valor !== null).length;
@@ -647,8 +671,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             return (
               <div
                 key={foto.id}
-                style={{ ...s.fotoThumb, ...(seleccionada ? s.fotoThumbSeleccionada : {}), cursor: 'pointer' }}
-                onClick={() => toggleFotoNube(foto)}
+                style={{ ...s.fotoThumb, ...(seleccionada ? s.fotoThumbSeleccionada : {}), cursor: readOnly ? 'default' : 'pointer' }}
+                onClick={() => !readOnly && toggleFotoNube(foto)}
               >
                 <img src={key} alt="" style={s.fotoImg} />
                 <div style={s.checkOverlay}>
@@ -666,13 +690,17 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       </div>
 
       {/* Subsección 2: agregar nueva foto */}
-      <p style={s.subSeccionTitulo}>Agregar nueva foto 📸</p>
-      <input ref={inputCamaraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFotoSeleccionada} />
-      <input ref={inputGaleriaRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleFotoSeleccionada} />
-      <div style={s.fotosBotones}>
-        <button style={s.btnFoto} onClick={() => inputCamaraRef.current?.click()}>📷 Sacar foto</button>
-        <button style={{ ...s.btnFoto, background: '#0f3460' }} onClick={() => inputGaleriaRef.current?.click()}>🖼 Adjuntar foto</button>
-      </div>
+      {!readOnly && (
+        <>
+          <p style={s.subSeccionTitulo}>Agregar nueva foto 📸</p>
+          <input ref={inputCamaraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFotoSeleccionada} />
+          <input ref={inputGaleriaRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleFotoSeleccionada} />
+          <div style={s.fotosBotones}>
+            <button style={s.btnFoto} onClick={() => inputCamaraRef.current?.click()}>📷 Sacar foto</button>
+            <button style={{ ...s.btnFoto, background: '#0f3460' }} onClick={() => inputGaleriaRef.current?.click()}>🖼 Adjuntar foto</button>
+          </div>
+        </>
+      )}
 
       {/* Fotos seleccionadas (combinadas) */}
       <p style={s.subSeccionTitulo}>Fotos seleccionadas{fotosCombinadas.length > 0 ? ` (${fotosCombinadas.length})` : ''}</p>
@@ -682,19 +710,22 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             <div key={foto.id} style={s.fotoCard}>
               <div style={s.fotoThumb}>
                 <img src={foto.dataUrl} alt="" style={s.fotoImg} />
-                <button
-                  style={s.btnEliminarFoto}
-                  onClick={() => foto.origen === 'nueva' ? eliminarFoto(foto.fotoId) : quitarFotoNube(foto.key)}
-                  title="Quitar de la selección"
-                >
-                  ×
-                </button>
+                {!readOnly && (
+                  <button
+                    style={s.btnEliminarFoto}
+                    onClick={() => foto.origen === 'nueva' ? eliminarFoto(foto.fotoId) : quitarFotoNube(foto.key)}
+                    title="Quitar de la selección"
+                  >
+                    ×
+                  </button>
+                )}
               </div>
               <input
                 type="text"
                 defaultValue={foto.descripcion}
                 placeholder="Descripción..."
                 style={s.fotoDescInput}
+                readOnly={readOnly}
                 onBlur={e => foto.origen === 'nueva'
                   ? db.fotos.update(foto.fotoId, { descripcion: e.target.value })
                   : setDescFotoNube(foto.key, e.target.value)}
@@ -723,13 +754,19 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       {esHA ? (
         /* ── Vista Control H.A. — solo camiones ─────────────────────────────── */
         <Seccion titulo={`Camiones${camiones.length > 0 ? ` (${camiones.length})` : ''}`}>
-          <button style={s.btnAgregarCamion} onClick={abrirNuevoCamion}>
-            + Agregar camión
-          </button>
+          {!readOnly && (
+            <button style={s.btnAgregarCamion} onClick={abrirNuevoCamion}>
+              + Agregar camión
+            </button>
+          )}
           {camiones.length > 0 && (
             <div style={s.camionesList}>
               {camiones.map((c, idx) => (
-                <div key={c.id} style={s.camionFila} onClick={() => setCamionModal({ idx, data: { ...c } })}>
+                <div
+                  key={c.id}
+                  style={{ ...s.camionFila, cursor: readOnly ? 'default' : 'pointer' }}
+                  onClick={() => !readOnly && setCamionModal({ idx, data: { ...c } })}
+                >
                   <div style={s.camionNum}>#{c.numero}</div>
                   <div style={s.camionInfo}>
                     <span style={s.camionTipo}>
@@ -780,8 +817,11 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                                 background: active ? OPCION_COLOR[opcion] : 'transparent',
                                 borderColor: active ? OPCION_COLOR[opcion] : '#0f3460',
                                 color: active ? '#fff' : '#8892b0',
+                                cursor: readOnly ? 'default' : 'pointer',
+                                opacity: readOnly && !active ? 0.5 : 1,
                               }}
                               onClick={() => setCheckValue(item.id, opcion)}
+                              disabled={readOnly}
                             >
                               {opcion === 'si' ? 'SÍ' : opcion === 'no' ? 'NO' : 'N/A'}
                             </button>
@@ -794,6 +834,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                         onChange={e => setCheckObs(item.id, e.target.value)}
                         placeholder="Observación..."
                         rows={2}
+                        readOnly={readOnly}
                       />
                     </div>
                   );
@@ -810,6 +851,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
               onChange={e => setObservaciones(e.target.value)}
               placeholder="Notas adicionales, condiciones del terreno, anomalías observadas..."
               rows={4}
+              readOnly={readOnly}
             />
           </Seccion>
 
@@ -825,18 +867,36 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           </span>
         )}
       </div>
-      <div style={s.acciones}>
-        <button style={{ ...s.btnAccion, ...s.btnBorrador }} onClick={() => guardar('borrador')} disabled={guardando}>
-          {guardando ? 'Guardando...' : 'Guardar borrador'}
-        </button>
-        <button
-          style={{ ...s.btnAccion, ...s.btnCompletar, opacity: estado === 'completado' ? 0.6 : 1 }}
-          onClick={() => setConfirmando(true)}
-          disabled={guardando || estado === 'completado'}
-        >
-          {estado === 'completado' ? '✓ Completado' : 'Marcar como completado'}
-        </button>
-      </div>
+      {readOnly ? (
+        <div style={s.enviadoBox}>
+          <span style={s.enviadoBadge}>📤 Enviado el {formatearFechaEnvio(fechaEnvio)}</span>
+          <button style={s.btnDesbloquear} onClick={() => setConfirmandoDesbloqueo(true)}>
+            🔓 Desbloquear
+          </button>
+        </div>
+      ) : (
+        <div style={s.acciones}>
+          <button style={{ ...s.btnAccion, ...s.btnBorrador }} onClick={() => guardar('borrador')} disabled={guardando}>
+            {guardando ? 'Guardando...' : 'Guardar borrador'}
+          </button>
+          <button
+            style={{ ...s.btnAccion, ...s.btnCompletar, opacity: estado === 'completado' ? 0.6 : 1 }}
+            onClick={() => setConfirmando(true)}
+            disabled={guardando || estado === 'completado'}
+          >
+            {estado === 'completado' ? '✓ Completado' : 'Marcar como completado'}
+          </button>
+          {estado === 'completado' && (
+            <button
+              style={{ ...s.btnAccion, ...s.btnEnviar }}
+              onClick={() => setConfirmandoEnvio(true)}
+              disabled={guardando}
+            >
+              📤 Marcar como enviado
+            </button>
+          )}
+        </div>
+      )}
 
       {protocolo && (
         <div style={s.accionesSecundarias}>
@@ -864,6 +924,34 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         <ModalConfirmar
           onConfirmar={async () => { setConfirmando(false); await guardar('completado'); }}
           onCancelar={() => setConfirmando(false)}
+        />
+      )}
+
+      {confirmandoEnvio && (
+        <ModalConfirmar
+          titulo="¿Confirmar envío?"
+          texto="¿Confirmar que este protocolo fue enviado al ITO?"
+          textoConfirmar="Confirmar"
+          colorConfirmar="#3b82f6"
+          onConfirmar={async () => {
+            setConfirmandoEnvio(false);
+            await guardar('enviado', { fechaEnvio: new Date().toISOString() }, '📤 Protocolo marcado como enviado');
+          }}
+          onCancelar={() => setConfirmandoEnvio(false)}
+        />
+      )}
+
+      {confirmandoDesbloqueo && (
+        <ModalConfirmar
+          titulo="¿Desbloquear protocolo?"
+          texto="El protocolo volverá a estado completado y podrás editarlo nuevamente."
+          textoConfirmar="Desbloquear"
+          colorConfirmar="#f59e0b"
+          onConfirmar={async () => {
+            setConfirmandoDesbloqueo(false);
+            await guardar('completado', { fechaEnvio: null }, '🔓 Protocolo desbloqueado');
+          }}
+          onCancelar={() => setConfirmandoDesbloqueo(false)}
         />
       )}
 
@@ -954,7 +1042,18 @@ const s = {
   btnAccion: { flex: '1 1 140px', padding: '14px 20px', borderRadius: '10px', fontSize: '15px', fontWeight: 700, cursor: 'pointer', border: 'none' },
   btnBorrador: { background: '#0f3460', color: '#ccd6f6' },
   btnCompletar: { background: '#10b981', color: '#fff' },
+  btnEnviar: { background: '#3b82f6', color: '#fff' },
   btnExcel: { background: '#1d6a34', color: '#fff', width: '100%', fontSize: '14px' },
+
+  enviadoBox: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px',
+    background: '#0a2040', border: '1px solid #3b82f6', borderRadius: '10px', padding: '14px 18px',
+  },
+  enviadoBadge: { color: '#3b82f6', fontSize: '14px', fontWeight: 700 },
+  btnDesbloquear: {
+    background: 'transparent', border: '1.5px solid #f59e0b', color: '#f59e0b',
+    borderRadius: '8px', padding: '8px 14px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+  },
 
   toast: { position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)', color: '#fff', padding: '12px 24px', borderRadius: '10px', fontSize: '14px', fontWeight: 600, zIndex: 1000, boxShadow: '0 4px 16px rgba(0,0,0,0.4)', whiteSpace: 'nowrap' },
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '16px' },
