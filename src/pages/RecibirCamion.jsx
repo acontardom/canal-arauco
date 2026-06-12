@@ -12,6 +12,11 @@ const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 const LISTAS = { tramo: TRAMOS, caida: CAIDAS, atravieso: ATRAVIESOS };
 const TIPOS_HORMIGON = ['G5', 'G20', 'G25', 'G30'];
 const TIPOS_CON_ENSAYO = ['G20', 'G25', 'G30'];
+const USOS_HORMIGON = [
+  { valor: 'radier', label: 'Radier' },
+  { valor: 'muro', label: 'Muro' },
+  { valor: 'otro', label: 'Otro' },
+];
 const PLANTAS = ['Membrillar', 'Quilanco', 'Río San Martín'];
 const PESO_HOYA = 6.9;
 const PROBETA_VOL = 0.0101;
@@ -50,6 +55,7 @@ const initialForm = {
   entidadSecundariaId: '',
   fotoGuia: null,
   fotosEnsayo: [],
+  usoHormigon: '',
 };
 
 export default function RecibirCamion() {
@@ -139,6 +145,10 @@ export default function RecibirCamion() {
       mostrarToast('Selecciona el tipo de hormigón', 'error');
       return;
     }
+    if (TIPOS_CON_ENSAYO.includes(form.tipoHormigon) && !form.usoHormigon) {
+      mostrarToast('Selecciona para qué elemento es el hormigón', 'error');
+      return;
+    }
     setGuardando(true);
     try {
       let fotoGuia = form.fotoGuia;
@@ -175,6 +185,7 @@ export default function RecibirCamion() {
           ? (form.entidadSecundariaTipo === 'caida' ? Number(form.entidadSecundariaId) : form.entidadSecundariaId)
           : null,
         tipoHormigon: form.tipoHormigon,
+        usoHormigon: TIPOS_CON_ENSAYO.includes(form.tipoHormigon) ? form.usoHormigon : null,
         volumen: form.volumen,
         numeroGuia: form.numeroGuia,
         planta: form.planta,
@@ -272,6 +283,23 @@ export default function RecibirCamion() {
           </button>
         ))}
       </div>
+
+      {TIPOS_CON_ENSAYO.includes(form.tipoHormigon) && (
+        <div style={s.campo}>
+          <label style={s.label}>¿Para qué elemento?</label>
+          <div style={s.tiposGridHorizontal}>
+            {USOS_HORMIGON.map(({ valor, label }) => (
+              <button
+                key={valor}
+                style={{ ...s.btnHormigon, ...(form.usoHormigon === valor ? s.btnHormigonActivo : {}) }}
+                onClick={() => set('usoHormigon', valor)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {form.tipoHormigon && (
         <>
