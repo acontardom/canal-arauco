@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
-import { PROTOCOLOS, CHECKLISTS } from '../constants/estructura';
+import { PROTOCOLOS, CHECKLISTS, TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
 import { generarPDF } from '../utils/generarPDF';
 import { useKm } from '../hooks/useKm';
 import { sincronizar } from '../utils/sync';
@@ -12,11 +12,10 @@ import { comprimirFoto } from '../utils/comprimirFoto';
 import { uploadFoto } from '../utils/uploadFoto';
 
 const OPCION_COLOR = { si: '#10b981', no: '#ef4444', na: '#f59e0b' };
-const PROBETA_VOL = 0.0101;
-const PESO_HOYA = 6.9;
-const TIPOS_HORMIGON = ['G5', 'G20', 'G25'];
-const PLANTAS = ['Membrillar', 'Quilanco', 'Río San Martín'];
 const NOMBRES_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
+const LISTAS_HA = { tramo: TRAMOS, caida: CAIDAS, atravieso: ATRAVIESOS };
+const TIPOS_HORMIGON_HA = ['G20', 'G25', 'G30'];
+const USO_POR_PROTOCOLO = { HA_RADIER: 'radier', HA_MURO: 'muro' };
 const VOLVER_BASE = { tramo: '/tramos', caida: '/caidas', atravieso: '/atraviesos' };
 const ETIQUETAS_FOTO = ['Excavación', 'Moldaje', 'Enfierradura', 'Hormigón', 'Emplantillado', 'General'];
 const ETIQUETA_PROTOCOLO = {
@@ -31,32 +30,6 @@ const ETIQUETA_PROTOCOLO = {
   HA_MURO: 'Hormigón',
 };
 
-function leerComoDataUrl(file) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = (e) => resolve(e.target.result);
-    reader.readAsDataURL(file);
-  });
-}
-
-// Suma minutos a una hora "HH:MM" y devuelve "HH:MM" (con vuelta de día)
-function sumarMinutos(hora, minutos) {
-  const [h, m] = hora.split(':').map(Number);
-  const total = ((h * 60 + m + minutos) % 1440 + 1440) % 1440;
-  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
-}
-
-// Tiempo de traslado simulado: entero aleatorio entre 35 y 50 minutos
-function randomTraslado() {
-  return Math.floor(Math.random() * (50 - 35 + 1)) + 35;
-}
-
-function calcPU(pesoTotal) {
-  const t = parseFloat(pesoTotal);
-  if (isNaN(t) || t <= PESO_HOYA) return '';
-  return String(Math.round((t - PESO_HOYA) / PROBETA_VOL));
-}
-
 // Convierte cualquier formato previo del checklist al formato {valor, obs}
 function normalizeChecklist(raw, items) {
   return Object.fromEntries(items.map(item => {
@@ -68,6 +41,60 @@ function normalizeChecklist(raw, items) {
     if (typeof v === 'string') return [item.id, { valor: v, obs: '' }];
     return [item.id, { valor: null, obs: '' }];
   }));
+}
+
+// Normaliza un registro de camión desde Supabase (snake_case) al formato común
+function normalizarCamionRemoto(remoto) {
+  return {
+    key: `sb-${remoto.id}`,
+    supabaseId: remoto.id,
+    localId: remoto.local_id ?? null,
+    tipoEntidad: remoto.tipo_entidad,
+    entidadId: remoto.entidad_id,
+    tipoHormigon: remoto.tipo_hormigon,
+    volumen: remoto.volumen,
+    numeroGuia: remoto.numero_guia,
+    planta: remoto.planta,
+    cono: remoto.cono,
+    tempHormigon: remoto.temp_hormigon,
+    tempAmbiente: remoto.temp_ambiente,
+    horaCarga: remoto.hora_carga,
+    horaDescarga: remoto.hora_descarga,
+    tiempoTraslado: remoto.tiempo_traslado,
+    puCalculado: remoto.pu_calculado,
+    observaciones: remoto.observaciones,
+    usuarioNombre: remoto.usuario_nombre,
+    fechaRecepcion: remoto.fecha_recepcion,
+    fotoGuia: remoto.foto_guia,
+    fotosEnsayo: remoto.fotos_ensayo ?? [],
+  };
+}
+
+// Normaliza un registro de camión local (Dexie, camelCase) al formato común
+function normalizarCamionLocal(local) {
+  return {
+    key: `local-${local.id}`,
+    supabaseId: local.supabaseId ?? null,
+    localId: local.id,
+    tipoEntidad: local.tipoEntidad,
+    entidadId: local.entidadId,
+    tipoHormigon: local.tipoHormigon,
+    volumen: local.volumen,
+    numeroGuia: local.numeroGuia,
+    planta: local.planta,
+    cono: local.cono,
+    tempHormigon: local.tempHormigon,
+    tempAmbiente: local.tempAmbiente,
+    horaCarga: local.horaCarga,
+    horaDescarga: local.horaDescarga,
+    tiempoTraslado: local.tiempoTraslado,
+    puCalculado: local.puCalculado,
+    observaciones: local.observaciones,
+    usuarioNombre: local.usuarioNombre,
+    fechaRecepcion: local.fechaRecepcion,
+    fotoGuia: local.fotoGuia,
+    fotosEnsayo: local.fotosEnsayo ?? [],
+  };
 }
 
 // ─── Sub-componentes ──────────────────────────────────────────────────────────
@@ -130,202 +157,106 @@ function ModalConfirmar({
   );
 }
 
-function CamionModal({ camion: initialData, onSave, onCancelar, onEliminar }) {
-  const [data, setData] = useState(initialData);
-  const inputCamaraRef = useRef(null);
-  const inputGaleriaRef = useRef(null);
-  const inputGuiaRef = useRef(null);
+function CamionRegistradoCard({ camion: c, expandido, onToggle, editando, onEditar, onCancelarEdicion, onGuardarEdicion }) {
+  const [tipoEdit, setTipoEdit] = useState(c.tipoEntidad);
+  const [entidadEdit, setEntidadEdit] = useState(String(c.entidadId));
 
-  function set(field, value) {
-    setData(prev => {
-      const next = { ...prev, [field]: value };
-      if (field === 'horaCarga') {
-        if (value) {
-          const minutos = randomTraslado();
-          next.tiempoTraslado = String(minutos);
-          next.horaDescarga = sumarMinutos(value, minutos);
-        } else {
-          next.tiempoTraslado = '';
-          next.horaDescarga = '';
-        }
-      }
-      if (field === 'puPesoTotal') {
-        next.puResultado = calcPU(next.puPesoTotal);
-      }
-      return next;
-    });
-  }
+  const resumen = [
+    c.numeroGuia && `N° Guía: ${c.numeroGuia}`,
+    c.tipoHormigon,
+    c.planta,
+  ].filter(Boolean);
 
-  async function handleFoto(e) {
-    const files = Array.from(e.target.files ?? []);
-    for (const file of files) {
-      const dataUrl = await leerComoDataUrl(file);
-      setData(prev => ({ ...prev, fotos: [...(prev.fotos ?? []), { dataUrl, descripcion: '' }] }));
-    }
-    e.target.value = '';
-  }
+  const meta = [
+    c.cono && `Cono: ${c.cono} cm`,
+    c.tempHormigon && `Temp: ${c.tempHormigon}°C`,
+    c.puCalculado && `PU: ${Number(c.puCalculado).toLocaleString('es-CL')} kg/m³`,
+    c.horaCarga && `Carga: ${c.horaCarga}`,
+  ].filter(Boolean);
 
-  function eliminarFotoCamion(fi) {
-    setData(prev => ({ ...prev, fotos: prev.fotos.filter((_, i) => i !== fi) }));
-  }
-
-  function setDescFoto(fi, desc) {
-    setData(prev => ({
-      ...prev,
-      fotos: prev.fotos.map((f, i) => i === fi ? { ...f, descripcion: desc } : f),
-    }));
-  }
-
-  async function handleFotoGuia(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const dataUrl = await leerComoDataUrl(file);
-    setData(prev => ({ ...prev, fotoGuia: { dataUrl } }));
-    e.target.value = '';
+  function handleTipoEdit(nuevoTipo) {
+    setTipoEdit(nuevoTipo);
+    setEntidadEdit(String(LISTAS_HA[nuevoTipo][0]));
   }
 
   return (
-    <div style={s.overlay}>
-      <div style={sm.container}>
-        <div style={sm.header}>
-          <h2 style={sm.titulo}>Camión #{data.numero}</h2>
-          <button style={sm.btnCerrar} onClick={onCancelar}>×</button>
+    <div style={s.camionRegCard}>
+      <div style={s.camionFila} onClick={onToggle}>
+        <div style={s.camionInfo}>
+          <span style={s.camionTipo}>{resumen.join(' — ') || '—'}</span>
+          <span style={s.camionMeta}>{meta.join(' · ')}</span>
         </div>
+        <span style={s.chevronSm}>{expandido ? '⌄' : '›'}</span>
+      </div>
 
-        <div style={sm.body}>
-          {/* Tipo hormigón + Volumen */}
-          <div style={sm.row}>
-            <div style={sm.half}>
-              <label style={sm.label}>Tipo hormigón</label>
-              <select style={sm.input} value={data.tipoHormigon ?? ''} onChange={e => set('tipoHormigon', e.target.value)}>
-                <option value="">Seleccionar...</option>
-                {TIPOS_HORMIGON.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
+      {expandido && (
+        <div style={s.camionDetalle}>
+          <div style={s.detalleGrid}>
+            <div>
+              <span style={s.detalleLabel}>Volumen</span>
+              <span style={s.detalleValor}>{c.volumen ? `${c.volumen} m³` : '—'}</span>
             </div>
-            <div style={sm.half}>
-              <label style={sm.label}>Volumen (m³)</label>
-              <input style={sm.input} type="number" step="0.1" placeholder="8.5" value={data.volumen ?? ''} onChange={e => set('volumen', e.target.value)} />
+            <div>
+              <span style={s.detalleLabel}>Temp. ambiente</span>
+              <span style={s.detalleValor}>{c.tempAmbiente ? `${c.tempAmbiente} °C` : '—'}</span>
+            </div>
+            <div>
+              <span style={s.detalleLabel}>Hora descarga</span>
+              <span style={s.detalleValor}>{c.horaDescarga || '—'}</span>
+            </div>
+            <div>
+              <span style={s.detalleLabel}>Tiempo traslado</span>
+              <span style={s.detalleValor}>{c.tiempoTraslado ? `${c.tiempoTraslado} min` : '—'}</span>
+            </div>
+            <div>
+              <span style={s.detalleLabel}>Registrado por</span>
+              <span style={s.detalleValor}>{c.usuarioNombre || '—'}</span>
+            </div>
+            <div>
+              <span style={s.detalleLabel}>Fecha recepción</span>
+              <span style={s.detalleValor}>{formatearFechaEnvio(c.fechaRecepcion) || '—'}</span>
             </div>
           </div>
 
-          {/* N° Guía + Planta */}
-          <div style={sm.row}>
-            <div style={sm.half}>
-              <label style={sm.label}>N° Guía</label>
-              <input style={sm.input} type="number" placeholder="0" value={data.guia ?? ''} onChange={e => set('guia', e.target.value)} />
-            </div>
-            <div style={sm.half}>
-              <label style={sm.label}>Planta</label>
-              <select style={sm.input} value={data.planta ?? ''} onChange={e => set('planta', e.target.value)}>
-                <option value="">Seleccionar...</option>
-                {PLANTAS.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
-          </div>
+          {c.observaciones && <p style={s.camionObs}>{c.observaciones}</p>}
 
-          {/* Cono + Temperatura hormigón + Temperatura ambiente */}
-          <div style={sm.row}>
-            <div style={sm.half}>
-              <label style={sm.label}>Cono (cm)</label>
-              <input style={sm.input} type="number" placeholder="0" value={data.cono ?? ''} onChange={e => set('cono', e.target.value)} />
-            </div>
-            <div style={sm.half}>
-              <label style={sm.label}>Temp. hormigón (°C)</label>
-              <input style={sm.input} type="number" placeholder="0" value={data.temperaturaHormigon ?? ''} onChange={e => set('temperaturaHormigon', e.target.value)} />
-            </div>
-            <div style={sm.half}>
-              <label style={sm.label}>Temp. ambiente (°C)</label>
-              <input style={sm.input} type="number" placeholder="0" value={data.temperaturaAmbiente ?? ''} onChange={e => set('temperaturaAmbiente', e.target.value)} />
-            </div>
-          </div>
-
-          {/* Hora de carga → descarga (auto) → traslado (auto) */}
-          <div style={sm.row}>
-            <div style={sm.half}>
-              <label style={sm.label}>Hora de carga</label>
-              <input style={sm.input} type="time" value={data.horaCarga ?? ''} onChange={e => set('horaCarga', e.target.value)} />
-            </div>
-            <div style={sm.half}>
-              <label style={sm.label}>Hora de descarga</label>
-              <input style={{ ...sm.input, ...sm.inputReadOnly }} type="time" value={data.horaDescarga ?? ''} readOnly tabIndex={-1} />
-            </div>
-          </div>
-          {data.tiempoTraslado && (
-            <div style={sm.calcBadge}>Tiempo de traslado: {data.tiempoTraslado} min</div>
-          )}
-
-          {/* Ensayo Peso Unitario */}
-          <p style={sm.sectionTitle}>Ensayo Peso Unitario</p>
-          <div style={sm.row}>
-            <div style={sm.half}>
-              <label style={sm.label}>Peso de la hoya (kg)</label>
-              <div style={sm.fixedValue}>{PESO_HOYA.toFixed(1).replace('.', ',')} kg</div>
-            </div>
-            <div style={sm.half}>
-              <label style={sm.label}>Peso hoya + hormigón (kg)</label>
-              <input style={sm.input} type="number" step="0.001" placeholder="0.000" value={data.puPesoTotal ?? ''} onChange={e => set('puPesoTotal', e.target.value)} />
-            </div>
-          </div>
-          {data.puResultado && (
-            <div style={sm.resultado}>PU = <strong>{Number(data.puResultado).toLocaleString('es-CL')} kg/m³</strong></div>
-          )}
-
-          {/* Foto Guía de Despacho — slot único reemplazable */}
-          <p style={sm.sectionTitle}>Foto Guía de Despacho</p>
-          <input ref={inputGuiaRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFotoGuia} />
-          {data.fotoGuia ? (
-            <div style={sm.fotoGuiaWrap}>
-              <div style={sm.fotoGuiaThumb}>
-                <img src={data.fotoGuia.dataUrl} alt="" style={s.fotoImg} />
-                <button style={s.btnEliminarFoto} onClick={() => set('fotoGuia', null)}>×</button>
-              </div>
-              <button style={{ ...sm.btnFotoSm, background: '#0f3460' }} onClick={() => inputGuiaRef.current?.click()}>Cambiar foto</button>
-            </div>
-          ) : (
-            <button style={sm.btnFotoSm} onClick={() => inputGuiaRef.current?.click()}>📷 Agregar foto</button>
-          )}
-
-          {/* Fotos del Ensayo — múltiples, con descripción */}
-          <p style={sm.sectionTitle}>Fotos del Ensayo</p>
-          <input ref={inputCamaraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFoto} />
-          <input ref={inputGaleriaRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleFoto} />
-          <div style={s.fotosBotones}>
-            <button style={sm.btnFotoSm} onClick={() => inputCamaraRef.current?.click()}>📷 Foto</button>
-            <button style={{ ...sm.btnFotoSm, background: '#0f3460' }} onClick={() => inputGaleriaRef.current?.click()}>🖼 Adjuntar</button>
-          </div>
-          {(data.fotos?.length > 0) && (
+          {(c.fotoGuia || c.fotosEnsayo?.length > 0) && (
             <div style={s.fotosGrid}>
-              {data.fotos.map((foto, fi) => (
-                <div key={fi} style={s.fotoCard}>
-                  <div style={s.fotoThumb}>
-                    <img src={foto.dataUrl} alt="" style={s.fotoImg} />
-                    <button style={s.btnEliminarFoto} onClick={() => eliminarFotoCamion(fi)}>×</button>
-                  </div>
-                  <input
-                    type="text"
-                    defaultValue={foto.descripcion}
-                    placeholder="Descripción..."
-                    style={s.fotoDescInput}
-                    onBlur={e => setDescFoto(fi, e.target.value)}
-                  />
+              {c.fotoGuia && (
+                <div style={s.fotoThumb}>
+                  <img src={c.fotoGuia.storageUrl || c.fotoGuia.dataUrl} alt="Guía de despacho" style={s.fotoImg} />
+                </div>
+              )}
+              {(c.fotosEnsayo ?? []).map((foto, i) => (
+                <div key={i} style={s.fotoThumb}>
+                  <img src={foto.storageUrl || foto.dataUrl} alt={foto.descripcion || ''} style={s.fotoImg} />
                 </div>
               ))}
             </div>
           )}
 
-          {/* Observaciones — al final */}
-          <label style={sm.label}>Observaciones del camión</label>
-          <textarea style={sm.textareaObs} rows={3} value={data.observaciones ?? ''} onChange={e => set('observaciones', e.target.value)} placeholder="Notas del camión..." />
-        </div>
-
-        <div style={sm.footer}>
-          {onEliminar && (
-            <button style={sm.btnEliminar} onClick={onEliminar}>Eliminar</button>
+          {editando ? (
+            <div style={s.editEntidadForm}>
+              <select style={s.inputEdit} value={tipoEdit} onChange={e => handleTipoEdit(e.target.value)}>
+                <option value="tramo">Tramo</option>
+                <option value="caida">Caída</option>
+                <option value="atravieso">Atravieso</option>
+              </select>
+              <select style={s.inputEdit} value={entidadEdit} onChange={e => setEntidadEdit(e.target.value)}>
+                {LISTAS_HA[tipoEdit].map(id => (
+                  <option key={id} value={id}>{NOMBRES_TIPO[tipoEdit]} {id}</option>
+                ))}
+              </select>
+              <div style={s.editEntidadBotones}>
+                <button style={s.btnModalCancelar} onClick={onCancelarEdicion}>Cancelar</button>
+                <button style={s.btnModalConfirmar} onClick={() => onGuardarEdicion(tipoEdit, entidadEdit)}>Guardar</button>
+              </div>
+            </div>
+          ) : (
+            <button style={s.btnEditarEntidad} onClick={onEditar}>✏️ Cambiar entidad asignada</button>
           )}
-          <button style={sm.btnCancelar} onClick={onCancelar}>Cancelar</button>
-          <button style={sm.btnGuardar} onClick={() => onSave(data)}>Guardar</button>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -357,8 +288,10 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   const [checklist, setChecklist] = useState(emptyChecklist);
   const [observaciones, setObservaciones] = useState('');
-  const [camiones, setCamiones] = useState([]);
-  const [camionModal, setCamionModal] = useState(null);
+  const [camionesRegistrados, setCamionesRegistrados] = useState([]);
+  const [cargandoCamiones, setCargandoCamiones] = useState(true);
+  const [expandidoCamion, setExpandidoCamion] = useState(null);
+  const [editandoCamion, setEditandoCamion] = useState(null);
   const [estado, setEstado] = useState('pendiente');
   const [fechaEnvio, setFechaEnvio] = useState(null);
   const [guardando, setGuardando] = useState(false);
@@ -449,13 +382,60 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     return () => { cancelado = true; };
   }, [tipo, entidadIdReal]);
 
+  // Camiones registrados desde el módulo de Recepción de Camiones (Control H.A.)
+  useEffect(() => {
+    if (!esHA) return;
+    let cancelado = false;
+    const uso = USO_POR_PROTOCOLO[protocoloId];
+
+    async function cargarCamionesRegistrados() {
+      setCargandoCamiones(true);
+
+      if (supabase && navigator.onLine) {
+        try {
+          const { data, error } = await supabase
+            .from('camiones')
+            .select('*')
+            .eq('tipo_entidad', tipo)
+            .eq('entidad_id', String(entidadIdReal))
+            .eq('uso_hormigon', uso)
+            .in('tipo_hormigon', TIPOS_HORMIGON_HA);
+          if (error) throw error;
+          if (!cancelado) {
+            setCamionesRegistrados((data ?? []).map(normalizarCamionRemoto));
+            setCargandoCamiones(false);
+          }
+          return;
+        } catch (err) {
+          console.warn('[CamionesHA] Error Supabase, usando datos locales:', err?.message ?? err);
+        }
+      }
+
+      const locales = await db.camiones
+        .filter(c =>
+          c.tipoEntidad === tipo &&
+          String(c.entidadId) === String(entidadIdReal) &&
+          c.usoHormigon === uso &&
+          TIPOS_HORMIGON_HA.includes(c.tipoHormigon)
+        )
+        .toArray();
+
+      if (!cancelado) {
+        setCamionesRegistrados(locales.map(normalizarCamionLocal));
+        setCargandoCamiones(false);
+      }
+    }
+
+    cargarCamionesRegistrados();
+    return () => { cancelado = true; };
+  }, [esHA, tipo, entidadIdReal, protocoloId]);
+
   useEffect(() => {
     if (!cargando && !cargadoRef.current) {
       cargadoRef.current = true;
       if (protocolo) {
         setChecklist(normalizeChecklist(protocolo.datos?.checklist, itemsChecklist));
         setObservaciones(protocolo.datos?.observaciones ?? '');
-        setCamiones(protocolo.datos?.camiones ?? []);
         setFotosNubeSeleccionadas(protocolo.datos?.fotosNubeSeleccionadas ?? []);
         setEstado(protocolo.estado);
         setFechaEnvio(protocolo.fechaEnvio ?? null);
@@ -490,7 +470,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       tipo, entidad: tipo, entidadId: entidadIdReal, protocoloId,
       estado: 'borrador', usuarioNombre: usuario,
       fechaCreacion: now, fechaModificacion: now,
-      datos: { checklist, observaciones, camiones },
+      datos: { checklist, observaciones, fotosNubeSeleccionadas },
       sincronizada: false,
     });
   }
@@ -500,9 +480,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     setGuardando(true);
     try {
       const now = new Date().toISOString();
-      const datos = esHA
-        ? { camiones }
-        : { checklist, observaciones, camiones: [], fotosNubeSeleccionadas };
+      const datos = { checklist, observaciones, fotosNubeSeleccionadas };
 
       const campos = {
         estado: nuevoEstado, usuarioNombre: usuario,
@@ -586,46 +564,34 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     setFotosNubeSeleccionadas(prev => prev.map(f => (f.storageUrl || f.dataUrl) === key ? { ...f, descripcion } : f));
   }
 
-  function abrirNuevoCamion() {
-    setCamionModal({
-      idx: -1,
-      data: {
-        id: Date.now().toString(),
-        numero: camiones.length + 1,
-        tipoHormigon: '', volumen: '',
-        guia: '', planta: '',
-        cono: '', temperaturaHormigon: '', temperaturaAmbiente: '',
-        horaCarga: '', horaDescarga: '', tiempoTraslado: '',
-        puPesoTotal: '', puResultado: '',
-        fotoGuia: null, fotos: [],
-        observaciones: '',
-      },
-    });
-  }
+  async function actualizarEntidadCamion(camion, nuevoTipo, nuevoEntidadIdStr) {
+    const nuevoEntidadId = nuevoTipo === 'caida' ? Number(nuevoEntidadIdStr) : nuevoEntidadIdStr;
 
-  function guardarCamion(dataFinal) {
-    if (camionModal.idx === -1) {
-      setCamiones(prev => [...prev, dataFinal]);
-    } else {
-      setCamiones(prev => prev.map((c, i) => i === camionModal.idx ? dataFinal : c));
+    if (supabase && navigator.onLine && camion.supabaseId) {
+      try {
+        await supabase
+          .from('camiones')
+          .update({ tipo_entidad: nuevoTipo, entidad_id: String(nuevoEntidadId) })
+          .eq('id', camion.supabaseId);
+      } catch (err) {
+        console.warn('[CamionesHA] Error actualizando entidad en Supabase:', err?.message ?? err);
+      }
     }
-    setCamionModal(null);
-  }
 
-  function eliminarCamionActual() {
-    if (camionModal.idx !== -1) {
-      setCamiones(prev => prev.filter((_, i) => i !== camionModal.idx));
+    if (camion.localId) {
+      await db.camiones.update(camion.localId, { tipoEntidad: nuevoTipo, entidadId: nuevoEntidadId, sincronizado: false });
     }
-    setCamionModal(null);
+
+    setCamionesRegistrados(prev => prev.filter(c => c.key !== camion.key));
+    setEditandoCamion(null);
+    mostrarToast('Camión reasignado a otra entidad');
   }
 
   if (cargando) return <div style={s.cargando}>Cargando...</div>;
 
   const readOnly = estado === 'enviado';
 
-  const respondidos = esHA
-    ? 0
-    : itemsChecklist.filter(item => checklist[item.id]?.valor !== null).length;
+  const respondidos = itemsChecklist.filter(item => checklist[item.id]?.valor !== null).length;
 
   const fotosTerrenoFiltradas = filtroEtiqueta === 'Todas'
     ? fotosTerreno
@@ -751,53 +717,41 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         </div>
       </div>
 
-      {esHA ? (
-        /* ── Vista Control H.A. — solo camiones ─────────────────────────────── */
-        <Seccion titulo={`Camiones${camiones.length > 0 ? ` (${camiones.length})` : ''}`}>
-          {!readOnly && (
-            <button style={s.btnAgregarCamion} onClick={abrirNuevoCamion}>
-              + Agregar camión
-            </button>
-          )}
-          {camiones.length > 0 && (
+      {esHA && (
+        /* ── Camiones registrados desde Recepción de Camiones ────────────────── */
+        <Seccion titulo="Camiones registrados">
+          <div style={s.badgeCamiones}>🚛 {camionesRegistrados.length} camiones registrados</div>
+          {cargandoCamiones ? (
+            <p style={s.sinFotos}>Cargando camiones...</p>
+          ) : camionesRegistrados.length === 0 ? (
+            <p style={s.sinFotos}>No hay camiones registrados para este elemento. Usa el módulo Recibir Camión.</p>
+          ) : (
             <div style={s.camionesList}>
-              {camiones.map((c, idx) => (
-                <div
-                  key={c.id}
-                  style={{ ...s.camionFila, cursor: readOnly ? 'default' : 'pointer' }}
-                  onClick={() => !readOnly && setCamionModal({ idx, data: { ...c } })}
-                >
-                  <div style={s.camionNum}>#{c.numero}</div>
-                  <div style={s.camionInfo}>
-                    <span style={s.camionTipo}>
-                      {[c.tipoHormigon, c.volumen && `${c.volumen} m³`].filter(Boolean).join(' — ') || '—'}
-                    </span>
-                    <span style={s.camionMeta}>
-                      {[c.guia && `G: ${c.guia}`, c.cono && `Cono: ${c.cono}cm`, c.temperaturaHormigon && `${c.temperaturaHormigon}°C`]
-                        .filter(Boolean).join(' · ')}
-                    </span>
-                  </div>
-                  <span style={s.chevronSm}>›</span>
-                </div>
+              {camionesRegistrados.map(c => (
+                <CamionRegistradoCard
+                  key={c.key}
+                  camion={c}
+                  expandido={expandidoCamion === c.key}
+                  onToggle={() => setExpandidoCamion(prev => prev === c.key ? null : c.key)}
+                  editando={editandoCamion === c.key}
+                  onEditar={() => setEditandoCamion(c.key)}
+                  onCancelarEdicion={() => setEditandoCamion(null)}
+                  onGuardarEdicion={(nuevoTipo, nuevoEntidadId) => actualizarEntidadCamion(c, nuevoTipo, nuevoEntidadId)}
+                />
               ))}
             </div>
           )}
         </Seccion>
-      ) : soloFotos ? (
+      )}
+
+      {soloFotos ? (
         /* ── Vista solo-fotos (ej. G5 Emplantillado) ─────────────────────────── */
         seccionFotos
       ) : (
-        /* ── Vista estándar — checklist + observaciones + fotos ─────────────── */
+        /* ── Checklist (si aplica) + observaciones + fotos ───────────────────── */
         <>
-          {/* Checklist */}
-          <Seccion titulo={
-            itemsChecklist.length > 0
-              ? `Lista de verificación (${respondidos}/${itemsChecklist.length})`
-              : 'Lista de verificación'
-          }>
-            {itemsChecklist.length === 0 ? (
-              <p style={s.checklistPendiente}>Checklist pendiente de configuración</p>
-            ) : (
+          {itemsChecklist.length > 0 && (
+            <Seccion titulo={`Lista de verificación (${respondidos}/${itemsChecklist.length})`}>
               <div style={s.checklist}>
                 {itemsChecklist.map(item => {
                   const entry = checklist[item.id] ?? { valor: null, obs: '' };
@@ -840,8 +794,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                   );
                 })}
               </div>
-            )}
-          </Seccion>
+            </Seccion>
+          )}
 
           {/* Observaciones generales */}
           <Seccion titulo="Observaciones">
@@ -904,7 +858,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             style={{ ...s.btnAccion, ...s.btnExcel, opacity: descargando ? 0.6 : 1 }}
             onClick={async () => {
               setDescargando(true);
-              try { await generarPDF(protocolo, esHA ? fotos : fotosCombinadas, kmInicio, kmFin); }
+              try { await generarPDF(protocolo, fotosCombinadas, kmInicio, kmFin); }
               catch (err) {
                 console.error('Error PDF:', err);
                 mostrarToast('Error al generar PDF', 'error');
@@ -954,15 +908,6 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           onCancelar={() => setConfirmandoDesbloqueo(false)}
         />
       )}
-
-      {camionModal && (
-        <CamionModal
-          camion={camionModal.data}
-          onSave={guardarCamion}
-          onCancelar={() => setCamionModal(null)}
-          onEliminar={camionModal.idx !== -1 ? eliminarCamionActual : null}
-        />
-      )}
     </div>
   );
 }
@@ -1004,16 +949,24 @@ const s = {
   checkObsMobile: { ...obsInputBase, width: '100%' },
   checkBtns: { display: 'flex', gap: '4px', flexShrink: 0 },
   checkBtn: { padding: '5px 9px', border: '1.5px solid', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.12s', minWidth: '36px', textAlign: 'center' },
-  checklistPendiente: { color: '#8892b0', fontSize: '13px', fontStyle: 'italic', textAlign: 'center', margin: 0 },
 
-  btnAgregarCamion: { background: '#0f3460', color: '#64ffda', border: '1.5px solid #64ffda', borderRadius: '8px', padding: '10px 16px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', width: '100%', marginBottom: '12px' },
-  camionesList: { display: 'flex', flexDirection: 'column', gap: '6px' },
-  camionFila: { display: 'flex', alignItems: 'center', gap: '12px', background: '#0f3460', borderRadius: '8px', padding: '12px 14px', cursor: 'pointer', border: '1px solid #1e3a5f' },
-  camionNum: { color: '#64ffda', fontWeight: 700, fontSize: '15px', minWidth: '28px' },
+  badgeCamiones: { background: '#0a2040', border: '1px solid #64ffda', borderRadius: '8px', padding: '8px 14px', color: '#ccd6f6', fontSize: '13px', fontWeight: 700, marginBottom: '12px', textAlign: 'center' },
+  camionesList: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  camionRegCard: { background: '#0f3460', borderRadius: '8px', border: '1px solid #1e3a5f', overflow: 'hidden' },
+  camionFila: { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', cursor: 'pointer' },
   camionInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' },
   camionTipo: { color: '#ccd6f6', fontSize: '13px', fontWeight: 600 },
   camionMeta: { color: '#8892b0', fontSize: '11px' },
   chevronSm: { color: '#8892b0', fontSize: '18px' },
+  camionDetalle: { padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid #1e3a5f' },
+  detalleGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginTop: '12px' },
+  detalleLabel: { display: 'block', color: '#8892b0', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' },
+  detalleValor: { display: 'block', color: '#ccd6f6', fontSize: '13px', marginTop: '2px' },
+  camionObs: { color: '#ccd6f6', fontSize: '13px', background: '#0a1f3a', borderRadius: '6px', padding: '8px 10px', margin: 0, lineHeight: 1.5 },
+  editEntidadForm: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  editEntidadBotones: { display: 'flex', gap: '8px' },
+  btnEditarEntidad: { background: 'transparent', border: '1px solid #1e3a5f', color: '#8892b0', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', alignSelf: 'flex-start' },
+  inputEdit: { background: '#0a1f3a', border: '1px solid #1e3a5f', borderRadius: '7px', color: '#ccd6f6', fontSize: '14px', padding: '10px 12px', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' },
 
   textarea: { width: '100%', background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '8px', color: '#ccd6f6', fontSize: '14px', padding: '12px', resize: 'vertical', fontFamily: 'inherit', lineHeight: '1.5', outline: 'none' },
   fotosBotones: { display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' },
@@ -1063,30 +1016,4 @@ const s = {
   modalBotones: { display: 'flex', gap: '10px' },
   btnModalCancelar: { flex: 1, padding: '12px', background: '#0f3460', color: '#ccd6f6', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' },
   btnModalConfirmar: { flex: 1, padding: '12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' },
-};
-
-const sm = {
-  container: { background: '#16213e', borderRadius: '16px', width: '100%', maxWidth: '480px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', border: '1px solid #0f3460', overflow: 'hidden' },
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #0f3460', flexShrink: 0 },
-  titulo: { color: '#ccd6f6', fontSize: '17px', fontWeight: 700, margin: 0 },
-  btnCerrar: { background: 'transparent', border: 'none', color: '#8892b0', fontSize: '24px', cursor: 'pointer', lineHeight: 1, padding: '0 4px' },
-  body: { padding: '16px 20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' },
-  label: { color: '#8892b0', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' },
-  sectionTitle: { color: '#64ffda', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '6px 0 0' },
-  input: { background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '7px', color: '#ccd6f6', fontSize: '14px', padding: '10px 12px', fontFamily: 'inherit', outline: 'none', width: '100%' },
-  textarea: { background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '7px', color: '#ccd6f6', fontSize: '14px', padding: '10px 12px', fontFamily: 'inherit', outline: 'none', width: '100%', resize: 'vertical' },
-  row: { display: 'flex', gap: '10px' },
-  half: { flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' },
-  calcBadge: { background: '#10b981', color: '#fff', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', fontWeight: 700, whiteSpace: 'nowrap', textAlign: 'center' },
-  resultado: { background: '#0a2040', border: '1px solid #10b981', borderRadius: '8px', padding: '10px 14px', color: '#ccd6f6', fontSize: '14px' },
-  btnFotoSm: { background: '#10b981', color: '#fff', border: 'none', borderRadius: '7px', padding: '8px 14px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', flex: '1 1 100px' },
-  inputReadOnly: { opacity: 0.6, cursor: 'not-allowed' },
-  fixedValue: { background: '#0a1f3a', border: '1px solid #1e3a5f', borderRadius: '7px', color: '#8892b0', fontSize: '14px', padding: '10px 12px', width: '100%', boxSizing: 'border-box' },
-  textareaObs: { background: '#0f3460', border: '1.5px solid #3a5a8a', borderRadius: '7px', color: '#ccd6f6', fontSize: '14px', padding: '10px 12px', fontFamily: 'inherit', outline: 'none', width: '100%', resize: 'vertical', minHeight: '76px', boxSizing: 'border-box' },
-  fotoGuiaWrap: { display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '140px' },
-  fotoGuiaThumb: { position: 'relative', width: '140px', height: '140px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #1e3a5f' },
-  footer: { display: 'flex', gap: '8px', padding: '14px 20px', borderTop: '1px solid #0f3460', flexShrink: 0 },
-  btnEliminar: { background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' },
-  btnCancelar: { flex: 1, background: '#0f3460', color: '#ccd6f6', border: 'none', borderRadius: '8px', padding: '12px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' },
-  btnGuardar: { flex: 2, background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' },
 };

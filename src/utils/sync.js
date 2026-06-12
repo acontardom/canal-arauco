@@ -245,6 +245,7 @@ async function sincronizarCamiones() {
         entidad_secundaria_tipo: camion.entidadSecundariaTipo ?? null,
         entidad_secundaria_id:   camion.entidadSecundariaId != null ? String(camion.entidadSecundariaId) : null,
         tipo_hormigon:           camion.tipoHormigon,
+        uso_hormigon:            camion.usoHormigon ?? null,
         volumen:                 camion.volumen || null,
         numero_guia:             camion.numeroGuia || null,
         planta:                  camion.planta || null,
@@ -425,6 +426,7 @@ export async function descargarDesdeSupabase() {
                                     ? Number(remoto.entidad_secundaria_id)
                                     : remoto.entidad_secundaria_id ?? null,
           tipoHormigon:           remoto.tipo_hormigon,
+          usoHormigon:            remoto.uso_hormigon ?? null,
           volumen:                remoto.volumen ?? '',
           numeroGuia:             remoto.numero_guia ?? '',
           planta:                 remoto.planta ?? '',
