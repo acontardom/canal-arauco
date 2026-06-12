@@ -318,21 +318,14 @@ function agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin, escala = ESCALA_NO
   const actividad = `km: ${km.inicio || '—'} hasta ${km.fin || '—'} — Elemento: ${entidad}`;
 
   const AMARILLO = [255, 215, 0];
-  const celdaSelector = (label, marcado) => marcado
-    ? { content: label, styles: { fillColor: AMARILLO, fontStyle: 'bold', halign: 'center' } }
-    : { content: label, styles: { halign: 'center' } };
+  const GRIS_BADGE = [150, 150, 150];
+  const FILA_ACTIVIDAD = 3; // índice de la fila Actividad/Partida dentro de body
 
   // Filas simples: la columna de valor abarca las 4 columnas restantes
   const filaTexto = (label, contenido) => [label, { content: contenido, colSpan: 4 }];
 
   const filaActividad = textos.selector
-    ? [
-        'Actividad / Partida',
-        celdaSelector('Radier', textos.selector === 'radier' || textos.selector === 'ambos'),
-        celdaSelector('Muro', textos.selector === 'muro' || textos.selector === 'ambos'),
-        celdaSelector('Otro', false),
-        actividad,
-      ]
+    ? ['Actividad / Partida', { content: '', colSpan: 4 }]
     : filaTexto('Actividad / Partida', actividad);
 
   autoTable(doc, {
@@ -361,6 +354,52 @@ function agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin, escala = ESCALA_NO
       textColor: [30, 30, 30],
     },
     theme: 'grid',
+    didParseCell: (data) => {
+      if (textos.selector && data.section === 'body' && data.row.index === FILA_ACTIVIDAD && data.column.index === 1) {
+        data.cell.styles.minCellHeight = 9;
+      }
+    },
+    didDrawCell: (data) => {
+      if (!textos.selector) return;
+      if (data.section !== 'body' || data.row.index !== FILA_ACTIVIDAD || data.column.index !== 1) return;
+
+      const { x, y: cy0, width, height } = data.cell;
+      const badgeW = 18;
+      const badgeH = 7;
+      const gap = 2;
+      const padX = 2;
+      const centerY = cy0 + height / 2;
+
+      const opciones = [
+        { label: 'Radier', activo: textos.selector === 'radier' || textos.selector === 'ambos' },
+        { label: 'Muro', activo: textos.selector === 'muro' || textos.selector === 'ambos' },
+        { label: 'Otro', activo: false },
+      ];
+
+      let bx = x + padX;
+      doc.setFontSize(8);
+      opciones.forEach(({ label, activo }) => {
+        if (activo) {
+          doc.setFillColor(...AMARILLO);
+          doc.roundedRect(bx, centerY - badgeH / 2, badgeW, badgeH, 1.2, 1.2, 'F');
+          doc.setTextColor(0, 0, 0);
+          doc.setFont(undefined, 'bold');
+        } else {
+          doc.setDrawColor(...GRIS_BADGE);
+          doc.setLineWidth(0.2);
+          doc.roundedRect(bx, centerY - badgeH / 2, badgeW, badgeH, 1.2, 1.2, 'S');
+          doc.setTextColor(...GRIS_BADGE);
+          doc.setFont(undefined, 'normal');
+        }
+        doc.text(label, bx + badgeW / 2, centerY, { align: 'center', baseline: 'middle' });
+        bx += badgeW + gap;
+      });
+
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(escala.fontSize);
+      doc.setTextColor(30, 30, 30);
+      doc.text(`—  ${actividad}`, bx + gap, centerY, { baseline: 'middle' });
+    },
   });
 
   return doc.lastAutoTable.finalY + 3;
