@@ -10,7 +10,8 @@ import { supabase } from '../config/supabase';
 
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 const LISTAS = { tramo: TRAMOS, caida: CAIDAS, atravieso: ATRAVIESOS };
-const TIPOS_HORMIGON = ['G5', 'G20', 'G25'];
+const TIPOS_HORMIGON = ['G5', 'G20', 'G25', 'G30'];
+const TIPOS_CON_ENSAYO = ['G20', 'G25', 'G30'];
 const PLANTAS = ['Membrillar', 'Quilanco', 'Río San Martín'];
 const PESO_HOYA = 6.9;
 const PROBETA_VOL = 0.0101;
@@ -293,7 +294,7 @@ export default function RecibirCamion() {
             <input style={s.input} type="number" step="0.1" placeholder="8.5" value={form.volumen} onChange={e => set('volumen', e.target.value)} />
           </div>
 
-          {(form.tipoHormigon === 'G20' || form.tipoHormigon === 'G25') && (
+          {TIPOS_CON_ENSAYO.includes(form.tipoHormigon) && (
             <>
               <div style={s.row}>
                 <div style={s.campo}>
@@ -355,7 +356,7 @@ export default function RecibirCamion() {
             <button style={s.btnFotoSm} onClick={() => inputGuiaRef.current?.click()}>📷 Agregar foto</button>
           )}
 
-          {(form.tipoHormigon === 'G20' || form.tipoHormigon === 'G25') && (
+          {TIPOS_CON_ENSAYO.includes(form.tipoHormigon) && (
             <>
               <p style={s.sectionTitle}>Fotos del Ensayo</p>
               <input ref={inputCamaraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFotosEnsayo} />
