@@ -4,7 +4,6 @@ import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
 import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
 import { comprimirFoto } from '../utils/comprimirFoto';
-import { uploadFoto } from '../utils/uploadFoto';
 import { sincronizar } from '../utils/sync';
 import { supabase } from '../config/supabase';
 
@@ -67,6 +66,7 @@ export default function RecibirCamion() {
   const [form, setForm] = useState(initialForm);
   const [ultimoCamion, setUltimoCamion] = useState(null);
   const [guardando, setGuardando] = useState(false);
+  const [sincronizando, setSincronizando] = useState(false);
   const [toast, setToast] = useState(null);
 
   const inputGuiaRef = useRef(null);
@@ -151,32 +151,6 @@ export default function RecibirCamion() {
     }
     setGuardando(true);
     try {
-      let fotoGuia = form.fotoGuia;
-      let fotosEnsayo = form.fotosEnsayo;
-      const entidadPath = `${tipo}/${entidadId}`;
-
-      if (supabase && navigator.onLine) {
-        if (fotoGuia && !fotoGuia.subidaStorage) {
-          try {
-            const storageUrl = await uploadFoto(fotoGuia.dataUrl, { tipo: 'camiones', entidadId: entidadPath, nombre: 'guia' });
-            if (storageUrl) fotoGuia = { ...fotoGuia, storageUrl, subidaStorage: true };
-          } catch (err) {
-            console.warn('[Camion] fotoGuia:', err?.message ?? err);
-          }
-        }
-
-        fotosEnsayo = await Promise.all(fotosEnsayo.map(async (foto, idx) => {
-          if (foto.subidaStorage) return foto;
-          try {
-            const storageUrl = await uploadFoto(foto.dataUrl, { tipo: 'camiones', entidadId: entidadPath, nombre: `ensayo_${idx}` });
-            return storageUrl ? { ...foto, storageUrl, subidaStorage: true } : foto;
-          } catch (err) {
-            console.warn('[Camion] fotoEnsayo:', err?.message ?? err);
-            return foto;
-          }
-        }));
-      }
-
       const camion = {
         tipoEntidad: tipo,
         entidadId: entidadIdReal,
@@ -202,16 +176,19 @@ export default function RecibirCamion() {
         fechaRecepcion: new Date().toISOString(),
         sincronizado: false,
         supabaseId: null,
-        fotoGuia,
-        fotosEnsayo,
+        fotoGuia: form.fotoGuia,
+        fotosEnsayo: form.fotosEnsayo,
       };
 
       const id = await db.camiones.add(camion);
 
-      if (supabase && navigator.onLine) sincronizar();
-
       setUltimoCamion({ ...camion, id });
       setForm(initialForm);
+
+      if (supabase && navigator.onLine) {
+        setSincronizando(true);
+        sincronizar().finally(() => setSincronizando(false));
+      }
     } catch {
       mostrarToast('Error al registrar camión', 'error');
     } finally {
@@ -230,6 +207,7 @@ export default function RecibirCamion() {
     return (
       <div style={s.page}>
         <h1 style={s.titulo}>✅ Camión registrado</h1>
+        {sincronizando && <div style={s.syncIndicator}>☁️ Sincronizando...</div>}
         <div style={s.resumenCard}>
           <p style={s.resumenLinea}><strong>{NOMBRE_TIPO[tipo]} {entidadId}</strong></p>
           <p style={s.resumenLinea}>Tipo hormigón: <strong>{c.tipoHormigon}</strong></p>
@@ -251,6 +229,8 @@ export default function RecibirCamion() {
     <div style={s.page}>
       <button style={s.btnVolver} onClick={() => navigate('/')}>← Inicio</button>
       <h1 style={s.titulo}>Recibir Camión</h1>
+
+      {sincronizando && <div style={s.syncIndicator}>☁️ Sincronizando...</div>}
 
       <p style={s.sectionTitle}>Entidad Principal</p>
       <div style={s.row}>
@@ -481,6 +461,12 @@ const s = {
     cursor: 'pointer', fontSize: '14px', padding: 0, alignSelf: 'flex-start',
   },
   titulo: { color: '#ccd6f6', fontSize: '20px', fontWeight: 700, margin: 0 },
+
+  syncIndicator: {
+    display: 'inline-flex', alignItems: 'center', gap: '6px', alignSelf: 'flex-start',
+    background: '#0a2040', border: '1px solid #1e3a5f', borderRadius: '20px',
+    padding: '4px 12px', color: '#64ffda', fontSize: '12px', fontWeight: 600,
+  },
 
   tiposGridHorizontal: { display: 'flex', gap: '10px' },
   btnHormigon: {

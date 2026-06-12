@@ -5,7 +5,6 @@ import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
 import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
 import { comprimirFoto } from '../utils/comprimirFoto';
-import { uploadFoto } from '../utils/uploadFoto';
 import { sincronizar } from '../utils/sync';
 import { supabase } from '../config/supabase';
 
@@ -24,6 +23,8 @@ export default function SubirFotos() {
   const [entidadId, setEntidadId] = useState(entidadIdParam ?? String(TRAMOS[0]));
   const [pendientes, setPendientes] = useState([]);
   const [guardando, setGuardando] = useState(false);
+  const [guardadoOk, setGuardadoOk] = useState(false);
+  const [sincronizando, setSincronizando] = useState(false);
   const [toast, setToast] = useState(null);
 
   const inputCamaraRef = useRef(null);
@@ -40,7 +41,8 @@ export default function SubirFotos() {
   // Forzar sincronización al montar para subir cualquier foto pendiente en Dexie
   useEffect(() => {
     if (supabase && navigator.onLine) {
-      sincronizar();
+      setSincronizando(true);
+      sincronizar().finally(() => setSincronizando(false));
     }
   }, []);
 
@@ -88,28 +90,25 @@ export default function SubirFotos() {
     setGuardando(true);
     try {
       for (const foto of pendientes) {
-        const id = await db.fotos_terreno.add({
+        await db.fotos_terreno.add({
           tipo, entidadId: entidadIdReal,
           etiquetas: foto.etiquetas, descripcion: foto.descripcion,
           dataUrl: foto.dataUrl, storageUrl: null, subidaStorage: false,
           usuarioNombre: usuario, fechaCaptura: new Date().toISOString(),
           sincronizada: false,
         });
-
-        if (supabase && navigator.onLine) {
-          try {
-            const storageUrl = await uploadFoto(foto.dataUrl, { tipo, entidadId: entidadIdReal, carpeta: 'terreno' });
-            if (storageUrl) await db.fotos_terreno.update(id, { storageUrl, subidaStorage: true });
-          } catch (err) {
-            console.warn('[FotosTerreno] Error al subir a Storage:', err?.message ?? err);
-          }
-        }
       }
 
-      mostrarToast(pendientes.length > 1 ? `${pendientes.length} fotos guardadas` : 'Foto guardada');
-      setPendientes([]);
+      setGuardadoOk(true);
+      setTimeout(() => {
+        setGuardadoOk(false);
+        setPendientes([]);
+      }, 1500);
 
-      if (supabase && navigator.onLine) sincronizar();
+      if (supabase && navigator.onLine) {
+        setSincronizando(true);
+        sincronizar().finally(() => setSincronizando(false));
+      }
     } catch {
       mostrarToast('Error al guardar fotos', 'error');
     } finally {
@@ -121,6 +120,8 @@ export default function SubirFotos() {
     <div style={s.page}>
       <button style={s.btnVolver} onClick={() => navigate('/')}>← Inicio</button>
       <h1 style={s.titulo}>Subir Fotos</h1>
+
+      {sincronizando && <div style={s.syncIndicator}>☁️ Sincronizando...</div>}
 
       <div style={s.row}>
         <div style={s.campo}>
@@ -183,8 +184,8 @@ export default function SubirFotos() {
       )}
 
       {pendientes.length > 0 && (
-        <button style={s.btnGuardar} onClick={guardarTodo} disabled={guardando}>
-          {guardando ? 'Guardando...' : `Guardar todo (${pendientes.length})`}
+        <button style={s.btnGuardar} onClick={guardarTodo} disabled={guardando || guardadoOk}>
+          {guardadoOk ? '✅ Guardado' : guardando ? 'Guardando...' : `Guardar todo (${pendientes.length})`}
         </button>
       )}
 
@@ -205,6 +206,12 @@ const s = {
     cursor: 'pointer', fontSize: '14px', padding: 0, alignSelf: 'flex-start',
   },
   titulo: { color: '#ccd6f6', fontSize: '22px', fontWeight: 700, margin: 0 },
+
+  syncIndicator: {
+    display: 'inline-flex', alignItems: 'center', gap: '6px', alignSelf: 'flex-start',
+    background: '#0a2040', border: '1px solid #1e3a5f', borderRadius: '20px',
+    padding: '4px 12px', color: '#64ffda', fontSize: '12px', fontWeight: 600,
+  },
 
   row: { display: 'flex', gap: '10px' },
   campo: { flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' },
