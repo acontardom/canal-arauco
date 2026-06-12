@@ -21,95 +21,101 @@ const NOMBRES_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' }
 // ─── Textos fijos por protocolo ───────────────────────────────────────────────
 const TEXTOS_PROTOCOLO = {
   PICE1: {
+    nombreProtocolo: 'Movimiento de Tierras',
     objetivo:  'Verificar la correcta ejecución de las actividades de movimientos de tierra.',
     alcance:   'Aplica a las actividades de replanteo, excavación a máquina OOCC o GPS, Rellenos.',
     normativa: 'Planos del proyecto, Especificaciones Técnicas, PCdC y Procedimiento PR-CL-01.',
     procedimiento: [
-      'Verificar PR de proyecto en terreno previo al inicio de la excavación.',
-      'Verificar que el replanteo sea conforme a los planos del proyecto.',
-      'Controlar cotas de excavación según niveles de proyecto.',
-      'Verificar ancho de excavación según sección tipo.',
-      'Controlar espesor de capas de relleno y compactación por capas.',
-      'Registrar evidencia fotográfica de la actividad ejecutada.',
-      'Otorgar aprobación para continuar con la etapa de hormigonado.',
+      '1. Verificar PR de proyecto en terreno previo al inicio de la excavación.',
+      '2. Verificar que el replanteo sea conforme a los planos del proyecto.',
+      '3. Controlar cotas de excavación según niveles de proyecto.',
+      '4. Verificar ancho de excavación según sección tipo.',
+      '5. Controlar espesor de capas de relleno y compactación por capas.',
+      '6. Registrar evidencia fotográfica de la actividad ejecutada.',
+      '7. Otorgar aprobación para continuar con la etapa de hormigonado.',
     ],
+    selector: null,
   },
   PICE2_RADIER: {
+    nombreProtocolo: 'Hormigones',
     objetivo:  'Controlar la correcta colocación del hormigón.',
     alcance:   'Desde recepción hasta curado inicial.',
-    normativa: 'NCh 170, NCh 1019, EETT.',
+    normativa: 'NCh 170, NCh 1019, EETT',
     procedimiento: [
-      'Verificar tratamiento de juntas de hormigonado previo al vaciado.',
-      'Verificar limpieza de la sección a hormigonar.',
-      'Verificar disponibilidad de herramientas adecuadas para la colocación.',
-      'Controlar cono de asentamiento del hormigón recibido.',
-      'Verificar vibrado adecuado durante la colocación del hormigón.',
-      'Verificar platachado y afinado de las superficies.',
-      'Verificar inicio y mantención del curado del hormigón.',
+      '1. Verificación de elemento a hormigonar.',
+      '2. Control de docilidad (cada 50m3).',
+      '3. Registro de hora y volumen.',
+      '4. Supervisión de vibrado.',
+      '5. Inicio de curado.',
     ],
+    selector: 'radier',
   },
   PICE2_MURO: {
+    nombreProtocolo: 'Hormigones',
     objetivo:  'Controlar la correcta colocación del hormigón.',
     alcance:   'Desde recepción hasta curado inicial.',
-    normativa: 'NCh 170, NCh 1019, EETT.',
+    normativa: 'NCh 170, NCh 1019, EETT',
     procedimiento: [
-      'Verificar tratamiento de juntas de hormigonado previo al vaciado.',
-      'Verificar limpieza de la sección a hormigonar.',
-      'Verificar disponibilidad de herramientas adecuadas para la colocación.',
-      'Controlar cono de asentamiento del hormigón recibido.',
-      'Verificar vibrado adecuado durante la colocación del hormigón.',
-      'Verificar platachado y afinado de las superficies.',
-      'Verificar inicio y mantención del curado del hormigón.',
+      '1. Verificación de elemento a hormigonar.',
+      '2. Control de docilidad (cada 50m3).',
+      '3. Registro de hora y volumen.',
+      '4. Supervisión de vibrado.',
+      '5. Inicio de curado.',
     ],
+    selector: 'muro',
   },
   PICE3: {
+    nombreProtocolo: 'Moldajes',
     objetivo:  'Verificar condiciones previas al hormigonado.',
     alcance:   'Moldajes y superficies de contacto.',
-    normativa: 'Especificaciones Técnicas, PCdC.',
+    normativa: 'Especificaciones Técnicas, PCdC',
     procedimiento: [
-      'Verificar aplicación de desmoldante en superficies de moldaje.',
-      'Verificar fijación correcta de los moldajes.',
-      'Verificar fijación de puntales y arriostramientos.',
-      'Verificar disponibilidad de herramientas adecuadas.',
-      'Verificar estanquidad de los moldajes.',
-      'Verificar limpieza de la sección a hormigonar.',
-      'Verificar instalación de juntas de dilatación.',
-      'Verificar instalación de juntas de contracción.',
-      'Verificar instalación de water stop según planos.',
-      'Otorgar aprobación para continuar con el hormigonado.',
+      '1. Revisión de alineación y nivelación.',
+      '2. Control de estanqueidad.',
+      '3. Limpieza de moldajes.',
+      '4. Revisión de condiciones de seguridad.',
+      '5. Aprobación para hormigonado.',
     ],
+    selector: 'ambos',
   },
   PICE4_RADIER: {
+    nombreProtocolo: 'Enfierradura',
     objetivo:  'Verificar correcta instalación de armaduras previo al hormigonado.',
     alcance:   'Control de acero de refuerzo en partidas estructurales.',
-    normativa: 'NCh 204, Planos estructurales, EETT.',
+    normativa: 'NCh 204, Planos estructurales, EETT',
     procedimiento: [
-      'Verificar diámetros de armadura conforme a planos estructurales.',
-      'Verificar separación entre barras conforme a planos.',
-      'Verificar recubrimientos mínimos según especificaciones.',
-      'Verificar fijación y estabilidad de la armadura.',
-      'Verificar longitudes de traslape de la enfierradura.',
-      'Verificar limpieza de armaduras y superficie de hormigonado.',
-      'Verificar refuerzos adicionales de enfierradura según planos.',
-      'Otorgar aprobación para continuar con el hormigonado.',
+      '1. Revisión de planos estructurales.',
+      '2. Verificación de diámetros y separación.',
+      '3. Control de recubrimientos.',
+      '4. Revisión de amarras y rigidez.',
+      '5. Aprobación para hormigonado.',
     ],
+    selector: 'radier',
   },
   PICE4_MURO: {
+    nombreProtocolo: 'Enfierradura',
     objetivo:  'Verificar correcta instalación de armaduras previo al hormigonado.',
     alcance:   'Control de acero de refuerzo en partidas estructurales.',
-    normativa: 'NCh 204, Planos estructurales, EETT.',
+    normativa: 'NCh 204, Planos estructurales, EETT',
     procedimiento: [
-      'Verificar diámetros de armadura conforme a planos estructurales.',
-      'Verificar separación entre barras conforme a planos.',
-      'Verificar recubrimientos mínimos según especificaciones.',
-      'Verificar fijación y estabilidad de la armadura.',
-      'Verificar longitudes de traslape de la enfierradura.',
-      'Verificar limpieza de armaduras y superficie de hormigonado.',
-      'Verificar refuerzos adicionales de enfierradura según planos.',
-      'Otorgar aprobación para continuar con el hormigonado.',
+      '1. Revisión de planos estructurales.',
+      '2. Verificación de diámetros y separación.',
+      '3. Control de recubrimientos.',
+      '4. Revisión de amarras y rigidez.',
+      '5. Aprobación para hormigonado.',
     ],
+    selector: 'muro',
+  },
+  G5: {
+    nombreProtocolo: 'Hormigones G-5',
+    objetivo: '',
+    alcance: '',
+    normativa: '',
+    procedimiento: [],
+    selector: null,
   },
   HA_RADIER: {
+    nombreProtocolo: 'Control H.A.',
     objetivo:  'Controlar los parámetros de calidad del hormigón en cada camión mixer.',
     alcance:   'Aplica al control de cada camión: cono, temperatura, tiempo de traslado y peso unitario.',
     normativa: 'NCh 170, NCh 1019, NCh 1934, EETT.',
@@ -121,8 +127,10 @@ const TEXTOS_PROTOCOLO = {
       'Realizar ensayo de peso unitario del hormigón.',
       'Registrar descarga y evidencia fotográfica del camión.',
     ],
+    selector: 'radier',
   },
   HA_MURO: {
+    nombreProtocolo: 'Control H.A.',
     objetivo:  'Controlar los parámetros de calidad del hormigón en cada camión mixer.',
     alcance:   'Aplica al control de cada camión: cono, temperatura, tiempo de traslado y peso unitario.',
     normativa: 'NCh 170, NCh 1019, NCh 1934, EETT.',
@@ -134,6 +142,7 @@ const TEXTOS_PROTOCOLO = {
       'Realizar ensayo de peso unitario del hormigón.',
       'Registrar descarga y evidencia fotográfica del camión.',
     ],
+    selector: 'muro',
   },
 };
 
@@ -244,6 +253,10 @@ function agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio,
     catch { /* logo opcional */ }
   }
 
+  const tituloDocumento = protocolo.protocoloId === 'G5'
+    ? 'REGISTRO FOTOGRÁFICO G-5'
+    : 'PROTOCOLO DE INSPECCIÓN Y CONTROL DE EJECUCIÓN (PICE)';
+
   // Tabla de información a la derecha
   autoTable(doc, {
     startY: TOP,
@@ -251,7 +264,7 @@ function agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio,
     tableWidth: TABLE_W,
     body: [
       [
-        'PROTOCOLO DE INSPECCIÓN Y CONTROL DE EJECUCIÓN (PICE)',
+        tituloDocumento,
         `FECHA: ${fmt(protocolo.fechaModificacion)}`,
       ],
       [
@@ -299,25 +312,46 @@ function agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio,
 // ─── Tabla info (página 1) ────────────────────────────────────────────────────
 
 function agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin, escala = ESCALA_NORMAL) {
-  const textos = TEXTOS_PROTOCOLO[protocolo.protocoloId] ?? { objetivo: '', alcance: '', normativa: '' };
+  const textos = TEXTOS_PROTOCOLO[protocolo.protocoloId] ?? { objetivo: '', alcance: '', normativa: '', selector: null };
   const km = resolveKm(protocolo, kmInicio, kmFin);
   const entidad = `${NOMBRES_TIPO[protocolo.tipo] ?? protocolo.tipo} ${protocolo.entidadId}`;
   const actividad = `km: ${km.inicio || '—'} hasta ${km.fin || '—'} — Elemento: ${entidad}`;
+
+  const AMARILLO = [255, 215, 0];
+  const celdaSelector = (label, marcado) => marcado
+    ? { content: label, styles: { fillColor: AMARILLO, fontStyle: 'bold', halign: 'center' } }
+    : { content: label, styles: { halign: 'center' } };
+
+  // Filas simples: la columna de valor abarca las 4 columnas restantes
+  const filaTexto = (label, contenido) => [label, { content: contenido, colSpan: 4 }];
+
+  const filaActividad = textos.selector
+    ? [
+        'Actividad / Partida',
+        celdaSelector('Radier', textos.selector === 'radier' || textos.selector === 'ambos'),
+        celdaSelector('Muro', textos.selector === 'muro' || textos.selector === 'ambos'),
+        celdaSelector('Otro', false),
+        actividad,
+      ]
+    : filaTexto('Actividad / Partida', actividad);
 
   autoTable(doc, {
     startY: y,
     margin: { left: ML, right: MR, ...CONTENT_MARGIN },
     tableWidth: CW,
     body: [
-      ['Objetivo', textos.objetivo || ''],
-      ['Alcance', textos.alcance || ''],
-      ['Normativa Aplicable', textos.normativa || ''],
-      ['Actividad / Partida', actividad],
-      ['Responsable', 'Encargado de Calidad / Administrador de Contrato'],
+      filaTexto('Objetivo', textos.objetivo || ''),
+      filaTexto('Alcance', textos.alcance || ''),
+      filaTexto('Normativa Aplicable', textos.normativa || ''),
+      filaActividad,
+      filaTexto('Responsable', 'Encargado de Calidad / Administrador de Contrato'),
     ],
     columnStyles: {
       0: { cellWidth: 45, fontStyle: 'bold', fillColor: [240, 240, 240], fontSize: escala.headFontSize },
-      1: { cellWidth: CW - 45 },
+      1: { cellWidth: 12 },
+      2: { cellWidth: 12 },
+      3: { cellWidth: 12 },
+      4: { cellWidth: CW - 45 - 36 },
     },
     styles: {
       fontSize: escala.fontSize,
@@ -479,6 +513,20 @@ function agregarPieFirma(doc, startY) {
 // ─── Páginas de registro fotográfico ──────────────────────────────────────────
 
 const FOTOS_POR_PAGINA = 4;
+const FOTOS_POR_PAGINA_G5 = 2;
+
+function fotosPorPagina(protocolo) {
+  return protocolo.protocoloId === 'G5' ? FOTOS_POR_PAGINA_G5 : FOTOS_POR_PAGINA;
+}
+
+// Título de la página de fotos: incluye el identificador de la entidad para
+// caídas y atraviesos, ya que un mismo informe puede agrupar varios elementos.
+function tituloFotos(protocolo, km) {
+  const kmTxt = `KM ${km.inicio || '—'} hasta KM ${km.fin || '—'}`;
+  if (protocolo.tipo === 'caida') return `REGISTRO FOTOGRÁFICO — CAÍDA ${protocolo.entidadId} — ${kmTxt}`;
+  if (protocolo.tipo === 'atravieso') return `REGISTRO FOTOGRÁFICO — ATRAVIESO ${protocolo.entidadId} — ${kmTxt}`;
+  return `REGISTRO FOTOGRÁFICO — ${kmTxt}`;
+}
 
 async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, totalPaginas, kmInicio, kmFin, logoB64) {
   let y = agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio, kmFin, logoB64);
@@ -487,13 +535,14 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
   doc.setFont(undefined, 'bold');
   doc.setFontSize(10);
   doc.setTextColor(30, 30, 30);
-  doc.text(`REGISTRO FOTOGRÁFICO — KM ${km.inicio || '—'} hasta KM ${km.fin || '—'}`, PW / 2, y + 4, { align: 'center' });
+  doc.text(tituloFotos(protocolo, km), PW / 2, y + 4, { align: 'center' });
   y += 10;
 
+  const esG5 = protocolo.protocoloId === 'G5';
   const COLS = 2;
   const GAP = 4;
   const imgW = (CW - GAP) / COLS;
-  const imgH = 65;
+  const imgH = esG5 ? 110 : 65;
   const descH = 10;
   const cellH = imgH + descH + GAP;
 
@@ -546,8 +595,9 @@ export async function generarPDF(protocolo, fotos = [], kmInicio = '', kmFin = '
   const meta = PROTOCOLOS.find(p => p.id === protocolo.protocoloId);
   const soloFotos = meta?.soloFotos === true;
   const logoB64 = await loadLogoB64();
+  const fpp = fotosPorPagina(protocolo);
 
-  const paginasFotos = Math.ceil(fotos.length / FOTOS_POR_PAGINA);
+  const paginasFotos = Math.ceil(fotos.length / fpp);
   const totalPaginas = soloFotos ? Math.max(1, paginasFotos) : 1 + paginasFotos;
 
   let doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -557,10 +607,10 @@ export async function generarPDF(protocolo, fotos = [], kmInicio = '', kmFin = '
       const y = agregarEncabezado(doc, protocolo, 1, totalPaginas, kmInicio, kmFin, logoB64);
       agregarPieFirma(doc, y + PIE_FIRMA_GAP);
     } else {
-      for (let i = 0; i < fotos.length; i += FOTOS_POR_PAGINA) {
-        const paginaActual = i / FOTOS_POR_PAGINA + 1;
+      for (let i = 0; i < fotos.length; i += fpp) {
+        const paginaActual = i / fpp + 1;
         if (paginaActual > 1) doc.addPage();
-        await agregarPaginaFotos(doc, protocolo, fotos.slice(i, i + FOTOS_POR_PAGINA), paginaActual, totalPaginas, kmInicio, kmFin, logoB64);
+        await agregarPaginaFotos(doc, protocolo, fotos.slice(i, i + fpp), paginaActual, totalPaginas, kmInicio, kmFin, logoB64);
       }
     }
   } else {
@@ -573,10 +623,10 @@ export async function generarPDF(protocolo, fotos = [], kmInicio = '', kmFin = '
     }
     agregarPieFirma(doc, finalY + PIE_FIRMA_GAP);
 
-    for (let i = 0; i < fotos.length; i += FOTOS_POR_PAGINA) {
+    for (let i = 0; i < fotos.length; i += fpp) {
       doc.addPage();
-      const paginaActual = 1 + i / FOTOS_POR_PAGINA + 1;
-      await agregarPaginaFotos(doc, protocolo, fotos.slice(i, i + FOTOS_POR_PAGINA), paginaActual, totalPaginas, kmInicio, kmFin, logoB64);
+      const paginaActual = 1 + i / fpp + 1;
+      await agregarPaginaFotos(doc, protocolo, fotos.slice(i, i + fpp), paginaActual, totalPaginas, kmInicio, kmFin, logoB64);
     }
   }
 
