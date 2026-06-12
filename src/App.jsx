@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { UserProvider } from './context/UserContext';
 import Navbar from './components/Navbar';
+import Sidebar from './components/Sidebar';
+import BottomNav from './components/BottomNav';
 import Inicio from './pages/Inicio';
 import Dashboard from './pages/Dashboard';
 import DashboardMatriz from './pages/DashboardMatriz';
 import CentroControl from './pages/CentroControl';
+import Gestion from './pages/Gestion';
+import Perfil from './pages/Perfil';
 import Proximamente from './pages/Proximamente';
 import SubirFotos from './pages/SubirFotos';
 import RecibirCamion from './pages/RecibirCamion';
@@ -47,14 +51,27 @@ const bs = {
   spinner: { display: 'inline-block', animation: 'spin 1s linear infinite' },
 };
 
+function esFlujoInterno(pathname) {
+  return pathname.startsWith('/subir-fotos')
+    || pathname.startsWith('/recibir-camion')
+    || pathname.startsWith('/protocolo');
+}
+
 function Layout({ children, cargandoSync }) {
+  const location = useLocation();
+  const mostrarBottomNav = !esFlujoInterno(location.pathname);
+
   return (
     <div style={{ minHeight: '100vh', background: '#1a1a2e' }}>
       {cargandoSync && <BannerSync />}
       <Navbar />
-      <main style={{ padding: '24px' }}>
-        {children}
-      </main>
+      <div className="app-body">
+        <Sidebar />
+        <main className={mostrarBottomNav ? 'with-bottom-nav main-content' : 'main-content'} style={{ padding: '24px', flex: 1, minWidth: 0 }}>
+          {children}
+        </main>
+      </div>
+      {mostrarBottomNav && <BottomNav />}
     </div>
   );
 }
@@ -84,6 +101,8 @@ export default function App() {
         <Layout cargandoSync={cargandoSync}>
           <Routes>
             <Route path="/" element={<Inicio />} />
+            <Route path="/gestion" element={<Gestion />} />
+            <Route path="/perfil" element={<Perfil />} />
             <Route path="/control" element={<CentroControl />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/matriz" element={<DashboardMatriz />} />

@@ -61,21 +61,6 @@ export default function Inicio() {
             </button>
           </section>
 
-          <div style={s.separador}>
-            <span style={s.separadorLinea} />
-            <span style={s.separadorTexto}>Gestión</span>
-            <span style={s.separadorLinea} />
-          </div>
-
-          <section style={s.bloqueGestion}>
-            <button style={s.btnGestion} onClick={() => navigate('/generar-protocolo')}>
-              📋 Generar Protocolo
-            </button>
-            <button style={s.btnGestion} onClick={() => navigate('/control')}>
-              📊 Centro de Control
-            </button>
-          </section>
-
           <section style={s.bloqueActividad}>
             <h2 style={s.bloqueTitulo}>Actividad de hoy</h2>
             {actividad && (actividad.fotos.length > 0 || actividad.camiones.length > 0) ? (
@@ -136,17 +121,6 @@ const s = {
     background: '#64ffda', color: '#0a1f3a', border: 'none', borderRadius: '12px',
     padding: '20px 18px', fontSize: '17px', fontWeight: 700, cursor: 'pointer',
     textAlign: 'left', boxShadow: '0 4px 14px rgba(100,255,218,0.18)',
-  },
-
-  separador: { display: 'flex', alignItems: 'center', gap: '12px' },
-  separadorLinea: { flex: 1, height: '1px', background: '#0f3460' },
-  separadorTexto: { color: '#8892b0', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' },
-
-  bloqueGestion: { display: 'flex', flexDirection: 'column', gap: '10px' },
-  btnGestion: {
-    background: '#16213e', color: '#ccd6f6', border: '1px solid #0f3460',
-    borderRadius: '12px', padding: '16px 18px', fontSize: '15px', fontWeight: 600, cursor: 'pointer',
-    textAlign: 'left',
   },
 
   bloqueActividad: { display: 'flex', flexDirection: 'column', gap: '10px' },

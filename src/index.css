@@ -38,3 +38,53 @@ button {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
+
+/* ─── Layout responsivo ─────────────────────────────────────────────────── */
+
+.app-body {
+  display: flex;
+}
+
+.navbar {
+  justify-content: space-between;
+}
+
+.navbar-derecha {
+  display: flex;
+}
+
+.bottom-nav {
+  display: none;
+}
+
+.sidebar {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .navbar {
+    justify-content: center;
+  }
+
+  .navbar-derecha {
+    display: none;
+  }
+
+  .bottom-nav {
+    display: flex;
+  }
+
+  .with-bottom-nav {
+    padding-bottom: 70px;
+  }
+}
+
+@media (min-width: 768px) {
+  .sidebar {
+    display: flex;
+  }
+
+  .main-content {
+    margin-left: 200px;
+  }
+}

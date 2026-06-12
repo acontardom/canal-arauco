@@ -16,10 +16,10 @@ function SyncBadge() {
 
 export default function Navbar() {
   return (
-    <nav style={styles.nav}>
+    <nav className="navbar" style={styles.nav}>
       <NavLink to="/" style={styles.titulo}>Canal Arauco</NavLink>
 
-      <div style={styles.derecha}>
+      <div className="navbar-derecha" style={styles.derecha}>
         <SyncBadge />
         <UsuarioSelector />
       </div>
@@ -31,7 +31,6 @@ const styles = {
   nav: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between',
     background: '#16213e',
     padding: '0 12px',
     height: '56px',
@@ -52,7 +51,6 @@ const styles = {
     textDecoration: 'none',
   },
   derecha: {
-    display: 'flex',
     alignItems: 'center',
     gap: '12px',
     flexShrink: 0,
