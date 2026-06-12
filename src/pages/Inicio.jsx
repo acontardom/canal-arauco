@@ -1,10 +1,33 @@
 import { useNavigate } from 'react-router-dom';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { useUser } from '../context/UserContext';
+import { db } from '../db/database';
 import { USUARIOS } from '../constants/estructura';
+
+const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 
 export default function Inicio() {
   const { usuario, seleccionarUsuario } = useUser();
   const navigate = useNavigate();
+
+  const hoy = new Date().toISOString().slice(0, 10);
+
+  const actividad = useLiveQuery(async () => {
+    const [fotos, camiones] = await Promise.all([
+      db.fotos_terreno.filter(f => f.fechaCaptura?.startsWith(hoy)).toArray(),
+      db.camiones.filter(c => c.fechaRecepcion?.startsWith(hoy)).toArray(),
+    ]);
+
+    const grupos = {};
+    for (const f of fotos) {
+      const key = `${f.tipo}-${f.entidadId}`;
+      if (!grupos[key]) grupos[key] = { tipo: f.tipo, entidadId: f.entidadId, count: 0, sincronizado: true };
+      grupos[key].count += 1;
+      if (!f.subidaStorage) grupos[key].sincronizado = false;
+    }
+
+    return { fotos: Object.values(grupos), camiones };
+  }, [hoy]);
 
   return (
     <div style={s.page}>
@@ -52,6 +75,36 @@ export default function Inicio() {
               📊 Centro de Control
             </button>
           </section>
+
+          <section style={s.bloqueActividad}>
+            <h2 style={s.bloqueTitulo}>Actividad de hoy</h2>
+            {actividad && (actividad.fotos.length > 0 || actividad.camiones.length > 0) ? (
+              <div style={s.actividadLista}>
+                {actividad.fotos.map(g => (
+                  <div key={`foto-${g.tipo}-${g.entidadId}`} style={s.actividadItem}>
+                    <span style={s.actividadTexto}>
+                      📷 {g.count} {g.count === 1 ? 'foto' : 'fotos'} — {NOMBRE_TIPO[g.tipo]} {g.entidadId}
+                    </span>
+                    <span style={{ ...s.actividadEstado, color: g.sincronizado ? '#10b981' : '#f59e0b' }}>
+                      {g.sincronizado ? '✅ sincronizado' : '🔄 pendiente'}
+                    </span>
+                  </div>
+                ))}
+                {actividad.camiones.map(c => (
+                  <div key={`camion-${c.id}`} style={s.actividadItem}>
+                    <span style={s.actividadTexto}>
+                      🚛 {c.tipoHormigon} — {NOMBRE_TIPO[c.tipoEntidad]} {c.entidadId}{c.numeroGuia ? ` — Guía ${c.numeroGuia}` : ''}
+                    </span>
+                    <span style={{ ...s.actividadEstado, color: c.sincronizado ? '#10b981' : '#f59e0b' }}>
+                      {c.sincronizado ? '✅ sincronizado' : '🔄 pendiente'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={s.sinActividad}>Sin actividad hoy</p>
+            )}
+          </section>
         </>
       )}
     </div>
@@ -95,4 +148,14 @@ const s = {
     borderRadius: '12px', padding: '16px 18px', fontSize: '15px', fontWeight: 600, cursor: 'pointer',
     textAlign: 'left',
   },
+
+  bloqueActividad: { display: 'flex', flexDirection: 'column', gap: '10px' },
+  actividadLista: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  actividadItem: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
+    background: '#16213e', border: '1px solid #0f3460', borderRadius: '10px', padding: '10px 14px',
+  },
+  actividadTexto: { color: '#ccd6f6', fontSize: '13px', fontWeight: 600 },
+  actividadEstado: { fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap' },
+  sinActividad: { color: '#8892b0', fontSize: '13px', margin: 0 },
 };

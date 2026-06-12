@@ -462,8 +462,16 @@ export async function descargarDesdeSupabase() {
 
 // ─── API pública ──────────────────────────────────────────────────────────────
 
+let _sincronizando = false;
+
+export function estaSincronizando() {
+  return _sincronizando;
+}
+
 export async function sincronizar() {
   if (!supabase || !navigator.onLine) return;
+  _sincronizando = true;
+  window.dispatchEvent(new CustomEvent('syncStarted'));
   try {
     await sincronizarProtocolos();
     await subirFotosPendientes();
@@ -474,6 +482,9 @@ export async function sincronizar() {
     await sincronizarCamiones();
   } catch (err) {
     console.warn('[Sync] Error general:', err?.message ?? err);
+  } finally {
+    _sincronizando = false;
+    window.dispatchEvent(new CustomEvent('syncCompleted'));
   }
 }
 

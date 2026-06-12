@@ -1,12 +1,28 @@
 import { NavLink } from 'react-router-dom';
 import UsuarioSelector from './UsuarioSelector';
+import { useSyncStatus } from '../hooks/useSyncStatus';
+
+function SyncBadge() {
+  const { pendientes, sincronizando, todoSincronizado } = useSyncStatus();
+
+  if (sincronizando) {
+    return <span style={{ ...styles.syncBadge, color: '#8892b0' }}>⏳ Sincronizando...</span>;
+  }
+  if (todoSincronizado) {
+    return <span style={{ ...styles.syncBadge, color: '#10b981' }}>☁️ Sincronizado</span>;
+  }
+  return <span style={{ ...styles.syncBadge, color: '#f59e0b' }}>🔄 {pendientes} pendientes</span>;
+}
 
 export default function Navbar() {
   return (
     <nav style={styles.nav}>
       <NavLink to="/" style={styles.titulo}>Canal Arauco</NavLink>
 
-      <UsuarioSelector />
+      <div style={styles.derecha}>
+        <SyncBadge />
+        <UsuarioSelector />
+      </div>
     </nav>
   );
 }
@@ -34,5 +50,16 @@ const styles = {
     flexShrink: 0,
     whiteSpace: 'nowrap',
     textDecoration: 'none',
+  },
+  derecha: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    flexShrink: 0,
+  },
+  syncBadge: {
+    fontSize: '11px',
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
   },
 };
