@@ -3,16 +3,22 @@ import { useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
 import { TRAMOS, CAIDAS, ATRAVIESOS, PROTOCOLOS } from '../constants/estructura';
 
+const ORDEN_MATRIZ = [
+  'PICE1', 'G5', 'PICE4_RADIER', 'PICE4_MURO', 'PICE3', 'PICE2_RADIER', 'PICE2_MURO', 'HA_RADIER', 'HA_MURO',
+];
+
+const PROTOCOLOS_MATRIZ = ORDEN_MATRIZ.map(id => PROTOCOLOS.find(p => p.id === id));
+
 const COL_LABEL = {
-  PICE1:        'EXCAVACIÓN',
-  PICE2_RADIER: 'H. RADIER',
-  PICE2_MURO:   'H. MURO',
-  PICE3:        'MOLDAJES',
-  PICE4_RADIER: 'E. RADIER',
-  PICE4_MURO:   'E. MURO',
+  PICE1:        'EXC',
   G5:           'G5',
-  HA_RADIER:    'HA RADIER',
-  HA_MURO:      'HA MURO',
+  PICE4_RADIER: 'E-R',
+  PICE4_MURO:   'E-M',
+  PICE3:        'MOL',
+  PICE2_RADIER: 'H-R',
+  PICE2_MURO:   'H-M',
+  HA_RADIER:    'HA-R',
+  HA_MURO:      'HA-M',
 };
 
 const COLOR_PENDIENTE  = '#2a2a3e';
@@ -43,7 +49,7 @@ function ColGroup() {
   return (
     <colgroup>
       <col style={{ width: `${ROW_HEADER_W}px` }} />
-      {PROTOCOLOS.map(p => <col key={p.id} />)}
+      {PROTOCOLOS_MATRIZ.map(p => <col key={p.id} />)}
     </colgroup>
   );
 }
@@ -52,7 +58,7 @@ function EncabezadoColumnas() {
   return (
     <tr>
       <th style={s.cornerCell} />
-      {PROTOCOLOS.map(p => (
+      {PROTOCOLOS_MATRIZ.map(p => (
         <th key={p.id} style={s.colHeader}>{COL_LABEL[p.id]}</th>
       ))}
     </tr>
@@ -92,7 +98,7 @@ export default function DashboardMatriz() {
             <ColGroup />
             <thead>
               <tr>
-                <th colSpan={PROTOCOLOS.length + 1} style={s.tituloTabla}>TRAMOS</th>
+                <th colSpan={PROTOCOLOS_MATRIZ.length + 1} style={s.tituloTabla}>TRAMOS</th>
               </tr>
               <EncabezadoColumnas />
             </thead>
@@ -100,7 +106,7 @@ export default function DashboardMatriz() {
               {TRAMOS.map(tramoId => (
                 <tr key={tramoId}>
                   <th style={s.rowHeader}>{tramoId}</th>
-                  {PROTOCOLOS.map(p => (
+                  {PROTOCOLOS_MATRIZ.map(p => (
                     <MatrizCell
                       key={p.id}
                       tipo="tramo"
@@ -123,7 +129,7 @@ export default function DashboardMatriz() {
             <ColGroup />
             <thead>
               <tr>
-                <th colSpan={PROTOCOLOS.length + 1} style={s.tituloTabla}>CAÍDAS</th>
+                <th colSpan={PROTOCOLOS_MATRIZ.length + 1} style={s.tituloTabla}>CAÍDAS</th>
               </tr>
               <EncabezadoColumnas />
             </thead>
@@ -131,7 +137,7 @@ export default function DashboardMatriz() {
               {CAIDAS.map(caidaId => (
                 <tr key={caidaId}>
                   <th style={s.rowHeader}>{caidaId}</th>
-                  {PROTOCOLOS.map(p => (
+                  {PROTOCOLOS_MATRIZ.map(p => (
                     <MatrizCell
                       key={p.id}
                       tipo="caida"
@@ -146,13 +152,13 @@ export default function DashboardMatriz() {
               ))}
 
               <tr>
-                <th colSpan={PROTOCOLOS.length + 1} style={s.separadorFila}>ATRAVIESOS</th>
+                <th colSpan={PROTOCOLOS_MATRIZ.length + 1} style={s.separadorFila}>ATRAVIESOS</th>
               </tr>
 
               {ATRAVIESOS.map(atId => (
                 <tr key={atId}>
                   <th style={s.rowHeader}>{`AT${atId}`}</th>
-                  {PROTOCOLOS.map(p => (
+                  {PROTOCOLOS_MATRIZ.map(p => (
                     <MatrizCell
                       key={p.id}
                       tipo="atravieso"
@@ -213,8 +219,8 @@ const s = {
     textAlign: 'center', padding: '8px 0', letterSpacing: '1.5px',
   },
   colHeader: {
-    height: `${HEADER_H}px`, background: '#0f3460', color: '#8892b0',
-    fontSize: '11px', fontWeight: 700, textAlign: 'center', verticalAlign: 'bottom',
+    height: `${HEADER_H}px`, background: '#0f3460', color: '#ccd6f6',
+    fontSize: '15px', fontWeight: 700, textAlign: 'center', verticalAlign: 'middle',
     border: '1px solid #1a1a2e', padding: '8px 4px',
     writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap',
   },
