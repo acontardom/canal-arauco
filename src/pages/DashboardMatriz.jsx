@@ -10,15 +10,15 @@ const ORDEN_MATRIZ = [
 const PROTOCOLOS_MATRIZ = ORDEN_MATRIZ.map(id => PROTOCOLOS.find(p => p.id === id));
 
 const COL_LABEL = {
-  PICE1:        'EXC',
-  G5:           'G5',
-  PICE4_RADIER: 'E-R',
-  PICE4_MURO:   'E-M',
-  PICE3:        'MOL',
-  PICE2_RADIER: 'H-R',
-  PICE2_MURO:   'H-M',
-  HA_RADIER:    'HA-R',
-  HA_MURO:      'HA-M',
+  PICE1:        'Excavación',
+  G5:           'Emplantillado',
+  PICE4_RADIER: 'Enfierr. Radier',
+  PICE4_MURO:   'Enfierr. Muro',
+  PICE3:        'Moldajes',
+  PICE2_RADIER: 'Horm. Radier',
+  PICE2_MURO:   'Horm. Muro',
+  HA_RADIER:    'H.A. Radier',
+  HA_MURO:      'H.A. Muro',
 };
 
 const COLOR_PENDIENTE  = '#2a2a3e';
