@@ -446,10 +446,10 @@ export default function RecibirCamion() {
           {TIPOS_CON_ENSAYO.includes(form.tipoHormigon) ? (
             <div style={s.botonesDecision}>
               <button style={s.btnAprobar} onClick={() => registrarCamion('aprobado')} disabled={guardando}>
-                {guardando ? 'Registrando...' : '✅ Aprobar y Registrar'}
+                {guardando ? 'Registrando...' : '✅ Aprobar'}
               </button>
               <button style={s.btnRechazar} onClick={() => registrarCamion('rechazado')} disabled={guardando}>
-                {guardando ? 'Registrando...' : '❌ Rechazar y Registrar'}
+                {guardando ? 'Registrando...' : '❌ Rechazar'}
               </button>
             </div>
           ) : (
