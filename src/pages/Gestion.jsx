@@ -1,21 +1,13 @@
 import { useState } from 'react';
 import DashboardMatriz from './DashboardMatriz';
 import Dashboard from './Dashboard';
+import HistorialCamiones from './HistorialCamiones';
 
 const TABS = [
   { id: 'matriz', label: 'Matriz' },
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'camiones', label: 'Camiones' },
 ];
-
-function CamionesPlaceholder() {
-  return (
-    <div style={s.placeholder}>
-      <span style={s.placeholderIcono}>🚛</span>
-      <p style={s.placeholderTexto}>Historial de camiones — próximamente</p>
-    </div>
-  );
-}
 
 export default function Gestion() {
   const [tab, setTab] = useState('matriz');
@@ -39,7 +31,7 @@ export default function Gestion() {
       <div style={s.contenido}>
         {tab === 'matriz' && <DashboardMatriz />}
         {tab === 'dashboard' && <Dashboard />}
-        {tab === 'camiones' && <CamionesPlaceholder />}
+        {tab === 'camiones' && <HistorialCamiones />}
       </div>
     </div>
   );
@@ -62,12 +54,4 @@ const s = {
   tabActivo: { color: '#64ffda', borderBottom: '2px solid #64ffda' },
 
   contenido: { display: 'flex', flexDirection: 'column', gap: '14px' },
-
-  placeholder: {
-    background: '#16213e', border: '1px solid #0f3460', borderRadius: '16px',
-    padding: '40px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column',
-    alignItems: 'center', gap: '8px',
-  },
-  placeholderIcono: { fontSize: '40px' },
-  placeholderTexto: { color: '#8892b0', fontSize: '14px', margin: 0 },
 };
