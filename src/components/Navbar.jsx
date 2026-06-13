@@ -1,18 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import UsuarioSelector from './UsuarioSelector';
-import { useSyncStatus } from '../hooks/useSyncStatus';
-
-function SyncBadge() {
-  const { pendientes, sincronizando, todoSincronizado } = useSyncStatus();
-
-  if (sincronizando) {
-    return <span style={{ ...styles.syncBadge, color: '#8892b0' }}>⏳ Sincronizando...</span>;
-  }
-  if (todoSincronizado) {
-    return <span style={{ ...styles.syncBadge, color: '#10b981' }}>☁️ Sincronizado</span>;
-  }
-  return <span style={{ ...styles.syncBadge, color: '#f59e0b' }}>🔄 {pendientes} pendientes</span>;
-}
+import SyncBadge from './SyncBadge';
 
 export default function Navbar() {
   return (
@@ -29,7 +17,6 @@ export default function Navbar() {
 
 const styles = {
   nav: {
-    display: 'flex',
     alignItems: 'center',
     background: '#16213e',
     padding: '0 12px',
@@ -54,10 +41,5 @@ const styles = {
     alignItems: 'center',
     gap: '12px',
     flexShrink: 0,
-  },
-  syncBadge: {
-    fontSize: '11px',
-    fontWeight: 600,
-    whiteSpace: 'nowrap',
   },
 };

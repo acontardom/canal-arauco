@@ -1,10 +1,8 @@
 import { useState } from 'react';
-import GenerarProtocolo from './GenerarProtocolo';
 import DashboardMatriz from './DashboardMatriz';
 import Dashboard from './Dashboard';
 
 const TABS = [
-  { id: 'protocolos', label: 'Protocolos' },
   { id: 'matriz', label: 'Matriz' },
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'camiones', label: 'Camiones' },
@@ -20,7 +18,7 @@ function CamionesPlaceholder() {
 }
 
 export default function Gestion() {
-  const [tab, setTab] = useState('protocolos');
+  const [tab, setTab] = useState('matriz');
 
   return (
     <div style={s.page}>
@@ -39,7 +37,6 @@ export default function Gestion() {
       </div>
 
       <div style={s.contenido}>
-        {tab === 'protocolos' && <GenerarProtocolo />}
         {tab === 'matriz' && <DashboardMatriz />}
         {tab === 'dashboard' && <Dashboard />}
         {tab === 'camiones' && <CamionesPlaceholder />}

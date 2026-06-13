@@ -46,6 +46,7 @@ button {
 }
 
 .navbar {
+  display: flex;
   justify-content: space-between;
 }
 
@@ -80,11 +81,15 @@ button {
 }
 
 @media (min-width: 768px) {
+  .navbar {
+    display: none;
+  }
+
   .sidebar {
     display: flex;
   }
 
   .main-content {
-    margin-left: 200px;
+    margin-left: 220px;
   }
 }

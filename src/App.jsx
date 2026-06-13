@@ -10,6 +10,8 @@ import DashboardMatriz from './pages/DashboardMatriz';
 import CentroControl from './pages/CentroControl';
 import Gestion from './pages/Gestion';
 import Perfil from './pages/Perfil';
+import Galeria from './pages/Galeria';
+import HistorialCamiones from './pages/HistorialCamiones';
 import Proximamente from './pages/Proximamente';
 import SubirFotos from './pages/SubirFotos';
 import RecibirCamion from './pages/RecibirCamion';
@@ -54,6 +56,7 @@ const bs = {
 function esFlujoInterno(pathname) {
   return pathname.startsWith('/subir-fotos')
     || pathname.startsWith('/recibir-camion')
+    || pathname.startsWith('/generar-protocolo')
     || pathname.startsWith('/protocolo');
 }
 
@@ -103,6 +106,8 @@ export default function App() {
             <Route path="/" element={<Inicio />} />
             <Route path="/gestion" element={<Gestion />} />
             <Route path="/perfil" element={<Perfil />} />
+            <Route path="/galeria" element={<Galeria />} />
+            <Route path="/camiones" element={<HistorialCamiones />} />
             <Route path="/control" element={<CentroControl />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/matriz" element={<DashboardMatriz />} />
