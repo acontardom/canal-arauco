@@ -89,6 +89,8 @@ export default function HistorialCamiones() {
             .select('*')
             .order('fecha_recepcion', { ascending: false });
           const { data, error: err } = await Promise.race([consulta, timeout]);
+          console.log('Error completo:', JSON.stringify(err, null, 2));
+          console.log('Data:', data);
           if (err) throw err;
           if (activo) setCamiones((data ?? []).map(mapRemoto));
         } else {
