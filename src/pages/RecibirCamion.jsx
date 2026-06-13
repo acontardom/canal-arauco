@@ -140,7 +140,7 @@ export default function RecibirCamion() {
 
   const puCalculado = calcPU(form.pesoHoyaHormigon);
 
-  async function registrarCamion() {
+  async function registrarCamion(estadoCalidad) {
     if (!form.tipoHormigon) {
       mostrarToast('Selecciona el tipo de hormigón', 'error');
       return;
@@ -178,6 +178,7 @@ export default function RecibirCamion() {
         supabaseId: null,
         fotoGuia: form.fotoGuia,
         fotosEnsayo: form.fotosEnsayo,
+        estadoCalidad,
       };
 
       const id = await db.camiones.add(camion);
@@ -204,9 +205,13 @@ export default function RecibirCamion() {
   // ── Resumen tras guardar ───────────────────────────────────────────────────
   if (ultimoCamion) {
     const c = ultimoCamion;
+    const aprobado = c.estadoCalidad === 'aprobado';
     return (
       <div style={s.page}>
         <h1 style={s.titulo}>✅ Camión registrado</h1>
+        <div style={{ ...s.estadoCalidadBadge, ...(aprobado ? s.estadoAprobado : s.estadoRechazado) }}>
+          {aprobado ? '✅ Camión aprobado y registrado' : '❌ Camión rechazado y registrado'}
+        </div>
         {sincronizando && <div style={s.syncIndicator}>☁️ Sincronizando...</div>}
         <div style={s.resumenCard}>
           <p style={s.resumenLinea}><strong>{NOMBRE_TIPO[tipo]} {entidadId}</strong></p>
@@ -438,9 +443,20 @@ export default function RecibirCamion() {
             </div>
           )}
 
-          <button style={s.btnGuardar} onClick={registrarCamion} disabled={guardando}>
-            {guardando ? 'Registrando...' : 'Registrar camión'}
-          </button>
+          {TIPOS_CON_ENSAYO.includes(form.tipoHormigon) ? (
+            <div style={s.botonesDecision}>
+              <button style={s.btnAprobar} onClick={() => registrarCamion('aprobado')} disabled={guardando}>
+                {guardando ? 'Registrando...' : '✅ Aprobar y Registrar'}
+              </button>
+              <button style={s.btnRechazar} onClick={() => registrarCamion('rechazado')} disabled={guardando}>
+                {guardando ? 'Registrando...' : '❌ Rechazar y Registrar'}
+              </button>
+            </div>
+          ) : (
+            <button style={s.btnGuardar} onClick={() => registrarCamion('aprobado')} disabled={guardando}>
+              {guardando ? 'Registrando...' : 'Registrar camión'}
+            </button>
+          )}
         </>
       )}
 
@@ -543,6 +559,21 @@ const s = {
     background: '#10b981', color: '#fff', border: 'none', borderRadius: '12px',
     padding: '16px', fontSize: '15px', fontWeight: 700, cursor: 'pointer',
   },
+  botonesDecision: { display: 'flex', gap: '10px' },
+  btnAprobar: {
+    flex: 1, background: '#10b981', color: '#fff', border: 'none', borderRadius: '12px',
+    padding: '16px', fontSize: '15px', fontWeight: 700, cursor: 'pointer',
+  },
+  btnRechazar: {
+    flex: 1, background: '#ef4444', color: '#fff', border: 'none', borderRadius: '12px',
+    padding: '16px', fontSize: '15px', fontWeight: 700, cursor: 'pointer',
+  },
+  estadoCalidadBadge: {
+    borderRadius: '10px', padding: '12px 16px', fontSize: '14px', fontWeight: 700,
+    textAlign: 'center',
+  },
+  estadoAprobado: { background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid #10b981' },
+  estadoRechazado: { background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid #ef4444' },
   btnSecundario: {
     background: 'transparent', color: '#8892b0', border: '1px solid #0f3460', borderRadius: '12px',
     padding: '16px', fontSize: '15px', fontWeight: 700, cursor: 'pointer',

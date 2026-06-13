@@ -262,6 +262,7 @@ async function sincronizarCamiones() {
         fecha_recepcion:         camion.fechaRecepcion ?? null,
         foto_guia:               camion.fotoGuia ?? null,
         fotos_ensayo:            camion.fotosEnsayo ?? [],
+        estado_calidad:          camion.estadoCalidad ?? null,
       };
 
       const { data, error } = await supabase
@@ -443,6 +444,7 @@ export async function descargarDesdeSupabase() {
           fechaRecepcion:         remoto.fecha_recepcion ?? null,
           fotoGuia:               remoto.foto_guia ?? null,
           fotosEnsayo:            remoto.fotos_ensayo ?? [],
+          estadoCalidad:          remoto.estado_calidad ?? null,
           supabaseId:             remoto.id,
           sincronizado:           true,
         };
