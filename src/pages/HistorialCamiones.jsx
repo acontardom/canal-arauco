@@ -279,6 +279,16 @@ export default function HistorialCamiones() {
 function CamionCard({ camion: c, expandido, onToggle }) {
   const tieneEstado = c.estadoCalidad === 'aprobado' || c.estadoCalidad === 'rechazado';
   const aprobado = c.estadoCalidad === 'aprobado';
+  const esG5 = c.tipoHormigon === 'G5';
+
+  let badge = null;
+  if (esG5) {
+    badge = { texto: 'Sin control', estilo: s.badgeNeutro };
+  } else if (aprobado) {
+    badge = { texto: 'Aprobado', estilo: s.badgeAprobado };
+  } else if (c.estadoCalidad === 'rechazado') {
+    badge = { texto: 'Rechazado', estilo: s.badgeRechazado };
+  }
 
   const fotos = [
     ...(c.fotoGuia ? [{ ...c.fotoGuia, label: 'Guía de despacho' }] : []),
@@ -290,10 +300,8 @@ function CamionCard({ camion: c, expandido, onToggle }) {
       style={{ ...s.card, borderTopColor: tieneEstado ? (aprobado ? '#10b981' : '#ef4444') : '#0f3460' }}
       onClick={onToggle}
     >
-      {tieneEstado && (
-        <span style={{ ...s.badge, ...(aprobado ? s.badgeAprobado : s.badgeRechazado) }}>
-          {aprobado ? '✅ Aprobado' : '❌ Rechazado'}
-        </span>
+      {badge && (
+        <span style={{ ...s.badge, ...badge.estilo }}>{badge.texto}</span>
       )}
 
       <p style={s.cardHeader}>{c.planta || 'Sin planta'} — Guía {c.numeroGuia || '—'}</p>
@@ -388,10 +396,11 @@ const s = {
   },
   badge: {
     position: 'absolute', top: '10px', right: '12px', fontSize: '11px', fontWeight: 700,
-    borderRadius: '6px', padding: '3px 8px',
+    borderRadius: '6px', padding: '4px 8px',
   },
-  badgeAprobado: { background: 'rgba(16,185,129,0.15)', color: '#10b981' },
-  badgeRechazado: { background: 'rgba(239,68,68,0.15)', color: '#ef4444' },
+  badgeAprobado: { background: '#27ae6033', color: '#27ae60' },
+  badgeRechazado: { background: '#e74c3c33', color: '#e74c3c' },
+  badgeNeutro: { background: '#8892b033', color: '#8892b0' },
 
   cardHeader: { color: '#ccd6f6', fontSize: '14px', fontWeight: 700, margin: '0 36px 4px 0' },
   cardBody: { display: 'flex', flexDirection: 'column', gap: '4px' },
