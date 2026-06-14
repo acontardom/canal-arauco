@@ -186,14 +186,19 @@ async function subirFotosCamionesPendientes() {
   for (const camion of camiones) {
     let cambiado = false;
     const entidadPath = `${camion.tipoEntidad}/${camion.entidadId}`;
+    let fotoGuia = camion.fotoGuia ?? null;
+    let fotoGuiaUrl = camion.fotoGuiaUrl ?? null;
+    let fotosEnsayo = camion.fotosEnsayo ?? [];
+    let fotosEnsayoUrls = camion.fotosEnsayoUrls ?? [];
 
-    if (camion.fotoGuia && !camion.fotoGuia.subidaStorage) {
+    if (fotoGuia && !fotoGuiaUrl) {
       try {
-        const storageUrl = await uploadFoto(camion.fotoGuia.dataUrl, {
-          tipo: 'camiones', entidadId: entidadPath, nombre: 'guia',
+        const storageUrl = await uploadFoto(fotoGuia.dataUrl, {
+          tipo: 'camiones', entidadId: entidadPath, archivo: `guia_${Date.now()}.jpg`,
         });
         if (storageUrl) {
-          camion.fotoGuia = { ...camion.fotoGuia, storageUrl, subidaStorage: true };
+          fotoGuiaUrl = storageUrl;
+          fotoGuia = null;
           cambiado = true;
         }
       } catch (err) {
@@ -201,28 +206,31 @@ async function subirFotosCamionesPendientes() {
       }
     }
 
-    if (camion.fotosEnsayo?.length) {
-      for (let i = 0; i < camion.fotosEnsayo.length; i++) {
-        const foto = camion.fotosEnsayo[i];
-        if (foto.subidaStorage) continue;
+    if (fotosEnsayo.length) {
+      const restantes = [];
+      for (let i = 0; i < fotosEnsayo.length; i++) {
+        const foto = fotosEnsayo[i];
         try {
           const storageUrl = await uploadFoto(foto.dataUrl, {
-            tipo: 'camiones', entidadId: entidadPath, nombre: `ensayo_${i}`,
+            tipo: 'camiones', entidadId: entidadPath, archivo: `ensayo_${Date.now()}_${i}.jpg`,
           });
           if (storageUrl) {
-            camion.fotosEnsayo[i] = { ...foto, storageUrl, subidaStorage: true };
+            fotosEnsayoUrls = [...fotosEnsayoUrls, storageUrl];
             cambiado = true;
+          } else {
+            restantes.push(foto);
           }
         } catch (err) {
           console.warn(`[Sync] Camion ${camion.id} fotoEnsayo ${i}:`, err?.message ?? err);
+          restantes.push(foto);
         }
       }
+      fotosEnsayo = restantes;
     }
 
     if (cambiado) {
       await db.camiones.update(camion.id, {
-        fotoGuia: camion.fotoGuia,
-        fotosEnsayo: camion.fotosEnsayo,
+        fotoGuia, fotoGuiaUrl, fotosEnsayo, fotosEnsayoUrls,
         sincronizado: false,
       });
     }
@@ -260,8 +268,8 @@ async function sincronizarCamiones() {
         observaciones:           camion.observaciones ?? null,
         usuario_nombre:          camion.usuarioNombre ?? null,
         fecha_recepcion:         camion.fechaRecepcion ?? null,
-        foto_guia:               camion.fotoGuia ?? null,
-        fotos_ensayo:            camion.fotosEnsayo ?? [],
+        foto_guia_url:           camion.fotoGuiaUrl ?? null,
+        fotos_ensayo_urls:       camion.fotosEnsayoUrls ?? [],
         estado_calidad:          camion.estadoCalidad ?? null,
       };
 
@@ -442,8 +450,8 @@ export async function descargarDesdeSupabase() {
           observaciones:          remoto.observaciones ?? '',
           usuarioNombre:          remoto.usuario_nombre ?? null,
           fechaRecepcion:         remoto.fecha_recepcion ?? null,
-          fotoGuia:               remoto.foto_guia ?? null,
-          fotosEnsayo:            remoto.fotos_ensayo ?? [],
+          fotoGuiaUrl:            remoto.foto_guia_url ?? null,
+          fotosEnsayoUrls:        remoto.fotos_ensayo_urls ?? [],
           estadoCalidad:          remoto.estado_calidad ?? null,
           supabaseId:             remoto.id,
           sincronizado:           true,

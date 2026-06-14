@@ -18,14 +18,16 @@ function sanitizarNombre(nombre) {
 }
 
 // Sube un dataUrl comprimido a Supabase Storage y retorna la URL pública.
-// metadata: { tipo, entidadId, nombre, carpeta }
-export async function uploadFoto(dataUrl, { tipo, entidadId, nombre, carpeta }) {
+// metadata: { tipo, entidadId, nombre, carpeta, archivo }
+// `archivo`, si se especifica, fija el nombre completo del archivo (ej. "guia_169...jpg").
+export async function uploadFoto(dataUrl, { tipo, entidadId, nombre, carpeta, archivo }) {
   if (!supabase) return null;
 
   const blob = dataUrlToBlob(dataUrl);
   const carpetaParte = carpeta ? `${carpeta}/` : '';
   const sufijoNombre = nombre ? `_${sanitizarNombre(nombre)}` : '';
-  const ruta = `${tipo}/${entidadId}/${carpetaParte}${Date.now()}${sufijoNombre}.jpg`;
+  const nombreArchivo = archivo ?? `${Date.now()}${sufijoNombre}.jpg`;
+  const ruta = `${tipo}/${entidadId}/${carpetaParte}${nombreArchivo}`;
 
   const { error } = await supabase.storage
     .from(BUCKET)

@@ -40,6 +40,8 @@ function mapRemoto(r) {
     usuarioNombre: r.usuario_nombre ?? null,
     fechaRecepcion: r.fecha_recepcion ?? '',
     estadoCalidad: r.estado_calidad ?? null,
+    fotoGuiaUrl: r.foto_guia_url ?? null,
+    fotosEnsayoUrls: r.fotos_ensayo_urls ?? [],
   };
 }
 
@@ -87,7 +89,7 @@ export default function HistorialCamiones() {
             const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000));
             const consulta = supabase
               .from('camiones')
-              .select('id, local_id, tipo_entidad, entidad_id, entidad_secundaria_tipo, entidad_secundaria_id, tipo_hormigon, volumen, numero_guia, planta, cono, temp_hormigon, temp_ambiente, hora_carga, hora_descarga, tiempo_traslado, peso_hoya_hormigon, pu_calculado, observaciones, usuario_nombre, fecha_recepcion, uso_hormigon, estado_calidad, created_at')
+              .select('id, local_id, tipo_entidad, entidad_id, entidad_secundaria_tipo, entidad_secundaria_id, tipo_hormigon, volumen, numero_guia, planta, cono, temp_hormigon, temp_ambiente, hora_carga, hora_descarga, tiempo_traslado, peso_hoya_hormigon, pu_calculado, observaciones, usuario_nombre, fecha_recepcion, uso_hormigon, estado_calidad, foto_guia_url, fotos_ensayo_urls, created_at')
               .order('fecha_recepcion', { ascending: false });
             try {
               const { data, error: err } = await Promise.race([consulta, timeout]);
@@ -310,10 +312,11 @@ function CamionCard({ camion: c, expandido, onToggle }) {
     badge = { texto: 'Rechazado', estilo: s.badgeRechazado };
   }
 
-  const fotosDisponibles = c.fotoGuia !== undefined || c.fotosEnsayo !== undefined;
   const fotos = [
-    ...(c.fotoGuia ? [{ ...c.fotoGuia, label: 'Guía de despacho' }] : []),
-    ...(c.fotosEnsayo ?? []).map((f, i) => ({ ...f, label: f.descripcion || `Ensayo ${i + 1}` })),
+    ...(c.fotoGuiaUrl ? [{ src: c.fotoGuiaUrl, label: 'Guía de despacho' }] : []),
+    ...(c.fotoGuia ? [{ src: c.fotoGuia.storageUrl || c.fotoGuia.dataUrl, label: 'Guía de despacho' }] : []),
+    ...(c.fotosEnsayoUrls ?? []).map((url, i) => ({ src: url, label: `Ensayo ${i + 1}` })),
+    ...(c.fotosEnsayo ?? []).map((f, i) => ({ src: f.storageUrl || f.dataUrl, label: f.descripcion || `Ensayo ${i + 1}` })),
   ];
 
   return (
@@ -354,13 +357,13 @@ function CamionCard({ camion: c, expandido, onToggle }) {
             <div style={s.fotosGrid}>
               {fotos.map((f, i) => (
                 <div key={i} style={s.fotoItem}>
-                  <img src={f.storageUrl || f.dataUrl} alt="" style={s.fotoImg} />
+                  <img src={f.src} alt="" style={s.fotoImg} />
                   <span style={s.fotoLabel}>{f.label}</span>
                 </div>
               ))}
             </div>
           ) : (
-            <p style={s.sinFotos}>{fotosDisponibles ? 'Sin fotos' : 'Fotos no disponibles'}</p>
+            <p style={s.sinFotos}>Sin fotos</p>
           )}
         </div>
       )}

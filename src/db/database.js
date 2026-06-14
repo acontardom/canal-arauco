@@ -47,4 +47,11 @@ db.version(7).stores({
     '++id, tipoEntidad, entidadId, entidadSecundariaTipo, entidadSecundariaId, tipoHormigon, usoHormigon, volumen, numeroGuia, planta, cono, tempHormigon, tempAmbiente, horaCarga, horaDescarga, tiempoTraslado, pesoHoyaHormigon, puCalculado, observaciones, usuarioNombre, fechaRecepcion, sincronizado, supabaseId, estadoCalidad',
 });
 
+// v8: agrega fotoGuiaUrl y fotosEnsayoUrls a camiones (Supabase Storage).
+// fotoGuia y fotosEnsayo (base64) se mantienen solo para uso offline temporal.
+db.version(8).stores({
+  camiones:
+    '++id, tipoEntidad, entidadId, entidadSecundariaTipo, entidadSecundariaId, tipoHormigon, usoHormigon, volumen, numeroGuia, planta, cono, tempHormigon, tempAmbiente, horaCarga, horaDescarga, tiempoTraslado, pesoHoyaHormigon, puCalculado, observaciones, usuarioNombre, fechaRecepcion, sincronizado, supabaseId, estadoCalidad, fotoGuiaUrl, fotosEnsayoUrls',
+});
+
 export default db;

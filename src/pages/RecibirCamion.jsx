@@ -4,6 +4,7 @@ import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
 import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
 import { comprimirFoto } from '../utils/comprimirFoto';
+import { uploadFoto } from '../utils/uploadFoto';
 import { sincronizar } from '../utils/sync';
 import { supabase } from '../config/supabase';
 
@@ -111,17 +112,42 @@ export default function RecibirCamion() {
     const file = e.target.files?.[0];
     if (!file) return;
     const dataUrl = await comprimirFoto(file);
-    setForm(prev => ({ ...prev, fotoGuia: { dataUrl, storageUrl: null, subidaStorage: false } }));
+    let url = null;
+    if (supabase && navigator.onLine) {
+      try {
+        url = await uploadFoto(dataUrl, {
+          tipo: 'camiones',
+          entidadId: `${tipo}/${entidadIdReal}`,
+          archivo: `guia_${Date.now()}.jpg`,
+        });
+      } catch (err) {
+        console.warn('[RecibirCamion] Error subiendo foto guía:', err?.message ?? err);
+      }
+    }
+    setForm(prev => ({ ...prev, fotoGuia: { dataUrl, url } }));
     e.target.value = '';
   }
 
   async function handleFotosEnsayo(e) {
     const files = Array.from(e.target.files ?? []);
-    for (const file of files) {
-      const dataUrl = await comprimirFoto(file);
+    const baseIndex = form.fotosEnsayo.length;
+    for (let i = 0; i < files.length; i++) {
+      const dataUrl = await comprimirFoto(files[i]);
+      let url = null;
+      if (supabase && navigator.onLine) {
+        try {
+          url = await uploadFoto(dataUrl, {
+            tipo: 'camiones',
+            entidadId: `${tipo}/${entidadIdReal}`,
+            archivo: `ensayo_${Date.now()}_${baseIndex + i}.jpg`,
+          });
+        } catch (err) {
+          console.warn('[RecibirCamion] Error subiendo foto ensayo:', err?.message ?? err);
+        }
+      }
       setForm(prev => ({
         ...prev,
-        fotosEnsayo: [...prev.fotosEnsayo, { dataUrl, descripcion: '', storageUrl: null, subidaStorage: false }],
+        fotosEnsayo: [...prev.fotosEnsayo, { dataUrl, url, descripcion: '' }],
       }));
     }
     e.target.value = '';
@@ -151,6 +177,18 @@ export default function RecibirCamion() {
     }
     setGuardando(true);
     try {
+      // Si la foto ya se subió a Storage al capturarla, se guarda solo la URL
+      // (sin base64). Si no (sin señal), se guarda el dataUrl para sincronizar después.
+      const fotoGuiaUrl = form.fotoGuia?.url ?? null;
+      const fotoGuia = fotoGuiaUrl
+        ? null
+        : (form.fotoGuia ? { dataUrl: form.fotoGuia.dataUrl, storageUrl: null, subidaStorage: false } : null);
+
+      const fotosEnsayoUrls = form.fotosEnsayo.filter(f => f.url).map(f => f.url);
+      const fotosEnsayo = form.fotosEnsayo
+        .filter(f => !f.url)
+        .map(f => ({ dataUrl: f.dataUrl, descripcion: f.descripcion, storageUrl: null, subidaStorage: false }));
+
       const camion = {
         tipoEntidad: tipo,
         entidadId: entidadIdReal,
@@ -176,8 +214,10 @@ export default function RecibirCamion() {
         fechaRecepcion: new Date().toISOString(),
         sincronizado: false,
         supabaseId: null,
-        fotoGuia: form.fotoGuia,
-        fotosEnsayo: form.fotosEnsayo,
+        fotoGuia,
+        fotoGuiaUrl,
+        fotosEnsayo,
+        fotosEnsayoUrls,
         estadoCalidad,
       };
 
@@ -360,7 +400,7 @@ export default function RecibirCamion() {
           {form.fotoGuia ? (
             <div style={s.fotoGuiaWrap}>
               <div style={s.fotoThumb}>
-                <img src={form.fotoGuia.dataUrl} alt="" style={s.fotoImg} />
+                <img src={form.fotoGuia.url || form.fotoGuia.dataUrl} alt="" style={s.fotoImg} />
                 <button style={s.btnEliminarFoto} onClick={() => set('fotoGuia', null)}>×</button>
               </div>
               <button style={s.btnFotoSm} onClick={() => inputGuiaRef.current?.click()}>Cambiar foto</button>
@@ -383,7 +423,7 @@ export default function RecibirCamion() {
                   {form.fotosEnsayo.map((foto, idx) => (
                     <div key={idx} style={s.fotoCard}>
                       <div style={s.fotoThumb}>
-                        <img src={foto.dataUrl} alt="" style={s.fotoImg} />
+                        <img src={foto.url || foto.dataUrl} alt="" style={s.fotoImg} />
                         <button style={s.btnEliminarFoto} onClick={() => eliminarFotoEnsayo(idx)}>×</button>
                       </div>
                       <input
