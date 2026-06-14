@@ -69,6 +69,7 @@ export default function HistorialCamiones() {
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [filtros, setFiltros] = useState(FILTROS_INICIAL);
   const [expandidoId, setExpandidoId] = useState(null);
+  const [reintento, setReintento] = useState(0);
 
   useEffect(() => {
     let activo = true;
@@ -83,16 +84,30 @@ export default function HistorialCamiones() {
       setError(null);
       try {
         if (supabase && navigator.onLine) {
-          const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000));
-          const consulta = supabase
-            .from('camiones')
-            .select('*')
-            .order('fecha_recepcion', { ascending: false });
-          const { data, error: err } = await Promise.race([consulta, timeout]);
-          console.log('Error completo:', JSON.stringify(err, null, 2));
-          console.log('Data:', data);
-          if (err) throw err;
-          if (activo) setCamiones((data ?? []).map(mapRemoto));
+          let ultimoError = null;
+          for (let intento = 1; intento <= 3; intento++) {
+            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000));
+            const consulta = supabase
+              .from('camiones')
+              .select('*')
+              .order('fecha_recepcion', { ascending: false });
+            try {
+              const { data, error: err } = await Promise.race([consulta, timeout]);
+              console.log(`[Historial] Intento ${intento} — Error completo:`, JSON.stringify(err, null, 2));
+              console.log(`[Historial] Intento ${intento} — Data:`, data);
+              if (err) throw err;
+              if (activo) setCamiones((data ?? []).map(mapRemoto));
+              ultimoError = null;
+              break;
+            } catch (err) {
+              ultimoError = err;
+              console.log(`[Historial] Intento ${intento} falló:`, err?.message ?? err);
+              if (intento < 3) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+            }
+          }
+          if (ultimoError) throw ultimoError;
         } else {
           await cargarLocal();
         }
@@ -109,7 +124,7 @@ export default function HistorialCamiones() {
 
     cargar();
     return () => { activo = false; };
-  }, []);
+  }, [reintento]);
 
   function setFiltro(campo, valor) {
     setFiltros(prev => {
@@ -253,7 +268,12 @@ export default function HistorialCamiones() {
       </div>
 
       {cargando && <p style={s.mensaje}>Cargando historial...</p>}
-      {error && <p style={s.mensajeError}>{error}</p>}
+      {error && (
+        <div style={s.errorBox}>
+          <p style={s.mensajeError}>{error}</p>
+          <button style={s.btnReintentar} onClick={() => setReintento(r => r + 1)}>🔄 Reintentar</button>
+        </div>
+      )}
 
       {!cargando && !error && grupos.length === 0 && (
         <p style={s.mensaje}>No se encontraron camiones con estos filtros.</p>
@@ -386,7 +406,14 @@ const s = {
   tabActivo: { color: '#0a1f3a', background: '#64ffda', borderColor: '#64ffda' },
 
   mensaje: { color: '#8892b0', fontSize: '14px', textAlign: 'center', padding: '24px 0' },
-  mensajeError: { color: '#ef4444', fontSize: '14px', textAlign: 'center', padding: '24px 0' },
+  mensajeError: { color: '#ef4444', fontSize: '14px', textAlign: 'center', margin: 0 },
+  errorBox: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '24px 0',
+  },
+  btnReintentar: {
+    background: '#16213e', color: '#ccd6f6', border: '1px solid #0f3460',
+    borderRadius: '8px', padding: '8px 16px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+  },
 
   grupo: { display: 'flex', flexDirection: 'column', gap: '12px' },
   grupoTitulo: { color: '#64ffda', fontSize: '15px', fontWeight: 700, margin: 0 },
