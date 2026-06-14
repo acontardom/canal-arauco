@@ -1,6 +1,6 @@
 import { supabase } from '../config/supabase';
 
-const BUCKET = 'fotos-canal-arauco';
+export const BUCKET = 'fotos-canal-arauco';
 
 function dataUrlToBlob(dataUrl) {
   const [header, base64] = dataUrl.split(',');
@@ -37,4 +37,17 @@ export async function uploadFoto(dataUrl, { tipo, entidadId, nombre, carpeta, ar
 
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(ruta);
   return data.publicUrl;
+}
+
+// Elimina un archivo de Supabase Storage a partir de su URL pública.
+export async function eliminarFotoStorage(storageUrl) {
+  if (!supabase || !storageUrl) return;
+
+  const marcador = `/storage/v1/object/public/${BUCKET}/`;
+  const idx = storageUrl.indexOf(marcador);
+  if (idx === -1) return;
+
+  const ruta = decodeURIComponent(storageUrl.slice(idx + marcador.length));
+  const { error } = await supabase.storage.from(BUCKET).remove([ruta]);
+  if (error) throw error;
 }
