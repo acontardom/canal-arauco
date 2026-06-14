@@ -67,6 +67,10 @@ function normalizarCamionRemoto(remoto) {
     fechaRecepcion: remoto.fecha_recepcion,
     fotoGuia: remoto.foto_guia,
     fotosEnsayo: remoto.fotos_ensayo ?? [],
+    pesoHoyaHormigon: remoto.peso_hoya_hormigon,
+    estadoCalidad: remoto.estado_calidad ?? null,
+    fotoGuiaUrl: remoto.foto_guia_url ?? null,
+    fotosEnsayoUrls: remoto.fotos_ensayo_urls ?? [],
   };
 }
 
@@ -94,6 +98,10 @@ function normalizarCamionLocal(local) {
     fechaRecepcion: local.fechaRecepcion,
     fotoGuia: local.fotoGuia,
     fotosEnsayo: local.fotosEnsayo ?? [],
+    pesoHoyaHormigon: local.pesoHoyaHormigon,
+    estadoCalidad: local.estadoCalidad ?? null,
+    fotoGuiaUrl: local.fotoGuiaUrl ?? null,
+    fotosEnsayoUrls: local.fotosEnsayoUrls ?? [],
   };
 }
 
@@ -858,7 +866,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             style={{ ...s.btnAccion, ...s.btnExcel, opacity: descargando ? 0.6 : 1 }}
             onClick={async () => {
               setDescargando(true);
-              try { await generarPDF(protocolo, fotosCombinadas, kmInicio, kmFin); }
+              try { await generarPDF(protocolo, fotosCombinadas, kmInicio, kmFin, camionesRegistrados); }
               catch (err) {
                 console.error('Error PDF:', err);
                 mostrarToast('Error al generar PDF', 'error');
