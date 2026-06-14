@@ -239,19 +239,9 @@ function agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio,
 
   const TOP = 8;
   const LOGO_W = 30;
-  const LOGO_H = 18;
   const GAP = 2;
   const TABLE_X = ML + LOGO_W + GAP;
   const TABLE_W = CW - LOGO_W - GAP;
-
-  // Logo
-  doc.setDrawColor(180, 180, 180);
-  doc.setLineWidth(0.3);
-  doc.rect(ML, TOP, LOGO_W, LOGO_H);
-  if (logoB64) {
-    try { doc.addImage(logoB64, 'JPEG', ML + 1, TOP + 1, LOGO_W - 2, LOGO_H - 2); }
-    catch { /* logo opcional */ }
-  }
 
   const tituloDocumento = protocolo.protocoloId === 'G5'
     ? 'REGISTRO FOTOGRÁFICO G-5'
@@ -280,7 +270,7 @@ function agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio,
       ],
     ],
     columnStyles: {
-      0: { cellWidth: 87 },
+      0: { cellWidth: 92 },
       1: { cellWidth: 58 },
     },
     styles: {
@@ -306,7 +296,18 @@ function agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio,
   });
 
   const tableBottom = doc.lastAutoTable.finalY;
-  return Math.max(TOP + LOGO_H, tableBottom) + 3;
+  const logoH = tableBottom - TOP;
+
+  // Logo — misma altura total que la tabla de información
+  doc.setDrawColor(180, 180, 180);
+  doc.setLineWidth(0.3);
+  doc.rect(ML, TOP, LOGO_W, logoH);
+  if (logoB64) {
+    try { doc.addImage(logoB64, 'JPEG', ML + 1, TOP + 1, LOGO_W - 2, logoH - 2); }
+    catch { /* logo opcional */ }
+  }
+
+  return tableBottom + 3;
 }
 
 // ─── Tabla info (página 1) ────────────────────────────────────────────────────
@@ -509,15 +510,21 @@ function agregarProtocoloControl(doc, protocolo, y, escala = ESCALA_NORMAL) {
 
 // ─── Pie de firma ─────────────────────────────────────────────────────────────
 
+// El pie de firma siempre queda al fondo de la página (startY: PH - 42) si el
+// contenido deja espacio suficiente; si el contenido llena la página, se
+// dibuja pegado debajo de él (startY: finalY + 5).
+function pieFirmaY(finalY) {
+  return finalY < PH - 45 ? PH - 42 : finalY + 5;
+}
+
 // Tabla de pie de firma — unificada (4 filas), pageBreak:'avoid' evita que se
-// divida entre páginas. Se dibuja pegada debajo del contenido (`startY`),
-// nunca en una posición fija al fondo de página.
+// divida entre páginas.
 function agregarPieFirma(doc, startY) {
   const colW = CW / 3;
 
   autoTable(doc, {
     startY,
-    margin: { left: ML, right: MR },
+    margin: { left: ML, right: MR, bottom: 0 },
     tableWidth: CW,
     body: [
       ['PAC', 'ITO', 'ADMINISTRADOR'],
@@ -612,7 +619,7 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
   }
 
   const numRows = Math.ceil(fotosBatch.length / COLS);
-  agregarPieFirma(doc, y + numRows * cellH + PIE_FIRMA_GAP);
+  agregarPieFirma(doc, pieFirmaY(y + numRows * cellH));
 }
 
 // ─── Control H.A. (Radier / Muro) — bloques por camión ────────────────────────
@@ -790,7 +797,7 @@ function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPagi
     doc.setTextColor(80, 80, 80);
     doc.text('Sin camiones registrados para este elemento — usa el módulo Recibir Camión', PW / 2, y + 8, { align: 'center' });
     doc.setFont(undefined, 'normal');
-    agregarPieFirma(doc, y + 16);
+    agregarPieFirma(doc, pieFirmaY(y + 16));
     return pagina;
   }
 
@@ -832,7 +839,7 @@ function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPagi
     pagina++;
     y = agregarEncabezado(doc, protocolo, pagina, totalPaginas, kmInicio, kmFin, logoB64);
   }
-  agregarPieFirma(doc, y + PIE_FIRMA_GAP);
+  agregarPieFirma(doc, pieFirmaY(y));
 
   return pagina;
 }
@@ -883,7 +890,7 @@ export async function construirDocumentoPDF(protocolo, fotos = [], kmInicio = ''
   } else if (soloFotos) {
     if (fotos.length === 0) {
       const y = agregarEncabezado(doc, protocolo, 1, totalPaginas, kmInicio, kmFin, logoB64);
-      agregarPieFirma(doc, y + PIE_FIRMA_GAP);
+      agregarPieFirma(doc, pieFirmaY(y));
     } else {
       for (let i = 0; i < fotos.length; i += fpp) {
         const paginaActual = i / fpp + 1;
@@ -899,7 +906,7 @@ export async function construirDocumentoPDF(protocolo, fotos = [], kmInicio = ''
       doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       finalY = construirPagina1(doc, protocolo, kmInicio, kmFin, totalPaginas, logoB64, ESCALA_REDUCIDA);
     }
-    agregarPieFirma(doc, finalY + PIE_FIRMA_GAP);
+    agregarPieFirma(doc, pieFirmaY(finalY));
 
     for (let i = 0; i < fotos.length; i += fpp) {
       doc.addPage();
