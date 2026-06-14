@@ -866,7 +866,7 @@ function construirPagina1(doc, protocolo, kmInicio, kmFin, totalPaginas, logoB64
 
 // ─── Función principal ────────────────────────────────────────────────────────
 
-export async function generarPDF(protocolo, fotos = [], kmInicio = '', kmFin = '', camiones = []) {
+export async function construirDocumentoPDF(protocolo, fotos = [], kmInicio = '', kmFin = '', camiones = []) {
   const meta = PROTOCOLOS.find(p => p.id === protocolo.protocoloId);
   const soloFotos = meta?.soloFotos === true;
   const esHA = protocolo.protocoloId === 'HA_RADIER' || protocolo.protocoloId === 'HA_MURO';
@@ -910,5 +910,11 @@ export async function generarPDF(protocolo, fotos = [], kmInicio = '', kmFin = '
 
   const entidadStr = String(protocolo.entidadId).replace(/\s+/g, '');
   const fechaStr = fmtArchivo(protocolo.fechaModificacion);
-  doc.save(`${protocolo.protocoloId}_${entidadStr}_${fechaStr}.pdf`);
+  const filename = `${protocolo.protocoloId}_${entidadStr}_${fechaStr}.pdf`;
+  return { doc, filename };
+}
+
+export async function generarPDF(protocolo, fotos = [], kmInicio = '', kmFin = '', camiones = []) {
+  const { doc, filename } = await construirDocumentoPDF(protocolo, fotos, kmInicio, kmFin, camiones);
+  doc.save(filename);
 }

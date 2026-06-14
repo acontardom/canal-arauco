@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
 import { PROTOCOLOS, CHECKLISTS, TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
-import { generarPDF } from '../utils/generarPDF';
+import { generarPDF, construirDocumentoPDF } from '../utils/generarPDF';
 import { useKm } from '../hooks/useKm';
 import { sincronizar } from '../utils/sync';
 import { supabase } from '../config/supabase';
@@ -307,6 +307,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [confirmandoEnvio, setConfirmandoEnvio] = useState(false);
   const [confirmandoDesbloqueo, setConfirmandoDesbloqueo] = useState(false);
   const [descargando, setDescargando] = useState(false);
+  const [generandoPreview, setGenerandoPreview] = useState(false);
+  const [previewPDF, setPreviewPDF] = useState(null);
   const [sincronizando, setSincronizando] = useState(false);
   const [toast, setToast] = useState(null);
   const [filtroEtiqueta, setFiltroEtiqueta] = useState(ETIQUETA_PROTOCOLO[protocoloId] ?? 'Todas');
@@ -629,6 +631,29 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     mostrarToast('Camión reasignado a otra entidad');
   }
 
+  async function abrirVistaPrevia() {
+    setGenerandoPreview(true);
+    try {
+      const { doc, filename } = await construirDocumentoPDF(protocolo, fotosCombinadas, kmInicio, kmFin, camionesRegistrados);
+      const url = doc.output('bloburl');
+      setPreviewPDF({ doc, filename, url });
+    } catch (err) {
+      console.error('Error generando vista previa:', err);
+      mostrarToast('Error al generar vista previa', 'error');
+    } finally {
+      setGenerandoPreview(false);
+    }
+  }
+
+  function cerrarVistaPrevia() {
+    if (previewPDF?.url) URL.revokeObjectURL(previewPDF.url);
+    setPreviewPDF(null);
+  }
+
+  function descargarDesdeVistaPrevia() {
+    previewPDF?.doc.save(previewPDF.filename);
+  }
+
   if (cargando) return <div style={s.cargando}>Cargando...</div>;
 
   const readOnly = estado === 'enviado';
@@ -900,6 +925,13 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       {protocolo && (
         <div style={s.accionesSecundarias}>
           <button
+            style={{ ...s.btnAccion, ...s.btnVistaPrevia, opacity: generandoPreview ? 0.6 : 1 }}
+            onClick={abrirVistaPrevia}
+            disabled={generandoPreview}
+          >
+            {generandoPreview ? 'Generando...' : '👁️ Vista Previa'}
+          </button>
+          <button
             style={{ ...s.btnAccion, ...s.btnExcel, opacity: descargando ? 0.6 : 1 }}
             onClick={async () => {
               setDescargando(true);
@@ -982,6 +1014,21 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                 placeholder="Agregar descripción..."
               />
             </div>
+          </div>
+        </div>
+      )}
+
+      {previewPDF && (
+        <div style={s.previewOverlay} onClick={cerrarVistaPrevia}>
+          <div style={s.previewContent} onClick={(e) => e.stopPropagation()}>
+            <div style={s.previewHeader}>
+              <span style={s.previewTitulo}>👁️ Vista previa — {previewPDF.filename}</span>
+              <div style={s.previewBotones}>
+                <button style={s.btnPreviewDescargar} onClick={descargarDesdeVistaPrevia}>⬇ Descargar</button>
+                <button style={s.btnPreviewCerrar} onClick={cerrarVistaPrevia}>✕ Cerrar</button>
+              </div>
+            </div>
+            <iframe title="Vista previa PDF" src={previewPDF.url} style={s.previewIframe} />
           </div>
         </div>
       )}
@@ -1068,12 +1115,13 @@ const s = {
   accionesCabecera: { display: 'flex', justifyContent: 'flex-end', marginBottom: '6px', minHeight: '20px' },
   syncLabel: { color: '#8892b0', fontSize: '12px' },
   acciones: { display: 'flex', gap: '12px', flexWrap: 'wrap' },
-  accionesSecundarias: { marginTop: '10px' },
+  accionesSecundarias: { display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '10px' },
   btnAccion: { flex: '1 1 140px', padding: '14px 20px', borderRadius: '10px', fontSize: '15px', fontWeight: 700, cursor: 'pointer', border: 'none' },
   btnBorrador: { background: '#0f3460', color: '#ccd6f6' },
   btnCompletar: { background: '#10b981', color: '#fff' },
   btnEnviar: { background: '#3b82f6', color: '#fff' },
   btnExcel: { background: '#1d6a34', color: '#fff', width: '100%', fontSize: '14px' },
+  btnVistaPrevia: { background: '#0ea5e9', color: '#fff', width: '100%', fontSize: '14px' },
 
   enviadoBox: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px',
@@ -1103,4 +1151,13 @@ const s = {
   fotoModalInfo: { display: 'flex', flexDirection: 'column', gap: '6px' },
   fotoModalDescLabel: { color: '#64ffda', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px' },
   fotoModalDescInput: { width: '100%', background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '6px', color: '#ccd6f6', fontSize: '13px', padding: '8px 10px', fontFamily: 'inherit', outline: 'none', lineHeight: '1.4', resize: 'vertical' },
+
+  previewOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: '16px' },
+  previewContent: { background: '#16213e', borderRadius: '16px', border: '1px solid #0f3460', width: '90vw', height: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
+  previewHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '12px 16px', borderBottom: '1px solid #0f3460', flexWrap: 'wrap' },
+  previewTitulo: { color: '#ccd6f6', fontSize: '14px', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  previewBotones: { display: 'flex', gap: '10px', flexShrink: 0 },
+  btnPreviewDescargar: { padding: '8px 16px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' },
+  btnPreviewCerrar: { padding: '8px 16px', background: '#0f3460', color: '#ccd6f6', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' },
+  previewIframe: { flex: 1, width: '100%', border: 'none', background: '#fff' },
 };
