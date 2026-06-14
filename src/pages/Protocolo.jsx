@@ -311,6 +311,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [toast, setToast] = useState(null);
   const [filtroEtiqueta, setFiltroEtiqueta] = useState(ETIQUETA_PROTOCOLO[protocoloId] ?? 'Todas');
   const [fotosNubeSeleccionadas, setFotosNubeSeleccionadas] = useState([]);
+  const [fotoNubeModal, setFotoNubeModal] = useState(null);
+  const [descModalTexto, setDescModalTexto] = useState('');
 
   const cargadoRef = useRef(false);
   const toastTimerRef = useRef(null);
@@ -572,6 +574,38 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     setFotosNubeSeleccionadas(prev => prev.map(f => (f.storageUrl || f.dataUrl) === key ? { ...f, descripcion } : f));
   }
 
+  function guardarDescModalPara(indice, texto) {
+    const foto = fotosTerrenoFiltradas[indice];
+    if (!foto || readOnly) return;
+    const key = foto.storageUrl || foto.dataUrl;
+    const actual = fotosNubeSeleccionadas.find(f => (f.storageUrl || f.dataUrl) === key);
+    if (actual) {
+      if (texto !== (actual.descripcion ?? '')) setDescFotoNube(key, texto);
+    } else if (texto.trim()) {
+      setFotosNubeSeleccionadas(prev => [...prev, { storageUrl: foto.storageUrl ?? null, dataUrl: foto.dataUrl ?? null, descripcion: texto }]);
+    }
+  }
+
+  function abrirFotoNubeModal(indice) {
+    const foto = fotosTerrenoFiltradas[indice];
+    const key = foto.storageUrl || foto.dataUrl;
+    const sel = fotosNubeSeleccionadas.find(f => (f.storageUrl || f.dataUrl) === key);
+    setDescModalTexto(sel?.descripcion ?? '');
+    setFotoNubeModal(indice);
+  }
+
+  function cerrarFotoNubeModal() {
+    guardarDescModalPara(fotoNubeModal, descModalTexto);
+    setFotoNubeModal(null);
+  }
+
+  function navegarFotoNubeModal(delta) {
+    guardarDescModalPara(fotoNubeModal, descModalTexto);
+    const len = fotosTerrenoFiltradas.length;
+    const nuevo = (fotoNubeModal + delta + len) % len;
+    abrirFotoNubeModal(nuevo);
+  }
+
   async function actualizarEntidadCamion(camion, nuevoTipo, nuevoEntidadIdStr) {
     const nuevoEntidadId = nuevoTipo === 'caida' ? Number(nuevoEntidadIdStr) : nuevoEntidadIdStr;
 
@@ -639,17 +673,20 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       </div>
       {fotosTerrenoFiltradas.length > 0 ? (
         <div style={s.fotosGrid}>
-          {fotosTerrenoFiltradas.map(foto => {
+          {fotosTerrenoFiltradas.map((foto, index) => {
             const key = foto.storageUrl || foto.dataUrl;
             const seleccionada = fotosNubeSeleccionadas.some(f => (f.storageUrl || f.dataUrl) === key);
             return (
               <div
                 key={foto.id}
-                style={{ ...s.fotoThumb, ...(seleccionada ? s.fotoThumbSeleccionada : {}), cursor: readOnly ? 'default' : 'pointer' }}
-                onClick={() => !readOnly && toggleFotoNube(foto)}
+                style={{ ...s.fotoThumb, ...(seleccionada ? s.fotoThumbSeleccionada : {}), cursor: 'pointer' }}
+                onClick={() => abrirFotoNubeModal(index)}
               >
                 <img src={key} alt="" style={s.fotoImg} />
-                <div style={s.checkOverlay}>
+                <div
+                  style={{ ...s.checkOverlay, cursor: readOnly ? 'default' : 'pointer' }}
+                  onClick={(e) => { e.stopPropagation(); if (!readOnly) toggleFotoNube(foto); }}
+                >
                   <input type="checkbox" checked={seleccionada} readOnly style={s.checkboxNube} />
                 </div>
               </div>
@@ -916,6 +953,38 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           onCancelar={() => setConfirmandoDesbloqueo(false)}
         />
       )}
+
+      {fotoNubeModal !== null && fotosTerrenoFiltradas[fotoNubeModal] && (
+        <div style={s.fotoModalOverlay} onClick={cerrarFotoNubeModal}>
+          <div style={s.fotoModalContent} onClick={(e) => e.stopPropagation()}>
+            <button style={s.fotoModalCerrar} onClick={cerrarFotoNubeModal}>✕</button>
+            <div style={s.fotoModalImgWrap}>
+              {fotosTerrenoFiltradas.length > 1 && (
+                <button style={{ ...s.fotoModalNavBtn, left: '8px' }} onClick={() => navegarFotoNubeModal(-1)}>‹</button>
+              )}
+              <img
+                src={fotosTerrenoFiltradas[fotoNubeModal].storageUrl || fotosTerrenoFiltradas[fotoNubeModal].dataUrl}
+                alt=""
+                style={s.fotoModalImg}
+              />
+              {fotosTerrenoFiltradas.length > 1 && (
+                <button style={{ ...s.fotoModalNavBtn, right: '8px' }} onClick={() => navegarFotoNubeModal(1)}>›</button>
+              )}
+            </div>
+            <div style={s.fotoModalInfo}>
+              <label style={s.fotoModalDescLabel}>Descripción</label>
+              <textarea
+                style={s.fotoModalDescInput}
+                rows={2}
+                value={descModalTexto}
+                onChange={(e) => setDescModalTexto(e.target.value)}
+                readOnly={readOnly}
+                placeholder="Agregar descripción..."
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1024,4 +1093,14 @@ const s = {
   modalBotones: { display: 'flex', gap: '10px' },
   btnModalCancelar: { flex: 1, padding: '12px', background: '#0f3460', color: '#ccd6f6', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' },
   btnModalConfirmar: { flex: 1, padding: '12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' },
+
+  fotoModalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: '16px' },
+  fotoModalContent: { background: '#16213e', borderRadius: '16px', padding: '20px', maxWidth: '560px', width: '100%', border: '1px solid #0f3460', position: 'relative', maxHeight: '90vh', overflow: 'auto' },
+  fotoModalCerrar: { position: 'absolute', top: '12px', right: '12px', background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: '32px', height: '32px', fontSize: '16px', lineHeight: '30px', cursor: 'pointer', padding: 0, textAlign: 'center', zIndex: 1 },
+  fotoModalImgWrap: { position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px', background: '#0a1f3a', borderRadius: '10px', minHeight: '200px', overflow: 'hidden' },
+  fotoModalImg: { maxWidth: '100%', maxHeight: '60vh', display: 'block', objectFit: 'contain' },
+  fotoModalNavBtn: { position: 'absolute', top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: '36px', height: '36px', fontSize: '20px', lineHeight: '34px', cursor: 'pointer', textAlign: 'center', padding: 0 },
+  fotoModalInfo: { display: 'flex', flexDirection: 'column', gap: '6px' },
+  fotoModalDescLabel: { color: '#64ffda', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px' },
+  fotoModalDescInput: { width: '100%', background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '6px', color: '#ccd6f6', fontSize: '13px', padding: '8px 10px', fontFamily: 'inherit', outline: 'none', lineHeight: '1.4', resize: 'vertical' },
 };
