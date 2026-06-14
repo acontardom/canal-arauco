@@ -39,8 +39,6 @@ function mapRemoto(r) {
     observaciones: r.observaciones ?? '',
     usuarioNombre: r.usuario_nombre ?? null,
     fechaRecepcion: r.fecha_recepcion ?? '',
-    fotoGuia: r.foto_guia ?? null,
-    fotosEnsayo: r.fotos_ensayo ?? [],
     estadoCalidad: r.estado_calidad ?? null,
   };
 }
@@ -89,7 +87,7 @@ export default function HistorialCamiones() {
             const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000));
             const consulta = supabase
               .from('camiones')
-              .select('*')
+              .select('id, local_id, tipo_entidad, entidad_id, entidad_secundaria_tipo, entidad_secundaria_id, tipo_hormigon, volumen, numero_guia, planta, cono, temp_hormigon, temp_ambiente, hora_carga, hora_descarga, tiempo_traslado, peso_hoya_hormigon, pu_calculado, observaciones, usuario_nombre, fecha_recepcion, uso_hormigon, estado_calidad, created_at')
               .order('fecha_recepcion', { ascending: false });
             try {
               const { data, error: err } = await Promise.race([consulta, timeout]);
@@ -312,6 +310,7 @@ function CamionCard({ camion: c, expandido, onToggle }) {
     badge = { texto: 'Rechazado', estilo: s.badgeRechazado };
   }
 
+  const fotosDisponibles = c.fotoGuia !== undefined || c.fotosEnsayo !== undefined;
   const fotos = [
     ...(c.fotoGuia ? [{ ...c.fotoGuia, label: 'Guía de despacho' }] : []),
     ...(c.fotosEnsayo ?? []).map((f, i) => ({ ...f, label: f.descripcion || `Ensayo ${i + 1}` })),
@@ -361,7 +360,7 @@ function CamionCard({ camion: c, expandido, onToggle }) {
               ))}
             </div>
           ) : (
-            <p style={s.sinFotos}>Sin fotos</p>
+            <p style={s.sinFotos}>{fotosDisponibles ? 'Sin fotos' : 'Fotos no disponibles'}</p>
           )}
         </div>
       )}
