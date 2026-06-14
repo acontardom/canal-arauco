@@ -325,7 +325,11 @@ function CamionCard({ camion: c, expandido, onToggle }) {
 
   return (
     <div
-      style={{ ...s.card, borderTopColor: tieneEstado ? (aprobado ? '#10b981' : '#ef4444') : '#0f3460' }}
+      style={{
+        ...s.card,
+        borderTopColor: tieneEstado ? (aprobado ? '#10b981' : '#ef4444') : '#0f3460',
+        ...(expandido ? s.cardExpandido : {}),
+      }}
       onClick={onToggle}
     >
       {badge && (
@@ -458,6 +462,7 @@ const s = {
     borderTop: '4px solid #0f3460', borderRadius: '12px', padding: '14px 16px',
     display: 'flex', flexDirection: 'column', gap: '6px', cursor: 'pointer',
   },
+  cardExpandido: { gridColumn: '1 / -1' },
   badge: {
     position: 'absolute', top: '10px', right: '12px', fontSize: '11px', fontWeight: 700,
     borderRadius: '6px', padding: '4px 8px',
