@@ -35,6 +35,7 @@ function mapRemoto(r) {
     tempAmbiente: r.temp_ambiente ?? '',
     horaCarga: r.hora_carga ?? '',
     horaDescarga: r.hora_descarga ?? '',
+    tiempoTraslado: r.tiempo_traslado ?? '',
     puCalculado: r.pu_calculado ?? '',
     observaciones: r.observaciones ?? '',
     usuarioNombre: r.usuario_nombre ?? null,
@@ -299,6 +300,8 @@ export default function HistorialCamiones() {
 }
 
 function CamionCard({ camion: c, expandido, onToggle }) {
+  const [fotoModal, setFotoModal] = useState(null);
+
   const tieneEstado = c.estadoCalidad === 'aprobado' || c.estadoCalidad === 'rechazado';
   const aprobado = c.estadoCalidad === 'aprobado';
   const esG5 = c.tipoHormigon === 'G5';
@@ -312,12 +315,13 @@ function CamionCard({ camion: c, expandido, onToggle }) {
     badge = { texto: 'Rechazado', estilo: s.badgeRechazado };
   }
 
-  const fotos = [
-    ...(c.fotoGuiaUrl ? [{ src: c.fotoGuiaUrl, label: 'Guía de despacho' }] : []),
-    ...(c.fotoGuia ? [{ src: c.fotoGuia.storageUrl || c.fotoGuia.dataUrl, label: 'Guía de despacho' }] : []),
-    ...(c.fotosEnsayoUrls ?? []).map((url, i) => ({ src: url, label: `Ensayo ${i + 1}` })),
-    ...(c.fotosEnsayo ?? []).map((f, i) => ({ src: f.storageUrl || f.dataUrl, label: f.descripcion || `Ensayo ${i + 1}` })),
-  ];
+  const fotosEnsayo = c.fotosEnsayoUrls ?? [];
+  const tieneFotos = Boolean(c.fotoGuiaUrl) || fotosEnsayo.length > 0;
+
+  function abrirFoto(e, url) {
+    e.stopPropagation();
+    setFotoModal(url);
+  }
 
   return (
     <div
@@ -352,19 +356,48 @@ function CamionCard({ camion: c, expandido, onToggle }) {
 
       {expandido && (
         <div style={s.expandido}>
-          {c.observaciones && <p style={s.observaciones}>{c.observaciones}</p>}
-          {fotos.length > 0 ? (
-            <div style={s.fotosGrid}>
-              {fotos.map((f, i) => (
-                <div key={i} style={s.fotoItem}>
-                  <img src={f.src} alt="" style={s.fotoImg} />
-                  <span style={s.fotoLabel}>{f.label}</span>
+          {c.tiempoTraslado && <p style={s.cardLinea}>Tiempo de traslado: {c.tiempoTraslado} min</p>}
+          {c.observaciones && <p style={s.observaciones}>Observaciones: {c.observaciones}</p>}
+
+          {tieneFotos ? (
+            <>
+              {c.fotoGuiaUrl && (
+                <div style={s.fotoSeccion}>
+                  <span style={s.fotoSeccionTitulo}>Foto guía de despacho</span>
+                  <img
+                    src={c.fotoGuiaUrl}
+                    alt="Guía de despacho"
+                    style={s.fotoThumb}
+                    onClick={e => abrirFoto(e, c.fotoGuiaUrl)}
+                  />
                 </div>
-              ))}
-            </div>
+              )}
+              {fotosEnsayo.length > 0 && (
+                <div style={s.fotoSeccion}>
+                  <span style={s.fotoSeccionTitulo}>Fotos del ensayo</span>
+                  <div style={s.fotosGrid}>
+                    {fotosEnsayo.map((url, i) => (
+                      <img
+                        key={i}
+                        src={url}
+                        alt={`Ensayo ${i + 1}`}
+                        style={s.fotoThumb}
+                        onClick={e => abrirFoto(e, url)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           ) : (
-            <p style={s.sinFotos}>Sin fotos</p>
+            <p style={s.sinFotos}>Fotos no disponibles para este registro</p>
           )}
+        </div>
+      )}
+
+      {fotoModal && (
+        <div style={s.fotoModalOverlay} onClick={e => { e.stopPropagation(); setFotoModal(null); }}>
+          <img src={fotoModal} alt="" style={s.fotoModalImg} onClick={e => e.stopPropagation()} />
         </div>
       )}
     </div>
@@ -440,8 +473,22 @@ const s = {
   expandido: { marginTop: '8px', paddingTop: '10px', borderTop: '1px solid #0f3460', display: 'flex', flexDirection: 'column', gap: '8px' },
   observaciones: { color: '#ccd6f6', fontSize: '12px', fontStyle: 'italic', margin: 0 },
   sinFotos: { color: '#8892b0', fontSize: '12px', margin: 0 },
+
+  fotoSeccion: { display: 'flex', flexDirection: 'column', gap: '6px' },
+  fotoSeccionTitulo: { color: '#8892b0', fontSize: '11px', fontWeight: 600 },
   fotosGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '8px' },
-  fotoItem: { display: 'flex', flexDirection: 'column', gap: '4px' },
-  fotoImg: { width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '8px', display: 'block' },
-  fotoLabel: { color: '#8892b0', fontSize: '10px', textAlign: 'center' },
+  fotoThumb: {
+    width: '100%', maxWidth: '160px', aspectRatio: '1', objectFit: 'cover',
+    borderRadius: '8px', display: 'block', cursor: 'pointer',
+  },
+
+  fotoModalOverlay: {
+    position: 'fixed', inset: 0, background: 'rgba(10,15,30,0.85)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: '24px', zIndex: 1000, cursor: 'pointer',
+  },
+  fotoModalImg: {
+    maxWidth: '100%', maxHeight: '100%', objectFit: 'contain',
+    borderRadius: '8px', cursor: 'default',
+  },
 };
