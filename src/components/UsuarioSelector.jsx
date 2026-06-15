@@ -20,11 +20,6 @@ export default function UsuarioSelector({ nombreStyle }) {
 
   return (
     <div style={s.wrap} ref={ref}>
-      <button style={s.actual} onClick={() => setAbierto(a => !a)} title="Cambiar usuario">
-        <span style={{ ...s.nombre, ...nombreStyle }}>{usuario}</span>
-        <span style={s.lapiz}>✏️</span>
-      </button>
-
       {abierto && (
         <div style={s.opciones}>
           {USUARIOS.map(nombre => (
@@ -38,30 +33,38 @@ export default function UsuarioSelector({ nombreStyle }) {
           ))}
         </div>
       )}
+
+      <span style={{ ...s.nombre, ...nombreStyle }}>{usuario}</span>
+
+      <button style={s.btnCambiar} onClick={() => setAbierto(a => !a)}>
+        🚪 Cambiar usuario
+      </button>
     </div>
   );
 }
 
 const s = {
-  wrap: { position: 'relative', flexShrink: 0 },
-  actual: {
-    display: 'flex', alignItems: 'center', gap: '6px',
-    background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px',
-  },
+  wrap: { position: 'relative', display: 'flex', flexDirection: 'column', gap: '6px' },
   nombre: {
     color: '#8892b0', fontSize: '12px', overflow: 'hidden',
-    textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px',
+    textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%',
   },
-  lapiz: { fontSize: '12px', lineHeight: 1 },
+  btnCambiar: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+    width: '100%', background: '#0f3460', border: 'none', borderRadius: '8px',
+    color: '#ccd6f6', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+    padding: '8px 10px', boxSizing: 'border-box',
+  },
   opciones: {
-    position: 'absolute', top: '100%', right: 0, marginTop: '6px',
+    position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: '8px',
     background: '#16213e', border: '1px solid #0f3460', borderRadius: '10px',
     padding: '6px', display: 'flex', flexDirection: 'column', gap: '4px',
-    zIndex: 200, minWidth: '180px', boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+    zIndex: 200, maxHeight: '60vh', overflowY: 'auto',
+    boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
   },
   opcion: {
     background: 'transparent', border: 'none', color: '#ccd6f6',
-    borderRadius: '8px', padding: '10px 12px', fontSize: '13px',
+    borderRadius: '8px', padding: '8px 10px', fontSize: '13px',
     fontWeight: 600, cursor: 'pointer', textAlign: 'left',
   },
   opcionActiva: { background: '#0f3460', color: '#64ffda' },
