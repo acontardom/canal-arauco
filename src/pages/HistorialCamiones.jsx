@@ -1,13 +1,28 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { db } from '../db/database';
 import { supabase } from '../config/supabase';
 import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
+import { eliminarFotoStorage } from '../utils/uploadFoto';
 
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 const LISTAS = { tramo: TRAMOS, caida: CAIDAS, atravieso: ATRAVIESOS };
 const USO_LABEL = { radier: 'Radier', muro: 'Muro', otro: 'Otro' };
+const USOS_HORMIGON = [
+  { valor: 'radier', label: 'Radier' },
+  { valor: 'muro', label: 'Muro' },
+  { valor: 'otro', label: 'Otro' },
+];
 const PLANTAS = ['Membrillar', 'Quilanco', 'Río San Martín'];
 const TIPOS_HORMIGON = ['G5', 'G20', 'G25', 'G30'];
+const TIPOS_CON_ENSAYO = ['G20', 'G25', 'G30'];
+const PESO_HOYA = 6.9;
+const PROBETA_VOL = 0.0101;
+
+function calcPU(pesoTotal) {
+  const t = parseFloat(pesoTotal);
+  if (isNaN(t) || t <= PESO_HOYA) return '';
+  return String(Math.round((t - PESO_HOYA) / PROBETA_VOL));
+}
 
 const FILTROS_INICIAL = {
   entidadTipo: '',
@@ -23,8 +38,14 @@ const FILTROS_INICIAL = {
 function mapRemoto(r) {
   return {
     id: r.id,
+    localId: r.local_id ?? null,
+    supabaseId: r.id,
     tipoEntidad: r.tipo_entidad,
     entidadId: r.tipo_entidad === 'caida' ? Number(r.entidad_id) : r.entidad_id,
+    entidadSecundariaTipo: r.entidad_secundaria_tipo ?? null,
+    entidadSecundariaId: r.entidad_secundaria_tipo === 'caida' && r.entidad_secundaria_id != null
+      ? Number(r.entidad_secundaria_id)
+      : (r.entidad_secundaria_id ?? null),
     tipoHormigon: r.tipo_hormigon,
     usoHormigon: r.uso_hormigon ?? null,
     volumen: r.volumen ?? '',
@@ -36,6 +57,7 @@ function mapRemoto(r) {
     horaCarga: r.hora_carga ?? '',
     horaDescarga: r.hora_descarga ?? '',
     tiempoTraslado: r.tiempo_traslado ?? '',
+    pesoHoyaHormigon: r.peso_hoya_hormigon ?? '',
     puCalculado: r.pu_calculado ?? '',
     observaciones: r.observaciones ?? '',
     usuarioNombre: r.usuario_nombre ?? null,
@@ -71,13 +93,25 @@ export default function HistorialCamiones() {
   const [filtros, setFiltros] = useState(FILTROS_INICIAL);
   const [expandidoId, setExpandidoId] = useState(null);
   const [reintento, setReintento] = useState(0);
+  const [editando, setEditando] = useState(null);
+  const [eliminando, setEliminando] = useState(null);
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+  const [borrandoCamion, setBorrandoCamion] = useState(false);
+  const [toast, setToast] = useState(null);
+  const toastTimer = useRef(null);
+
+  function mostrarToast(mensaje, tipo = 'ok') {
+    setToast({ mensaje, tipo });
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 3500);
+  }
 
   useEffect(() => {
     let activo = true;
 
     async function cargarLocal() {
       const locales = await db.camiones.orderBy('fechaRecepcion').reverse().toArray();
-      if (activo) setCamiones(locales);
+      if (activo) setCamiones(locales.map(c => ({ ...c, localId: c.id, supabaseId: c.supabaseId ?? null })));
     }
 
     async function cargar() {
@@ -133,6 +167,88 @@ export default function HistorialCamiones() {
       if (campo === 'entidadTipo') next.entidadId = '';
       return next;
     });
+  }
+
+  async function guardarEdicionCamion(camion, cambios) {
+    setGuardandoEdicion(true);
+    try {
+      const enLinea = Boolean(supabase && navigator.onLine);
+
+      if (enLinea && camion.supabaseId) {
+        const payload = {
+          tipo_entidad: cambios.tipoEntidad,
+          entidad_id: String(cambios.entidadId),
+          entidad_secundaria_tipo: cambios.entidadSecundariaTipo,
+          entidad_secundaria_id: cambios.entidadSecundariaId != null ? String(cambios.entidadSecundariaId) : null,
+          tipo_hormigon: cambios.tipoHormigon,
+          uso_hormigon: cambios.usoHormigon,
+          volumen: cambios.volumen || null,
+          numero_guia: cambios.numeroGuia || null,
+          planta: cambios.planta || null,
+          cono: cambios.cono || null,
+          temp_hormigon: cambios.tempHormigon || null,
+          temp_ambiente: cambios.tempAmbiente || null,
+          hora_carga: cambios.horaCarga || null,
+          hora_descarga: cambios.horaDescarga || null,
+          tiempo_traslado: cambios.tiempoTraslado || null,
+          peso_hoya_hormigon: cambios.pesoHoyaHormigon || null,
+          pu_calculado: cambios.puCalculado || null,
+          observaciones: cambios.observaciones || null,
+          estado_calidad: cambios.estadoCalidad,
+        };
+        const { error: err } = await supabase.from('camiones').update(payload).eq('id', camion.supabaseId);
+        if (err) throw err;
+      } else if (camion.localId == null) {
+        throw new Error('Sin conexión: no se puede editar este registro');
+      }
+
+      if (camion.localId != null) {
+        await db.camiones.update(camion.localId, { ...cambios, sincronizado: enLinea && Boolean(camion.supabaseId) });
+      }
+
+      setCamiones(prev => prev.map(x => (x.id === camion.id ? { ...x, ...cambios } : x)));
+      setEditando(null);
+      mostrarToast('Cambios guardados correctamente');
+    } catch (err) {
+      mostrarToast(`Error al guardar cambios: ${err?.message ?? err}`, 'error');
+    } finally {
+      setGuardandoEdicion(false);
+    }
+  }
+
+  async function eliminarCamionRegistro(camion) {
+    setBorrandoCamion(true);
+    try {
+      const enLinea = Boolean(supabase && navigator.onLine);
+
+      if (enLinea && camion.supabaseId) {
+        const { error: err } = await supabase.from('camiones').delete().eq('id', camion.supabaseId);
+        if (err) throw err;
+      } else if (camion.localId == null) {
+        throw new Error('Sin conexión: no se puede eliminar este registro');
+      }
+
+      const urls = [camion.fotoGuiaUrl, ...(camion.fotosEnsayoUrls ?? [])].filter(Boolean);
+      for (const url of urls) {
+        try {
+          await eliminarFotoStorage(url);
+        } catch (err) {
+          console.warn('No se pudo eliminar foto de storage:', url, err);
+        }
+      }
+
+      if (camion.localId != null) {
+        await db.camiones.delete(camion.localId);
+      }
+
+      setCamiones(prev => prev.filter(x => x.id !== camion.id));
+      setEliminando(null);
+      mostrarToast('Camión eliminado correctamente');
+    } catch (err) {
+      mostrarToast(`Error al eliminar: ${err?.message ?? err}`, 'error');
+    } finally {
+      setBorrandoCamion(false);
+    }
   }
 
   const filtrosActivos = Object.values(filtros).filter(Boolean).length;
@@ -290,16 +406,44 @@ export default function HistorialCamiones() {
                 camion={c}
                 expandido={expandidoId === c.id}
                 onToggle={() => setExpandidoId(prev => prev === c.id ? null : c.id)}
+                onEditar={() => setEditando(c)}
+                onEliminar={() => setEliminando(c)}
               />
             ))}
           </div>
         </div>
       ))}
+
+      {editando && (
+        <EditarCamionModal
+          camion={editando}
+          guardando={guardandoEdicion}
+          onGuardar={cambios => guardarEdicionCamion(editando, cambios)}
+          onCancelar={() => setEditando(null)}
+        />
+      )}
+
+      {eliminando && (
+        <ModalConfirmar
+          titulo="Eliminar camión"
+          texto="¿Eliminar este registro de camión? Esta acción no se puede deshacer."
+          textoConfirmar="Eliminar definitivamente"
+          confirmando={borrandoCamion}
+          onCancelar={() => setEliminando(null)}
+          onConfirmar={() => eliminarCamionRegistro(eliminando)}
+        />
+      )}
+
+      {toast && (
+        <div style={{ ...s.toast, ...(toast.tipo === 'error' ? s.toastError : s.toastOk) }}>
+          {toast.mensaje}
+        </div>
+      )}
     </div>
   );
 }
 
-function CamionCard({ camion: c, expandido, onToggle }) {
+function CamionCard({ camion: c, expandido, onToggle, onEditar, onEliminar }) {
   const [fotoModal, setFotoModal] = useState(null);
 
   const tieneEstado = c.estadoCalidad === 'aprobado' || c.estadoCalidad === 'rechazado';
@@ -396,6 +540,11 @@ function CamionCard({ camion: c, expandido, onToggle }) {
           ) : (
             <p style={s.sinFotos}>Fotos no disponibles para este registro</p>
           )}
+
+          <div style={s.accionesCard}>
+            <button style={s.btnEditar} onClick={e => { e.stopPropagation(); onEditar(); }}>✏️ Editar</button>
+            <button style={s.btnEliminarCard} onClick={e => { e.stopPropagation(); onEliminar(); }}>🗑️ Eliminar</button>
+          </div>
         </div>
       )}
 
@@ -404,6 +553,256 @@ function CamionCard({ camion: c, expandido, onToggle }) {
           <img src={fotoModal} alt="" style={s.fotoModalImg} onClick={e => e.stopPropagation()} />
         </div>
       )}
+    </div>
+  );
+}
+
+function EditarCamionModal({ camion: c, guardando, onGuardar, onCancelar }) {
+  const [form, setForm] = useState(() => ({
+    tipoEntidad: c.tipoEntidad,
+    entidadId: String(c.entidadId ?? ''),
+    involucraSecundaria: Boolean(c.entidadSecundariaTipo),
+    entidadSecundariaTipo: c.entidadSecundariaTipo ?? 'tramo',
+    entidadSecundariaId: c.entidadSecundariaId != null ? String(c.entidadSecundariaId) : '',
+    tipoHormigon: c.tipoHormigon ?? '',
+    usoHormigon: c.usoHormigon ?? '',
+    planta: c.planta ?? '',
+    numeroGuia: c.numeroGuia ?? '',
+    volumen: c.volumen ?? '',
+    cono: c.cono ?? '',
+    tempHormigon: c.tempHormigon ?? '',
+    tempAmbiente: c.tempAmbiente ?? '',
+    horaCarga: c.horaCarga ?? '',
+    horaDescarga: c.horaDescarga ?? '',
+    tiempoTraslado: c.tiempoTraslado ?? '',
+    pesoHoyaHormigon: c.pesoHoyaHormigon ?? '',
+    estadoCalidad: c.estadoCalidad ?? '',
+    observaciones: c.observaciones ?? '',
+  }));
+
+  function campo(nombre, valor) {
+    setForm(prev => ({ ...prev, [nombre]: valor }));
+  }
+
+  function cambiarTipoEntidad(tipo) {
+    setForm(prev => ({ ...prev, tipoEntidad: tipo, entidadId: String(LISTAS[tipo][0]) }));
+  }
+
+  function cambiarTipoEntidadSecundaria(tipo) {
+    setForm(prev => ({ ...prev, entidadSecundariaTipo: tipo, entidadSecundariaId: String(LISTAS[tipo][0]) }));
+  }
+
+  const puPreview = calcPU(form.pesoHoyaHormigon);
+  const fotosEnsayo = c.fotosEnsayoUrls ?? [];
+
+  function handleGuardar() {
+    const entidadIdFinal = form.tipoEntidad === 'caida' ? Number(form.entidadId) : form.entidadId;
+    const entidadSecundariaTipoFinal = form.involucraSecundaria ? form.entidadSecundariaTipo : null;
+    const entidadSecundariaIdFinal = entidadSecundariaTipoFinal
+      ? (entidadSecundariaTipoFinal === 'caida' ? Number(form.entidadSecundariaId) : form.entidadSecundariaId)
+      : null;
+
+    onGuardar({
+      tipoEntidad: form.tipoEntidad,
+      entidadId: entidadIdFinal,
+      entidadSecundariaTipo: entidadSecundariaTipoFinal,
+      entidadSecundariaId: entidadSecundariaIdFinal,
+      tipoHormigon: form.tipoHormigon,
+      usoHormigon: form.usoHormigon || null,
+      planta: form.planta,
+      numeroGuia: form.numeroGuia,
+      volumen: form.volumen,
+      cono: form.cono,
+      tempHormigon: form.tempHormigon,
+      tempAmbiente: form.tempAmbiente,
+      horaCarga: form.horaCarga,
+      horaDescarga: form.horaDescarga,
+      tiempoTraslado: form.tiempoTraslado,
+      pesoHoyaHormigon: form.pesoHoyaHormigon,
+      puCalculado: puPreview,
+      estadoCalidad: form.estadoCalidad || null,
+      observaciones: form.observaciones,
+    });
+  }
+
+  return (
+    <div style={s.overlay}>
+      <div style={s.modalEdit}>
+        <h2 style={s.modalTitulo}>Editar camión</h2>
+
+        <div style={s.modalBody}>
+          <div style={s.filaCampos}>
+            <div style={s.campo}>
+              <label style={s.label}>Tipo de entidad</label>
+              <select style={s.input} value={form.tipoEntidad} onChange={e => cambiarTipoEntidad(e.target.value)}>
+                <option value="tramo">Tramo</option>
+                <option value="caida">Caída</option>
+                <option value="atravieso">Atravieso</option>
+              </select>
+            </div>
+            <div style={s.campo}>
+              <label style={s.label}>Entidad</label>
+              <select style={s.input} value={form.entidadId} onChange={e => campo('entidadId', e.target.value)}>
+                {(LISTAS[form.tipoEntidad] ?? []).map(id => (
+                  <option key={id} value={id}>{NOMBRE_TIPO[form.tipoEntidad]} {id}</option>
+                ))}
+              </select>
+            </div>
+            <div style={s.campo}>
+              <label style={s.label}>Uso del hormigón</label>
+              <select style={s.input} value={form.usoHormigon} onChange={e => campo('usoHormigon', e.target.value)}>
+                <option value="">Sin definir</option>
+                {USOS_HORMIGON.map(u => <option key={u.valor} value={u.valor}>{u.label}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div style={s.filaCampos}>
+            <div style={s.campo}>
+              <label style={s.label}>Tipo de hormigón</label>
+              <select style={s.input} value={form.tipoHormigon} onChange={e => campo('tipoHormigon', e.target.value)}>
+                {TIPOS_HORMIGON.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div style={s.campo}>
+              <label style={s.label}>Planta</label>
+              <select style={s.input} value={form.planta} onChange={e => campo('planta', e.target.value)}>
+                <option value="">Sin definir</option>
+                {PLANTAS.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div style={s.campo}>
+              <label style={s.label}>N° Guía</label>
+              <input style={s.input} type="text" value={form.numeroGuia} onChange={e => campo('numeroGuia', e.target.value)} />
+            </div>
+            <div style={s.campo}>
+              <label style={s.label}>Volumen (m³)</label>
+              <input style={s.input} type="number" step="0.1" value={form.volumen} onChange={e => campo('volumen', e.target.value)} />
+            </div>
+          </div>
+
+          <div style={s.filaCampos}>
+            <div style={s.campo}>
+              <label style={s.label}>Cono (cm)</label>
+              <input style={s.input} type="number" step="0.5" value={form.cono} onChange={e => campo('cono', e.target.value)} />
+            </div>
+            <div style={s.campo}>
+              <label style={s.label}>Temperatura hormigón (°C)</label>
+              <input style={s.input} type="number" step="0.1" value={form.tempHormigon} onChange={e => campo('tempHormigon', e.target.value)} />
+            </div>
+            <div style={s.campo}>
+              <label style={s.label}>Temperatura ambiente (°C)</label>
+              <input style={s.input} type="number" step="0.1" value={form.tempAmbiente} onChange={e => campo('tempAmbiente', e.target.value)} />
+            </div>
+          </div>
+
+          <div style={s.filaCampos}>
+            <div style={s.campo}>
+              <label style={s.label}>Hora carga</label>
+              <input style={s.input} type="time" value={form.horaCarga} onChange={e => campo('horaCarga', e.target.value)} />
+            </div>
+            <div style={s.campo}>
+              <label style={s.label}>Hora descarga</label>
+              <input style={s.input} type="time" value={form.horaDescarga} onChange={e => campo('horaDescarga', e.target.value)} />
+            </div>
+            <div style={s.campo}>
+              <label style={s.label}>Tiempo de traslado (min)</label>
+              <input style={s.input} type="number" step="1" value={form.tiempoTraslado} onChange={e => campo('tiempoTraslado', e.target.value)} />
+            </div>
+          </div>
+
+          <div style={s.filaCampos}>
+            <div style={s.campo}>
+              <label style={s.label}>Peso hoya + hormigón (kg)</label>
+              <input style={s.input} type="number" step="0.01" value={form.pesoHoyaHormigon} onChange={e => campo('pesoHoyaHormigon', e.target.value)} />
+            </div>
+            <div style={s.campo}>
+              <label style={s.label}>PU calculado (kg/m³)</label>
+              <div style={s.puPreview}>{puPreview ? Number(puPreview).toLocaleString('es-CL') : '—'}</div>
+            </div>
+            <div style={s.campo}>
+              <label style={s.label}>Estado de calidad</label>
+              <select style={s.input} value={form.estadoCalidad} onChange={e => campo('estadoCalidad', e.target.value)}>
+                <option value="">Sin definir</option>
+                <option value="aprobado">Aprobado</option>
+                <option value="rechazado">Rechazado</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={s.toggleRow}>
+            <label style={s.toggleLabel}>
+              <input
+                type="checkbox"
+                checked={form.involucraSecundaria}
+                onChange={e => setForm(prev => ({ ...prev, involucraSecundaria: e.target.checked }))}
+              />
+              Involucra otra entidad
+            </label>
+          </div>
+
+          {form.involucraSecundaria && (
+            <div style={s.filaCampos}>
+              <div style={s.campo}>
+                <label style={s.label}>Tipo de entidad secundaria</label>
+                <select style={s.input} value={form.entidadSecundariaTipo} onChange={e => cambiarTipoEntidadSecundaria(e.target.value)}>
+                  <option value="tramo">Tramo</option>
+                  <option value="caida">Caída</option>
+                  <option value="atravieso">Atravieso</option>
+                </select>
+              </div>
+              <div style={s.campo}>
+                <label style={s.label}>Entidad secundaria</label>
+                <select style={s.input} value={form.entidadSecundariaId} onChange={e => campo('entidadSecundariaId', e.target.value)}>
+                  {(LISTAS[form.entidadSecundariaTipo] ?? []).map(id => (
+                    <option key={id} value={id}>{NOMBRE_TIPO[form.entidadSecundariaTipo]} {id}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          <div style={s.campo}>
+            <label style={s.label}>Observaciones</label>
+            <textarea style={s.textarea} rows={3} value={form.observaciones} onChange={e => campo('observaciones', e.target.value)} />
+          </div>
+
+          <div style={s.fotosReadonly}>
+            <span style={s.fotoSeccionTitulo}>Fotos (solo lectura)</span>
+            {!c.fotoGuiaUrl && fotosEnsayo.length === 0 && (
+              <p style={s.sinFotos}>Sin fotos asociadas a este registro</p>
+            )}
+            <div style={s.fotosGrid}>
+              {c.fotoGuiaUrl && <img src={c.fotoGuiaUrl} alt="Guía de despacho" style={s.fotoThumb} />}
+              {fotosEnsayo.map((url, i) => <img key={i} src={url} alt={`Ensayo ${i + 1}`} style={s.fotoThumb} />)}
+            </div>
+          </div>
+        </div>
+
+        <div style={s.modalFooter}>
+          <button style={s.btnCancelarModal} onClick={onCancelar} disabled={guardando}>Cancelar</button>
+          <button style={s.btnGuardar} onClick={handleGuardar} disabled={guardando}>
+            {guardando ? 'Guardando...' : 'Guardar cambios'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ModalConfirmar({ titulo, texto, textoConfirmar, confirmando, onCancelar, onConfirmar }) {
+  return (
+    <div style={s.overlay}>
+      <div style={s.modalConfirm}>
+        <h2 style={s.modalTitulo}>{titulo}</h2>
+        <p style={s.modalTexto}>{texto}</p>
+        <div style={s.modalFooter}>
+          <button style={s.btnCancelarModal} onClick={onCancelar} disabled={confirmando}>Cancelar</button>
+          <button style={s.btnEliminarDef} onClick={onConfirmar} disabled={confirmando}>
+            {confirmando ? 'Eliminando...' : textoConfirmar}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -496,4 +895,74 @@ const s = {
     maxWidth: '100%', maxHeight: '100%', objectFit: 'contain',
     borderRadius: '8px', cursor: 'default',
   },
+
+  accionesCard: { display: 'flex', gap: '8px', marginTop: '4px' },
+  btnEditar: {
+    flex: 1, background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '8px',
+    color: '#ccd6f6', fontSize: '12px', fontWeight: 600, cursor: 'pointer', padding: '8px 10px',
+  },
+  btnEliminarCard: {
+    flex: 1, background: 'transparent', border: '1px solid #e74c3c', borderRadius: '8px',
+    color: '#e74c3c', fontSize: '12px', fontWeight: 600, cursor: 'pointer', padding: '8px 10px',
+  },
+
+  overlay: {
+    position: 'fixed', inset: 0, background: 'rgba(10,15,30,0.85)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: '20px', zIndex: 1100,
+  },
+  modalEdit: {
+    background: '#16213e', border: '1px solid #0f3460', borderRadius: '14px',
+    padding: '20px', width: '100%', maxWidth: '720px', maxHeight: '90vh',
+    display: 'flex', flexDirection: 'column', gap: '14px',
+  },
+  modalConfirm: {
+    background: '#16213e', border: '1px solid #0f3460', borderRadius: '14px',
+    padding: '24px', width: '100%', maxWidth: '420px',
+    display: 'flex', flexDirection: 'column', gap: '16px',
+  },
+  modalTitulo: { color: '#ccd6f6', fontSize: '18px', fontWeight: 700, margin: 0 },
+  modalTexto: { color: '#8892b0', fontSize: '14px', margin: 0, lineHeight: 1.5 },
+  modalBody: {
+    display: 'flex', flexDirection: 'column', gap: '14px',
+    overflowY: 'auto', paddingRight: '4px',
+  },
+  filaCampos: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' },
+  textarea: {
+    background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '7px',
+    color: '#ccd6f6', fontSize: '13px', padding: '9px 10px', fontFamily: 'inherit',
+    outline: 'none', width: '100%', boxSizing: 'border-box', resize: 'vertical',
+  },
+  puPreview: {
+    background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '7px',
+    color: '#64ffda', fontSize: '13px', fontWeight: 700, padding: '9px 10px',
+    boxSizing: 'border-box',
+  },
+  toggleRow: { display: 'flex', alignItems: 'center' },
+  toggleLabel: {
+    display: 'flex', alignItems: 'center', gap: '8px',
+    color: '#ccd6f6', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+  },
+  fotosReadonly: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  modalFooter: { display: 'flex', justifyContent: 'flex-end', gap: '10px' },
+  btnCancelarModal: {
+    background: 'transparent', border: '1px solid #0f3460', color: '#8892b0',
+    borderRadius: '8px', padding: '10px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+  },
+  btnGuardar: {
+    background: '#64ffda', border: 'none', color: '#0a1f3a',
+    borderRadius: '8px', padding: '10px 18px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+  },
+  btnEliminarDef: {
+    background: '#e74c3c', border: 'none', color: '#fff',
+    borderRadius: '8px', padding: '10px 18px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+  },
+
+  toast: {
+    position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
+    borderRadius: '10px', padding: '12px 20px', fontSize: '13px', fontWeight: 600,
+    boxShadow: '0 8px 24px rgba(0,0,0,0.4)', zIndex: 1200,
+  },
+  toastOk: { background: '#27ae60', color: '#fff' },
+  toastError: { background: '#e74c3c', color: '#fff' },
 };
