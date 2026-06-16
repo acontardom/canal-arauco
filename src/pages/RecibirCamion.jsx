@@ -69,6 +69,7 @@ export default function RecibirCamion() {
   const [guardando, setGuardando] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
   const [toast, setToast] = useState(null);
+  const [confirmacion, setConfirmacion] = useState(null);
 
   const inputGuiaRef = useRef(null);
   const inputCamaraRef = useRef(null);
@@ -485,10 +486,10 @@ export default function RecibirCamion() {
 
           {TIPOS_CON_ENSAYO.includes(form.tipoHormigon) ? (
             <div style={s.botonesDecision}>
-              <button style={s.btnAprobar} onClick={() => registrarCamion('aprobado')} disabled={guardando}>
+              <button style={s.btnAprobar} onClick={() => setConfirmacion({ estado: 'aprobado' })} disabled={guardando}>
                 {guardando ? 'Registrando...' : '✅ Aprobar'}
               </button>
-              <button style={s.btnRechazar} onClick={() => registrarCamion('rechazado')} disabled={guardando}>
+              <button style={s.btnRechazar} onClick={() => setConfirmacion({ estado: 'rechazado' })} disabled={guardando}>
                 {guardando ? 'Registrando...' : '❌ Rechazar'}
               </button>
             </div>
@@ -498,6 +499,30 @@ export default function RecibirCamion() {
             </button>
           )}
         </>
+      )}
+
+      {confirmacion && (
+        <div style={s.overlay}>
+          <div style={s.confirmModal}>
+            <p style={s.confirmTexto}>
+              {confirmacion.estado === 'aprobado'
+                ? '¿Confirmar que este camión cumple los estándares de calidad y será aprobado?'
+                : '¿Confirmar que este camión NO cumple los estándares y será rechazado?'}
+            </p>
+            <div style={s.confirmBotones}>
+              <button style={s.btnCancelarConfirm} onClick={() => setConfirmacion(null)}>
+                Cancelar
+              </button>
+              <button
+                style={confirmacion.estado === 'aprobado' ? s.btnConfirmarAprobar : s.btnConfirmarRechazar}
+                onClick={() => { setConfirmacion(null); registrarCamion(confirmacion.estado); }}
+                disabled={guardando}
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {toast && (
@@ -631,4 +656,31 @@ const s = {
     fontSize: '13px', fontWeight: 600, boxShadow: '0 4px 12px rgba(0,0,0,0.3)', zIndex: 200,
   },
   toastError: { background: '#ef4444' },
+
+  overlay: {
+    position: 'fixed', inset: 0, background: 'rgba(10,15,30,0.85)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: '20px', zIndex: 300,
+  },
+  confirmModal: {
+    background: '#16213e', border: '1px solid #0f3460', borderRadius: '14px',
+    padding: '24px', width: '100%', maxWidth: '400px',
+    display: 'flex', flexDirection: 'column', gap: '20px',
+  },
+  confirmTexto: {
+    color: '#ccd6f6', fontSize: '15px', fontWeight: 600, margin: 0, lineHeight: 1.5,
+  },
+  confirmBotones: { display: 'flex', gap: '10px' },
+  btnCancelarConfirm: {
+    flex: 1, background: 'transparent', border: '1px solid #0f3460', color: '#8892b0',
+    borderRadius: '10px', padding: '12px', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+  },
+  btnConfirmarAprobar: {
+    flex: 1, background: '#10b981', color: '#fff', border: 'none',
+    borderRadius: '10px', padding: '12px', fontSize: '14px', fontWeight: 700, cursor: 'pointer',
+  },
+  btnConfirmarRechazar: {
+    flex: 1, background: '#ef4444', color: '#fff', border: 'none',
+    borderRadius: '10px', padding: '12px', fontSize: '14px', fontWeight: 700, cursor: 'pointer',
+  },
 };
