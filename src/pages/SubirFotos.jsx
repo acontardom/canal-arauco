@@ -59,9 +59,20 @@ export default function SubirFotos() {
 
   async function handleCapturar(e) {
     const files = Array.from(e.target.files ?? []);
-    for (const file of files) {
-      const dataUrl = await comprimirFoto(file);
-      setPendientes(prev => [...prev, { dataUrl, etiquetas: [], descripcion: '' }]);
+    if (!files.length) return;
+
+    const ids = files.map(() => `${Date.now()}_${Math.random().toString(36).slice(2)}`);
+
+    // Placeholders inmediatos — uno por archivo
+    setPendientes(prev => [
+      ...prev,
+      ...ids.map(id => ({ id, dataUrl: null, etiquetas: [], descripcion: '', cargando: true })),
+    ]);
+
+    for (let i = 0; i < files.length; i++) {
+      const dataUrl = await comprimirFoto(files[i]);
+      const id = ids[i];
+      setPendientes(prev => prev.map(p => p.id === id ? { ...p, dataUrl, cargando: false } : p));
     }
     e.target.value = '';
   }
@@ -86,10 +97,11 @@ export default function SubirFotos() {
   }
 
   async function guardarTodo() {
-    if (pendientes.length === 0 || guardando) return;
+    const listos = pendientes.filter(f => !f.cargando);
+    if (listos.length === 0 || guardando) return;
     setGuardando(true);
     try {
-      for (const foto of pendientes) {
+      for (const foto of listos) {
         await db.fotos_terreno.add({
           tipo, entidadId: entidadIdReal,
           etiquetas: foto.etiquetas, descripcion: foto.descripcion,
@@ -100,9 +112,10 @@ export default function SubirFotos() {
       }
 
       setGuardadoOk(true);
+      const savedIds = new Set(listos.map(f => f.id));
       setTimeout(() => {
         setGuardadoOk(false);
-        setPendientes([]);
+        setPendientes(prev => prev.filter(p => !savedIds.has(p.id)));
       }, 1500);
 
       if (supabase && navigator.onLine) {
@@ -153,41 +166,57 @@ export default function SubirFotos() {
       </div>
 
       {pendientes.length > 0 && (
-        <div style={s.grid}>
-          {pendientes.map((foto, idx) => (
-            <div key={idx} style={s.fotoCard}>
-              <div style={s.fotoThumb}>
-                <img src={foto.dataUrl} alt="" style={s.fotoImg} />
-                <button style={s.btnEliminarFoto} onClick={() => eliminarPendiente(idx)}>×</button>
+        <>
+          <style>{`@keyframes spin-photo { to { transform: rotate(360deg); } }`}</style>
+          <div style={s.grid}>
+            {pendientes.map((foto, idx) => foto.cargando ? (
+              <div key={foto.id} style={s.fotoCard}>
+                <div style={{ ...s.fotoThumb, ...s.fotoThumbPlaceholder }}>
+                  <div style={s.spinner} />
+                  <span style={s.spinnerTexto}>Cargando...</span>
+                </div>
               </div>
-              <div style={s.etiquetas}>
-                {ETIQUETAS.map(et => (
-                  <button
-                    key={et}
-                    style={{ ...s.chip, ...(foto.etiquetas.includes(et) ? s.chipActivo : {}) }}
-                    onClick={() => toggleEtiqueta(idx, et)}
-                  >
-                    {et}
-                  </button>
-                ))}
+            ) : (
+              <div key={foto.id ?? idx} style={s.fotoCard}>
+                <div style={s.fotoThumb}>
+                  <img src={foto.dataUrl} alt="" style={s.fotoImg} />
+                  <button style={s.btnEliminarFoto} onClick={() => eliminarPendiente(idx)}>×</button>
+                </div>
+                <div style={s.etiquetas}>
+                  {ETIQUETAS.map(et => (
+                    <button
+                      key={et}
+                      style={{ ...s.chip, ...(foto.etiquetas.includes(et) ? s.chipActivo : {}) }}
+                      onClick={() => toggleEtiqueta(idx, et)}
+                    >
+                      {et}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  placeholder="Descripción (opcional)"
+                  style={s.descInput}
+                  value={foto.descripcion}
+                  onChange={e => setDescripcion(idx, e.target.value)}
+                />
               </div>
-              <input
-                type="text"
-                placeholder="Descripción (opcional)"
-                style={s.descInput}
-                value={foto.descripcion}
-                onChange={e => setDescripcion(idx, e.target.value)}
-              />
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
 
-      {pendientes.length > 0 && (
-        <button style={s.btnGuardar} onClick={guardarTodo} disabled={guardando || guardadoOk}>
-          {guardadoOk ? '✅ Guardado' : guardando ? 'Guardando...' : `Guardar todo (${pendientes.length})`}
-        </button>
-      )}
+      {pendientes.length > 0 && (() => {
+        const listos = pendientes.filter(f => !f.cargando);
+        const hayCargando = pendientes.some(f => f.cargando);
+        return (
+          <button style={s.btnGuardar} onClick={guardarTodo} disabled={guardando || guardadoOk || listos.length === 0}>
+            {guardadoOk ? '✅ Guardado'
+              : guardando ? 'Guardando...'
+              : `Guardar${hayCargando ? ' listos' : ' todo'} (${listos.length})`}
+          </button>
+        );
+      })()}
 
       {toast && (
         <div style={{ ...s.toast, ...(toast.tipo === 'error' ? s.toastError : {}) }}>
@@ -243,6 +272,16 @@ const s = {
     background: '#16213e', border: '1px solid #0f3460', borderRadius: '10px', padding: '8px',
   },
   fotoThumb: { position: 'relative', aspectRatio: '1', borderRadius: '8px', overflow: 'hidden' },
+  fotoThumbPlaceholder: {
+    background: '#0a1428', display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center', gap: '8px',
+  },
+  spinner: {
+    width: '28px', height: '28px', borderRadius: '50%',
+    border: '3px solid #1e3a5f', borderTopColor: '#64ffda',
+    animation: 'spin-photo 0.8s linear infinite',
+  },
+  spinnerTexto: { color: '#8892b0', fontSize: '10px', fontWeight: 600 },
   fotoImg: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
   btnEliminarFoto: {
     position: 'absolute', top: '4px', right: '4px', background: 'rgba(0,0,0,0.7)',

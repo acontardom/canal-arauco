@@ -91,12 +91,19 @@ export default function RecibirCamion() {
 
   function guardarBorrador(t, eid, f) {
     if (isFormVacio(f)) return;
+    // Strip loading items so a draft in-flight never persists as a broken placeholder
+    const fSafe = {
+      ...f,
+      fotoGuia: f.fotoGuia?.cargando ? null : f.fotoGuia,
+      fotosEnsayo: (f.fotosEnsayo ?? []).filter(fo => !fo.cargando),
+    };
+    if (isFormVacio(fSafe)) return;
     const key = claveBorrador(t, eid);
     try {
-      localStorage.setItem(key, JSON.stringify({ tipo: t, entidadId: eid, form: f }));
+      localStorage.setItem(key, JSON.stringify({ tipo: t, entidadId: eid, form: fSafe }));
     } catch {
       try {
-        localStorage.setItem(key, JSON.stringify({ tipo: t, entidadId: eid, form: { ...f, fotoGuia: null, fotosEnsayo: [] } }));
+        localStorage.setItem(key, JSON.stringify({ tipo: t, entidadId: eid, form: { ...fSafe, fotoGuia: null, fotosEnsayo: [] } }));
       } catch {
         console.warn('[Borrador] localStorage lleno, borrador no guardado');
       }
@@ -164,6 +171,7 @@ export default function RecibirCamion() {
   async function handleFotoGuia(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setForm(prev => ({ ...prev, fotoGuia: { cargando: true, dataUrl: null, url: null } }));
     const dataUrl = await comprimirFoto(file);
     let url = null;
     if (supabase && navigator.onLine) {
@@ -177,13 +185,25 @@ export default function RecibirCamion() {
         console.warn('[RecibirCamion] Error subiendo foto guía:', err?.message ?? err);
       }
     }
-    setForm(prev => ({ ...prev, fotoGuia: { dataUrl, url } }));
+    setForm(prev => ({ ...prev, fotoGuia: { cargando: false, dataUrl, url } }));
     e.target.value = '';
   }
 
   async function handleFotosEnsayo(e) {
     const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+
+    const ids = files.map(() => `${Date.now()}_${Math.random().toString(36).slice(2)}`);
     const baseIndex = form.fotosEnsayo.length;
+
+    setForm(prev => ({
+      ...prev,
+      fotosEnsayo: [
+        ...prev.fotosEnsayo,
+        ...ids.map(id => ({ id, cargando: true, dataUrl: null, url: null, descripcion: '' })),
+      ],
+    }));
+
     for (let i = 0; i < files.length; i++) {
       const dataUrl = await comprimirFoto(files[i]);
       let url = null;
@@ -198,9 +218,10 @@ export default function RecibirCamion() {
           console.warn('[RecibirCamion] Error subiendo foto ensayo:', err?.message ?? err);
         }
       }
+      const id = ids[i];
       setForm(prev => ({
         ...prev,
-        fotosEnsayo: [...prev.fotosEnsayo, { dataUrl, url, descripcion: '' }],
+        fotosEnsayo: prev.fotosEnsayo.map(f => f.id === id ? { ...f, cargando: false, dataUrl, url } : f),
       }));
     }
     e.target.value = '';
@@ -469,15 +490,24 @@ export default function RecibirCamion() {
             </>
           )}
 
+          <style>{`@keyframes spin-photo { to { transform: rotate(360deg); } }`}</style>
           <p style={s.sectionTitle}>Foto Guía de Despacho</p>
           <input ref={inputGuiaRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFotoGuia} />
           {form.fotoGuia ? (
             <div style={s.fotoGuiaWrap}>
-              <div style={s.fotoThumb}>
-                <img src={form.fotoGuia.url || form.fotoGuia.dataUrl} alt="" style={s.fotoImg} />
-                <button style={s.btnEliminarFoto} onClick={() => set('fotoGuia', null)}>×</button>
+              <div style={form.fotoGuia.cargando ? { ...s.fotoThumb, ...s.fotoThumbPlaceholder } : s.fotoThumb}>
+                {form.fotoGuia.cargando ? (
+                  <><div style={s.spinner} /><span style={s.spinnerTexto}>Cargando...</span></>
+                ) : (
+                  <>
+                    <img src={form.fotoGuia.url || form.fotoGuia.dataUrl} alt="" style={s.fotoImg} />
+                    <button style={s.btnEliminarFoto} onClick={() => set('fotoGuia', null)}>×</button>
+                  </>
+                )}
               </div>
-              <button style={s.btnFotoSm} onClick={() => inputGuiaRef.current?.click()}>Cambiar foto</button>
+              {!form.fotoGuia.cargando && (
+                <button style={s.btnFotoSm} onClick={() => inputGuiaRef.current?.click()}>Cambiar foto</button>
+              )}
             </div>
           ) : (
             <button style={s.btnFotoSm} onClick={() => inputGuiaRef.current?.click()}>📷 Agregar foto</button>
@@ -495,18 +525,27 @@ export default function RecibirCamion() {
               {form.fotosEnsayo.length > 0 && (
                 <div style={s.grid}>
                   {form.fotosEnsayo.map((foto, idx) => (
-                    <div key={idx} style={s.fotoCard}>
-                      <div style={s.fotoThumb}>
-                        <img src={foto.url || foto.dataUrl} alt="" style={s.fotoImg} />
-                        <button style={s.btnEliminarFoto} onClick={() => eliminarFotoEnsayo(idx)}>×</button>
-                      </div>
-                      <input
-                        type="text"
-                        placeholder="Descripción..."
-                        style={s.descInput}
-                        value={foto.descripcion}
-                        onChange={e => setDescEnsayo(idx, e.target.value)}
-                      />
+                    <div key={foto.id ?? idx} style={s.fotoCard}>
+                      {foto.cargando ? (
+                        <div style={{ ...s.fotoThumb, ...s.fotoThumbPlaceholder }}>
+                          <div style={s.spinner} />
+                          <span style={s.spinnerTexto}>Cargando...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <div style={s.fotoThumb}>
+                            <img src={foto.url || foto.dataUrl} alt="" style={s.fotoImg} />
+                            <button style={s.btnEliminarFoto} onClick={() => eliminarFotoEnsayo(idx)}>×</button>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Descripción..."
+                            style={s.descInput}
+                            value={foto.descripcion}
+                            onChange={e => setDescEnsayo(idx, e.target.value)}
+                          />
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -661,6 +700,16 @@ const s = {
 
   fotoGuiaWrap: { display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '160px' },
   fotoThumb: { position: 'relative', aspectRatio: '1', borderRadius: '8px', overflow: 'hidden' },
+  fotoThumbPlaceholder: {
+    background: '#0a1428', display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center', gap: '8px',
+  },
+  spinner: {
+    width: '28px', height: '28px', borderRadius: '50%',
+    border: '3px solid #1e3a5f', borderTopColor: '#64ffda',
+    animation: 'spin-photo 0.8s linear infinite',
+  },
+  spinnerTexto: { color: '#8892b0', fontSize: '10px', fontWeight: 600 },
   fotoImg: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
   btnEliminarFoto: {
     position: 'absolute', top: '4px', right: '4px', background: 'rgba(0,0,0,0.7)',
