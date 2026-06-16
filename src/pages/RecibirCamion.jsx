@@ -178,7 +178,6 @@ export default function RecibirCamion() {
         next.tempHormigon = '';
         next.tempAmbiente = '';
         next.pesoHoyaHormigon = '';
-        next.fotoGuia = null;
         next.fotosEnsayo = [];
       }
       if (field === 'entidadSecundariaTipo') {
@@ -526,30 +525,26 @@ export default function RecibirCamion() {
             </>
           )}
 
-          {(!TIPOS_CON_ENSAYO.includes(form.tipoHormigon) || form.llevaEnsayo) && (
-            <>
-              <p style={s.sectionTitle}>Foto Guía de Despacho</p>
-              <input ref={inputGuiaRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFotoGuia} />
-              {form.fotoGuia ? (
-                <div style={s.fotoGuiaWrap}>
-                  <div style={form.fotoGuia.cargando ? { ...s.fotoThumb, ...s.fotoThumbPlaceholder } : s.fotoThumb}>
-                    {form.fotoGuia.cargando ? (
-                      <><div style={s.spinner} /><span style={s.spinnerTexto}>Cargando...</span></>
-                    ) : (
-                      <>
-                        <img src={form.fotoGuia.url || form.fotoGuia.dataUrl} alt="" style={s.fotoImg} />
-                        <button style={s.btnEliminarFoto} onClick={() => set('fotoGuia', null)}>×</button>
-                      </>
-                    )}
-                  </div>
-                  {!form.fotoGuia.cargando && (
-                    <button style={s.btnFotoSm} onClick={() => inputGuiaRef.current?.click()}>Cambiar foto</button>
-                  )}
-                </div>
-              ) : (
-                <button style={s.btnFotoSm} onClick={() => inputGuiaRef.current?.click()}>📷 Agregar foto</button>
+          <p style={s.sectionTitle}>Foto Guía de Despacho</p>
+          <input ref={inputGuiaRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFotoGuia} />
+          {form.fotoGuia ? (
+            <div style={s.fotoGuiaWrap}>
+              <div style={form.fotoGuia.cargando ? { ...s.fotoThumb, ...s.fotoThumbPlaceholder } : s.fotoThumb}>
+                {form.fotoGuia.cargando ? (
+                  <><div style={s.spinner} /><span style={s.spinnerTexto}>Cargando...</span></>
+                ) : (
+                  <>
+                    <img src={form.fotoGuia.url || form.fotoGuia.dataUrl} alt="" style={s.fotoImg} />
+                    <button style={s.btnEliminarFoto} onClick={() => set('fotoGuia', null)}>×</button>
+                  </>
+                )}
+              </div>
+              {!form.fotoGuia.cargando && (
+                <button style={s.btnFotoSm} onClick={() => inputGuiaRef.current?.click()}>Cambiar foto</button>
               )}
-            </>
+            </div>
+          ) : (
+            <button style={s.btnFotoSm} onClick={() => inputGuiaRef.current?.click()}>📷 Agregar foto</button>
           )}
 
           {TIPOS_CON_ENSAYO.includes(form.tipoHormigon) && form.llevaEnsayo && (
