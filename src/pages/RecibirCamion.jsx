@@ -177,9 +177,6 @@ export default function RecibirCamion() {
         next.cono = '';
         next.tempHormigon = '';
         next.tempAmbiente = '';
-        next.horaCarga = '';
-        next.horaDescarga = '';
-        next.tiempoTraslado = '';
         next.pesoHoyaHormigon = '';
         next.fotoGuia = null;
         next.fotosEnsayo = [];
@@ -467,15 +464,30 @@ export default function RecibirCamion() {
           </div>
 
           {TIPOS_CON_ENSAYO.includes(form.tipoHormigon) && (
-            <div style={s.toggleRow}>
-              <span style={s.label}>🔬 Control de calidad</span>
-              <button
-                style={{ ...s.toggle, ...(form.llevaEnsayo ? s.toggleActivo : {}) }}
-                onClick={() => set('llevaEnsayo', !form.llevaEnsayo)}
-              >
-                {form.llevaEnsayo ? 'Sí' : 'No'}
-              </button>
-            </div>
+            <>
+              <div style={s.row}>
+                <div style={s.campo}>
+                  <label style={s.label}>Hora de carga</label>
+                  <input style={s.input} type="time" value={form.horaCarga} onChange={e => set('horaCarga', e.target.value)} />
+                </div>
+                <div style={s.campo}>
+                  <label style={s.label}>Hora de descarga</label>
+                  <input style={s.input} type="time" value={form.horaDescarga} onChange={e => set('horaDescarga', e.target.value)} />
+                </div>
+              </div>
+              {form.tiempoTraslado && (
+                <div style={s.calcBadge}>Tiempo de traslado: {form.tiempoTraslado} min</div>
+              )}
+              <div style={s.toggleRow}>
+                <span style={s.label}>🔬 Control de calidad</span>
+                <button
+                  style={{ ...s.toggle, ...(form.llevaEnsayo ? s.toggleActivo : {}) }}
+                  onClick={() => set('llevaEnsayo', !form.llevaEnsayo)}
+                >
+                  {form.llevaEnsayo ? 'Sí' : 'No'}
+                </button>
+              </div>
+            </>
           )}
 
           <style>{`@keyframes spin-photo { to { transform: rotate(360deg); } }`}</style>
@@ -496,20 +508,6 @@ export default function RecibirCamion() {
                   <input style={s.input} type="number" step="0.1" placeholder="0" value={form.tempAmbiente} onChange={e => set('tempAmbiente', e.target.value)} />
                 </div>
               </div>
-
-              <div style={s.row}>
-                <div style={s.campo}>
-                  <label style={s.label}>Hora de carga</label>
-                  <input style={s.input} type="time" value={form.horaCarga} onChange={e => set('horaCarga', e.target.value)} />
-                </div>
-                <div style={s.campo}>
-                  <label style={s.label}>Hora de descarga</label>
-                  <input style={s.input} type="time" value={form.horaDescarga} onChange={e => set('horaDescarga', e.target.value)} />
-                </div>
-              </div>
-              {form.tiempoTraslado && (
-                <div style={s.calcBadge}>Tiempo de traslado: {form.tiempoTraslado} min</div>
-              )}
 
               <p style={s.sectionTitle}>Ensayo Peso Unitario</p>
               <div style={s.row}>
