@@ -27,6 +27,12 @@ function sumarMinutos(hora, minutos) {
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
 
+function calcTraslado(horaCarga, horaDescarga) {
+  const [hc, mc] = horaCarga.split(':').map(Number);
+  const [hd, md] = horaDescarga.split(':').map(Number);
+  return String(((hd * 60 + md) - (hc * 60 + mc) + 1440) % 1440);
+}
+
 function randomTraslado() {
   return Math.floor(Math.random() * (50 - 35 + 1)) + 35;
 }
@@ -154,12 +160,17 @@ export default function RecibirCamion() {
       if (field === 'horaCarga') {
         if (value) {
           const minutos = randomTraslado();
-          next.tiempoTraslado = String(minutos);
           next.horaDescarga = sumarMinutos(value, minutos);
+          next.tiempoTraslado = String(minutos);
         } else {
-          next.tiempoTraslado = '';
           next.horaDescarga = '';
+          next.tiempoTraslado = '';
         }
+      }
+      if (field === 'horaDescarga') {
+        next.tiempoTraslado = (value && prev.horaCarga)
+          ? calcTraslado(prev.horaCarga, value)
+          : '';
       }
       if (field === 'entidadSecundariaTipo') {
         next.entidadSecundariaId = '';
@@ -466,7 +477,7 @@ export default function RecibirCamion() {
                 </div>
                 <div style={s.campo}>
                   <label style={s.label}>Hora de descarga</label>
-                  <input style={{ ...s.input, ...s.inputReadOnly }} type="time" value={form.horaDescarga} readOnly tabIndex={-1} />
+                  <input style={s.input} type="time" value={form.horaDescarga} onChange={e => set('horaDescarga', e.target.value)} />
                 </div>
               </div>
               {form.tiempoTraslado && (
