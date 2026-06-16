@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
@@ -70,6 +70,7 @@ export default function RecibirCamion() {
   const [sincronizando, setSincronizando] = useState(false);
   const [toast, setToast] = useState(null);
   const [confirmacion, setConfirmacion] = useState(null);
+  const [borradorDisponible, setBorradorDisponible] = useState(null);
 
   const inputGuiaRef = useRef(null);
   const inputCamaraRef = useRef(null);
@@ -78,9 +79,60 @@ export default function RecibirCamion() {
 
   const entidadIdReal = tipo === 'caida' ? Number(entidadId) : entidadId;
 
+  function claveBorrador(t, eid) {
+    return `camion_borrador_${t}_${eid}`;
+  }
+
+  function isFormVacio(f) {
+    return !f.tipoHormigon && !f.numeroGuia && !f.volumen && !f.planta
+      && !f.cono && !f.tempHormigon && !f.horaCarga && !f.pesoHoyaHormigon
+      && !f.observaciones && !f.fotoGuia && f.fotosEnsayo.length === 0;
+  }
+
+  function guardarBorrador(t, eid, f) {
+    if (isFormVacio(f)) return;
+    const key = claveBorrador(t, eid);
+    try {
+      localStorage.setItem(key, JSON.stringify({ tipo: t, entidadId: eid, form: f }));
+    } catch {
+      try {
+        localStorage.setItem(key, JSON.stringify({ tipo: t, entidadId: eid, form: { ...f, fotoGuia: null, fotosEnsayo: [] } }));
+      } catch {
+        console.warn('[Borrador] localStorage lleno, borrador no guardado');
+      }
+    }
+  }
+
+  function limpiarBorrador() {
+    localStorage.removeItem(claveBorrador(tipo, entidadId));
+  }
+
+  // Auto-save on every form change
+  useEffect(() => {
+    guardarBorrador(tipo, entidadId, form);
+  }, [form]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Check for existing draft when entity changes
+  useEffect(() => {
+    const raw = localStorage.getItem(claveBorrador(tipo, entidadId));
+    if (raw) {
+      try { setBorradorDisponible(JSON.parse(raw)); } catch { setBorradorDisponible(null); }
+    } else {
+      setBorradorDisponible(null);
+    }
+  }, [tipo, entidadId]);
+
   function handleTipoChange(nuevoTipo) {
+    guardarBorrador(tipo, entidadId, form);
     setTipo(nuevoTipo);
     setEntidadId(String(LISTAS[nuevoTipo][0]));
+    setForm(initialForm);
+  }
+
+  function handleEntidadChange(nuevoId) {
+    guardarBorrador(tipo, entidadId, form);
+    setEntidadId(nuevoId);
+    setForm(initialForm);
   }
 
   function mostrarToast(msg, t = 'ok') {
@@ -223,6 +275,7 @@ export default function RecibirCamion() {
       };
 
       const id = await db.camiones.add(camion);
+      limpiarBorrador();
 
       setUltimoCamion({ ...camion, id });
       setForm(initialForm);
@@ -278,6 +331,26 @@ export default function RecibirCamion() {
 
       {sincronizando && <div style={s.syncIndicator}>☁️ Sincronizando...</div>}
 
+      {borradorDisponible && (
+        <div style={s.bannerBorrador}>
+          <span style={s.bannerTexto}>Tienes un borrador guardado. ¿Continuar donde lo dejaste?</span>
+          <div style={s.bannerBotones}>
+            <button
+              style={s.btnContinuarBorrador}
+              onClick={() => { setForm(borradorDisponible.form); setBorradorDisponible(null); }}
+            >
+              Continuar
+            </button>
+            <button
+              style={s.btnDescartarBorrador}
+              onClick={() => { limpiarBorrador(); setBorradorDisponible(null); setForm(initialForm); }}
+            >
+              Empezar de nuevo
+            </button>
+          </div>
+        </div>
+      )}
+
       <p style={s.sectionTitle}>Entidad Principal</p>
       <div style={s.row}>
         <div style={s.campo}>
@@ -290,7 +363,7 @@ export default function RecibirCamion() {
         </div>
         <div style={s.campo}>
           <label style={s.label}>Entidad</label>
-          <select style={s.input} value={entidadId} onChange={e => setEntidadId(e.target.value)}>
+          <select style={s.input} value={entidadId} onChange={e => handleEntidadChange(e.target.value)}>
             {LISTAS[tipo].map(id => (
               <option key={id} value={id}>{NOMBRE_TIPO[tipo]} {id}</option>
             ))}
@@ -656,6 +729,21 @@ const s = {
     fontSize: '13px', fontWeight: 600, boxShadow: '0 4px 12px rgba(0,0,0,0.3)', zIndex: 200,
   },
   toastError: { background: '#ef4444' },
+
+  bannerBorrador: {
+    background: '#0a2040', border: '1px solid #64ffda', borderRadius: '12px',
+    padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px',
+  },
+  bannerTexto: { color: '#ccd6f6', fontSize: '13px', fontWeight: 600, lineHeight: 1.4 },
+  bannerBotones: { display: 'flex', gap: '8px' },
+  btnContinuarBorrador: {
+    flex: 1, background: '#64ffda', color: '#0a1f3a', border: 'none',
+    borderRadius: '8px', padding: '9px 10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+  },
+  btnDescartarBorrador: {
+    flex: 1, background: 'transparent', color: '#8892b0', border: '1px solid #0f3460',
+    borderRadius: '8px', padding: '9px 10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+  },
 
   overlay: {
     position: 'fixed', inset: 0, background: 'rgba(10,15,30,0.85)',
