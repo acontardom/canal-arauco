@@ -2,6 +2,14 @@ import { db } from '../db/database';
 import { supabase } from '../config/supabase';
 import { uploadFoto } from './uploadFoto';
 
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
 // ─── Sincronización de protocolos ─────────────────────────────────────────────
 
 async function sincronizarProtocolos() {
@@ -11,7 +19,15 @@ async function sincronizarProtocolos() {
 
   for (const protocolo of pendientes) {
     try {
+      // Garantizar UUID permanente para registros anteriores a v10
+      if (!protocolo.deviceProtocoloId) {
+        const deviceProtocoloId = generateUUID();
+        await db.protocolos.update(protocolo.id, { deviceProtocoloId });
+        protocolo.deviceProtocoloId = deviceProtocoloId;
+      }
+
       const payload = {
+        device_protocolo_id: protocolo.deviceProtocoloId,
         local_id:           protocolo.id,
         tipo:               protocolo.tipo,
         entidad:            protocolo.entidad,
@@ -25,12 +41,9 @@ async function sincronizarProtocolos() {
         datos:              protocolo.datos ?? {},
       };
 
-      // TODO: quitar este log una vez confirmado en producción
-      console.log('[Sync] Enviando protocolo:', payload);
-
       const { data, error } = await supabase
         .from('protocolos')
-        .upsert(payload, { onConflict: 'local_id' })
+        .upsert(payload, { onConflict: 'device_protocolo_id' })
         .select('id')
         .single();
 
@@ -104,14 +117,20 @@ async function sincronizarFotosTerreno() {
     .filter(f => !f.sincronizada)
     .toArray();
 
-  console.log('Sincronizando fotos_terreno pendientes:', pendientes.length);
-
   for (const foto of pendientes) {
     try {
-      const { data, error } = await supabase
+      // Garantizar UUID permanente para registros anteriores a v10
+      if (!foto.deviceFotoTerrenoId) {
+        const deviceFotoTerrenoId = generateUUID();
+        await db.fotos_terreno.update(foto.id, { deviceFotoTerrenoId });
+        foto.deviceFotoTerrenoId = deviceFotoTerrenoId;
+      }
+
+      const { error } = await supabase
         .from('fotos_terreno')
         .upsert(
           {
+            device_foto_terreno_id: foto.deviceFotoTerrenoId,
             local_id:       foto.id,
             tipo:           foto.tipo,
             entidad_id:     String(foto.entidadId),
@@ -123,11 +142,8 @@ async function sincronizarFotosTerreno() {
             usuario_nombre: foto.usuarioNombre ?? null,
             fecha_captura:  foto.fechaCaptura ?? null,
           },
-          { onConflict: 'local_id' }
-        )
-        .select();
-
-      console.log('Resultado upsert fotos_terreno:', data, error);
+          { onConflict: 'device_foto_terreno_id' }
+        );
 
       if (error) throw error;
 
@@ -152,10 +168,18 @@ async function sincronizarFotos() {
       // No sincronizar fotos cuyo protocolo todavía no llegó a Supabase
       if (!protocoloLocal?.supabaseId) continue;
 
+      // Garantizar UUID permanente para registros anteriores a v10
+      if (!foto.deviceFotoId) {
+        const deviceFotoId = generateUUID();
+        await db.fotos.update(foto.id, { deviceFotoId });
+        foto.deviceFotoId = deviceFotoId;
+      }
+
       const { error } = await supabase
         .from('fotos')
         .upsert(
           {
+            device_foto_id:     foto.deviceFotoId,
             local_id:          foto.id,
             protocolo_id:      protocoloLocal.supabaseId,
             protocolo_local_id: foto.protocoloLocalId,
@@ -166,7 +190,7 @@ async function sincronizarFotos() {
             storage_url:       foto.storageUrl ?? null,
             subida_storage:    foto.subidaStorage ?? false,
           },
-          { onConflict: 'local_id' }
+          { onConflict: 'device_foto_id' }
         );
 
       if (error) throw error;
@@ -246,7 +270,15 @@ async function sincronizarCamiones() {
 
   for (const camion of pendientes) {
     try {
+      // Garantizar UUID permanente para registros anteriores a v9
+      if (!camion.deviceCamionId) {
+        const deviceCamionId = generateUUID();
+        await db.camiones.update(camion.id, { deviceCamionId });
+        camion.deviceCamionId = deviceCamionId;
+      }
+
       const payload = {
+        device_camion_id:        camion.deviceCamionId,
         local_id:                camion.id,
         tipo_entidad:            camion.tipoEntidad,
         entidad_id:              String(camion.entidadId),
@@ -275,7 +307,7 @@ async function sincronizarCamiones() {
 
       const { data, error } = await supabase
         .from('camiones')
-        .upsert(payload, { onConflict: 'local_id' })
+        .upsert(payload, { onConflict: 'device_camion_id' })
         .select('id')
         .single();
 
@@ -305,14 +337,17 @@ export async function descargarDesdeSupabase() {
     if (errProt) throw errProt;
 
     for (const remoto of remotos ?? []) {
-      // Buscar en Dexie por local_id (clave primaria original) o por supabaseId
-      let local = remoto.local_id ? await db.protocolos.get(remoto.local_id) : null;
+      // Buscar por UUID permanente (v10+) → fallback a supabaseId
+      let local = remoto.device_protocolo_id
+        ? await db.protocolos.where('deviceProtocoloId').equals(remoto.device_protocolo_id).first()
+        : null;
 
       if (!local && remoto.id) {
         local = await db.protocolos.where('supabaseId').equals(remoto.id).first();
       }
 
       const dexieData = {
+        deviceProtocoloId: remoto.device_protocolo_id ?? null,
         tipo:              remoto.tipo,
         entidad:           remoto.entidad ?? remoto.tipo,
         // Las caídas se almacenan como Number en Dexie; los tramos como string
@@ -331,12 +366,7 @@ export async function descargarDesdeSupabase() {
       };
 
       if (!local) {
-        // Insertar preservando el local_id original como clave primaria de Dexie
-        if (remoto.local_id) {
-          await db.protocolos.put({ id: remoto.local_id, ...dexieData });
-        } else {
-          await db.protocolos.add(dexieData);
-        }
+        await db.protocolos.add(dexieData);
       } else {
         // Actualizar solo si el remoto es más reciente (comparación lexicográfica de ISO)
         const fechaRemota = remoto.fecha_modificacion ?? '';
@@ -355,11 +385,14 @@ export async function descargarDesdeSupabase() {
     if (errFotos) throw errFotos;
 
     for (const remoto of fotosRemoto ?? []) {
-      // Verificar existencia por local_id
-      const local = remoto.local_id ? await db.fotos.get(remoto.local_id) : null;
+      // Buscar por UUID permanente (v10+) → fallback a supabaseId
+      const local = remoto.device_foto_id
+        ? await db.fotos.where('deviceFotoId').equals(remoto.device_foto_id).first()
+        : await db.fotos.where('supabaseId').equals(remoto.id).first();
 
       if (!local) {
-        const fotoData = {
+        await db.fotos.add({
+          deviceFotoId:     remoto.device_foto_id ?? null,
           protocoloLocalId: remoto.protocolo_local_id,
           nombre:           remoto.nombre ?? null,
           tipo:             remoto.tipo_mime ?? null,
@@ -368,13 +401,7 @@ export async function descargarDesdeSupabase() {
           storageUrl:       remoto.storage_url ?? null,
           subidaStorage:    remoto.subida_storage ?? false,
           sincronizada:     true,
-        };
-
-        if (remoto.local_id) {
-          await db.fotos.put({ id: remoto.local_id, ...fotoData });
-        } else {
-          await db.fotos.add(fotoData);
-        }
+        });
       }
       // Si ya existe → no se modifica (las fotos no se editan)
     }
@@ -387,10 +414,14 @@ export async function descargarDesdeSupabase() {
     if (errFotosTerreno) throw errFotosTerreno;
 
     for (const remoto of fotosTerrenoRemoto ?? []) {
-      const local = remoto.local_id ? await db.fotos_terreno.get(remoto.local_id) : null;
+      // Buscar por UUID permanente (v10+) → fallback a supabaseId
+      const local = remoto.device_foto_terreno_id
+        ? await db.fotos_terreno.where('deviceFotoTerrenoId').equals(remoto.device_foto_terreno_id).first()
+        : null;
 
       if (!local) {
-        const fotoData = {
+        await db.fotos_terreno.add({
+          deviceFotoTerrenoId: remoto.device_foto_terreno_id ?? null,
           tipo:          remoto.tipo,
           entidadId:     remoto.tipo === 'caida' ? Number(remoto.entidad_id) : remoto.entidad_id,
           etiquetas:     remoto.etiquetas ?? [],
@@ -401,13 +432,7 @@ export async function descargarDesdeSupabase() {
           usuarioNombre: remoto.usuario_nombre ?? null,
           fechaCaptura:  remoto.fecha_captura ?? null,
           sincronizada:  true,
-        };
-
-        if (remoto.local_id) {
-          await db.fotos_terreno.put({ id: remoto.local_id, ...fotoData });
-        } else {
-          await db.fotos_terreno.add(fotoData);
-        }
+        });
       }
       // Si ya existe → no se modifica (las fotos no se editan)
     }
@@ -420,14 +445,18 @@ export async function descargarDesdeSupabase() {
     if (errCamiones) throw errCamiones;
 
     for (const remoto of camionesRemoto ?? []) {
-      let local = remoto.local_id ? await db.camiones.get(remoto.local_id) : null;
+      // Buscar por UUID permanente (v9+) → fallback a supabaseId
+      let local = remoto.device_camion_id
+        ? await db.camiones.where('deviceCamionId').equals(remoto.device_camion_id).first()
+        : null;
 
       if (!local && remoto.id) {
         local = await db.camiones.where('supabaseId').equals(remoto.id).first();
       }
 
       if (!local) {
-        const camionData = {
+        await db.camiones.add({
+          deviceCamionId:         remoto.device_camion_id ?? null,
           tipoEntidad:            remoto.tipo_entidad,
           entidadId:              remoto.tipo_entidad === 'caida' ? Number(remoto.entidad_id) : remoto.entidad_id,
           entidadSecundariaTipo:  remoto.entidad_secundaria_tipo ?? null,
@@ -455,15 +484,9 @@ export async function descargarDesdeSupabase() {
           estadoCalidad:          remoto.estado_calidad ?? null,
           supabaseId:             remoto.id,
           sincronizado:           true,
-        };
-
-        if (remoto.local_id) {
-          await db.camiones.put({ id: remoto.local_id, ...camionData });
-        } else {
-          await db.camiones.add(camionData);
-        }
+        });
       }
-      // Si ya existe → no se modifica (los camiones no se editan)
+      // Si ya existe → no se modifica (los camiones no se editan aquí)
     }
   } catch (err) {
     console.warn('[Sync] Error al descargar desde Supabase:', err?.message ?? err);

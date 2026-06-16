@@ -2,6 +2,14 @@ import Dexie from 'dexie';
 
 export const db = new Dexie('CanalAraucoDb');
 
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
 db.version(1).stores({
   protocolos:
     '++id, tipo, entidad, entidadId, protocoloId, estado, usuarioNombre, fechaCreacion, fechaModificacion, datos',
@@ -52,6 +60,36 @@ db.version(7).stores({
 db.version(8).stores({
   camiones:
     '++id, tipoEntidad, entidadId, entidadSecundariaTipo, entidadSecundariaId, tipoHormigon, usoHormigon, volumen, numeroGuia, planta, cono, tempHormigon, tempAmbiente, horaCarga, horaDescarga, tiempoTraslado, pesoHoyaHormigon, puCalculado, observaciones, usuarioNombre, fechaRecepcion, sincronizado, supabaseId, estadoCalidad, fotoGuiaUrl, fotosEnsayoUrls',
+});
+
+// v9: UUID permanente para camiones — evita colisiones de local_id al reinstalar
+db.version(9).stores({
+  camiones:
+    '++id, tipoEntidad, entidadId, entidadSecundariaTipo, entidadSecundariaId, tipoHormigon, usoHormigon, volumen, numeroGuia, planta, cono, tempHormigon, tempAmbiente, horaCarga, horaDescarga, tiempoTraslado, pesoHoyaHormigon, puCalculado, observaciones, usuarioNombre, fechaRecepcion, sincronizado, supabaseId, estadoCalidad, fotoGuiaUrl, fotosEnsayoUrls, deviceCamionId',
+});
+
+// v10: UUID permanente para protocolos, fotos y fotos_terreno — mismo problema potencial
+db.version(10).stores({
+  protocolos:
+    '++id, tipo, entidad, entidadId, protocoloId, estado, usuarioNombre, fechaCreacion, fechaModificacion, datos, supabaseId, sincronizada, deviceProtocoloId',
+  fotos:
+    '++id, protocoloLocalId, nombre, tipo, dataUrl, sincronizada, storageUrl, subidaStorage, deviceFotoId',
+  fotos_terreno:
+    '++id, tipo, entidadId, etiquetas, descripcion, dataUrl, storageUrl, subidaStorage, usuarioNombre, fechaCaptura, sincronizada, deviceFotoTerrenoId',
+});
+
+// Hooks: genera UUID permanente al crear cualquier registro nuevo
+db.camiones.hook('creating', (primKey, obj) => {
+  if (!obj.deviceCamionId) obj.deviceCamionId = generateUUID();
+});
+db.protocolos.hook('creating', (primKey, obj) => {
+  if (!obj.deviceProtocoloId) obj.deviceProtocoloId = generateUUID();
+});
+db.fotos.hook('creating', (primKey, obj) => {
+  if (!obj.deviceFotoId) obj.deviceFotoId = generateUUID();
+});
+db.fotos_terreno.hook('creating', (primKey, obj) => {
+  if (!obj.deviceFotoTerrenoId) obj.deviceFotoTerrenoId = generateUUID();
 });
 
 export default db;
