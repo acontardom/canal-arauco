@@ -303,6 +303,7 @@ async function sincronizarCamiones() {
         foto_guia_url:           camion.fotoGuiaUrl ?? null,
         fotos_ensayo_urls:       camion.fotosEnsayoUrls ?? [],
         estado_calidad:          camion.estadoCalidad ?? null,
+        lleva_ensayo:            camion.llevaEnsayo ?? false,
       };
 
       const { data, error } = await supabase
