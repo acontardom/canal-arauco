@@ -593,21 +593,25 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   // ── Crop: modal nube ──────────────────────────────────────────────────────────
 
-  // Rota la imagen srcUrlModal en pasos de 90° y guarda el data URL resultante
-  function rotarImagen(delta) {
+  // Rota la imagen en pasos de 90° y guarda el data URL resultante.
+  // srcOverride: fuente a rotar (por defecto srcUrlModal para el modal nube).
+  function rotarImagen(delta, srcOverride) {
+    const src   = srcOverride ?? srcUrlModal;
     const pasos = ((rotacionPasos + delta) % 4 + 4) % 4;
     setRotacionPasos(pasos);
     if (pasos === 0) {
       setImgRotada(null);
       setCropGuardado(null);
       setCropActivo(null);
+      setCrop(null);
+      setCompletedCrop(null);
       return;
     }
     const tempImg = new Image();
     tempImg.crossOrigin = 'anonymous';
     tempImg.onload = () => {
       const grados  = pasos * 90;
-      const swap    = pasos % 2 !== 0;               // 90° y 270° intercambian ancho/alto
+      const swap    = pasos % 2 !== 0;
       const canvas  = document.createElement('canvas');
       canvas.width  = swap ? tempImg.height : tempImg.width;
       canvas.height = swap ? tempImg.width  : tempImg.height;
@@ -617,11 +621,13 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       ctx.drawImage(tempImg, -tempImg.width / 2, -tempImg.height / 2);
       try {
         setImgRotada(canvas.toDataURL('image/jpeg', 0.92));
-      } catch { /* CORS: no se puede rotar */ }
+      } catch { /* CORS */ }
       setCropGuardado(null);
       setCropActivo(null);
+      setCrop(null);
+      setCompletedCrop(null);
     };
-    tempImg.src = srcUrlModal;
+    tempImg.src = src;
   }
 
   // Calcula crop centrado en % según el aspecto del protocolo
@@ -656,16 +662,20 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     setCropModal({ srcUrl, tipo, meta });
     setCrop(null);
     setCompletedCrop(null);
+    setRotacionPasos(0);
+    setImgRotada(null);
   }
 
   function cancelarCrop() {
     setCropModal(null);
     setPendingFiles([]);
+    setRotacionPasos(0);
+    setImgRotada(null);
   }
 
   async function confirmarCrop() {
     if (!cropModal) return;
-    const croppedUrl = aplicarCropACanvas() ?? cropModal.srcUrl;
+    const croppedUrl = aplicarCropACanvas() ?? imgRotada ?? cropModal.srcUrl;
 
     if (cropModal.tipo === 'nueva') {
       await guardarFotoNueva(croppedUrl, cropModal.meta.file.name, cropModal.meta.file.type);
@@ -678,6 +688,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     }
 
     setCropModal(null);
+    setRotacionPasos(0);
+    setImgRotada(null);
 
     // Procesar siguiente archivo pendiente
     if (pendingFiles.length > 0) {
@@ -1339,6 +1351,10 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                 {esHA ? 'Proporción fija 4:3' : 'Proporción fija 3:4'}
               </span>
             </div>
+            <div style={s.rotacionRow}>
+              <button style={s.btnRotar} onClick={() => rotarImagen(-1, cropModal.srcUrl)}>↺ Rotar izquierda</button>
+              <button style={s.btnRotar} onClick={() => rotarImagen(1, cropModal.srcUrl)}>↻ Rotar derecha</button>
+            </div>
             <div style={s.cropWrapper}>
               <ReactCrop
                 crop={crop}
@@ -1349,7 +1365,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
               >
                 <img
                   ref={imgCropRef}
-                  src={cropModal.srcUrl}
+                  src={imgRotada ?? cropModal.srcUrl}
+                  crossOrigin="anonymous"
                   alt="recortar"
                   onLoad={onCropImageLoad}
                   style={{ maxWidth: '100%', maxHeight: '60vh', display: 'block' }}
