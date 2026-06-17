@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TRAMOS, CAIDAS, ATRAVIESOS, PROTOCOLOS } from '../constants/estructura';
 import { supabase } from '../config/supabase';
@@ -24,7 +24,6 @@ const COL_LABEL = {
 };
 
 // ─── Mapeo protocolo → partida de avance ──────────────────────────────────────
-// HA_RADIER / HA_MURO no tienen partida de avance correspondiente
 
 const PROTOCOLO_A_PARTIDA = {
   PICE1:        'excavacion',
@@ -36,14 +35,18 @@ const PROTOCOLO_A_PARTIDA = {
   PICE2_MURO:   'hormigon_muro',
 };
 
-// ─── Estados y colores ────────────────────────────────────────────────────────
+// ─── Estados base y colores ────────────────────────────────────────────────────
 
 const ESTADOS = {
-  sin_iniciar: { label: 'Sin iniciar',       color: '#2a2a3e' },
-  por_protoc:  { label: 'Por protocolizar',  color: '#e6a817' },
-  listo:       { label: 'Protocolo listo',   color: '#3d7ebf' },
-  enviado:     { label: 'Enviado EDP',       color: '#27ae60' },
+  sin_iniciar: { label: 'Sin iniciar',      color: '#2a2a3e' },
+  por_protoc:  { label: 'Por protocolizar', color: '#e6a817' },
+  listo:       { label: 'Protocolo listo',  color: '#3d7ebf' },
+  enviado:     { label: 'Enviado EDP',      color: '#27ae60' },
 };
+
+const COLOR_ENVIADO_BASE = '#27ae60';
+const COLOR_EDP_OSCURO   = '#1a5e38';
+const COLOR_EDP_CLARO    = '#82e0aa';
 
 function calcEstado(protEstado, recepcionada) {
   if (protEstado === 'enviado')    return 'enviado';
@@ -52,11 +55,31 @@ function calcEstado(protEstado, recepcionada) {
   return 'sin_iniciar';
 }
 
+// Interpola linealmente entre dos colores hex
+function lerpColor(hex1, hex2, t) {
+  const r1 = parseInt(hex1.slice(1, 3), 16), g1 = parseInt(hex1.slice(3, 5), 16), b1 = parseInt(hex1.slice(5, 7), 16);
+  const r2 = parseInt(hex2.slice(1, 3), 16), g2 = parseInt(hex2.slice(3, 5), 16), b2 = parseInt(hex2.slice(5, 7), 16);
+  const r = Math.round(r1 + (r2 - r1) * t);
+  const g = Math.round(g1 + (g2 - g1) * t);
+  const b = Math.round(b1 + (b2 - b1) * t);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
+// Genera un mapa { edp: color } para la lista de EDPs ordenados
+function generarEscalaEdp(edps) {
+  const n = edps.length;
+  if (n === 0) return {};
+  if (n === 1) return { [edps[0]]: COLOR_ENVIADO_BASE };
+  return Object.fromEntries(
+    edps.map((edp, i) => [edp, lerpColor(COLOR_EDP_OSCURO, COLOR_EDP_CLARO, i / (n - 1))])
+  );
+}
+
 // ─── Componentes de tabla ─────────────────────────────────────────────────────
 
 const isMobile = window.innerWidth < 768;
 
-function MatrizCell({ tipo, entidadId, protocolo, protMap, avanceSet, navigate, nombreEntidad }) {
+function MatrizCell({ tipo, entidadId, protocolo, protMap, avanceSet, navigate, nombreEntidad, verPorEdp, edpColorMap }) {
   const protData     = protMap[`${tipo}-${entidadId}-${protocolo.id}`];
   const protEstado   = protData?.estado;
   const edp          = protData?.edp;
@@ -65,13 +88,18 @@ function MatrizCell({ tipo, entidadId, protocolo, protMap, avanceSet, navigate, 
   const estado       = calcEstado(protEstado, recepcionada);
   const { label, color } = ESTADOS[estado];
 
+  // En modo EDP, las celdas enviadas toman el color del EDP correspondiente
+  const cellColor = (verPorEdp && estado === 'enviado')
+    ? (edp && edpColorMap[edp] ? edpColorMap[edp] : COLOR_ENVIADO_BASE)
+    : color;
+
   const tooltip = (estado === 'listo' || estado === 'enviado') && edp
     ? `${nombreEntidad} — ${protocolo.nombre}: ${label} — ${edp}`
     : `${nombreEntidad} — ${protocolo.nombre}: ${label}`;
 
   return (
     <td
-      style={{ ...s.celda, background: color }}
+      style={{ ...s.celda, background: cellColor }}
       title={tooltip}
       onClick={() => navigate(`/protocolo/${tipo}/${entidadId}/${protocolo.id}`)}
     />
@@ -103,8 +131,9 @@ function EncabezadoColumnas() {
 export default function DashboardMatriz() {
   const navigate = useNavigate();
 
-  const [protMap, setProtMap]     = useState({});
-  const [avanceSet, setAvanceSet] = useState(new Set());
+  const [protMap, setProtMap]       = useState({});
+  const [avanceSet, setAvanceSet]   = useState(new Set());
+  const [verPorEdp, setVerPorEdp]   = useState(false);
 
   useEffect(() => {
     if (!supabase) return;
@@ -123,19 +152,61 @@ export default function DashboardMatriz() {
     });
   }, []);
 
-  const cellProps = { protMap, avanceSet, navigate };
+  // Lista de EDPs únicos de protocolos enviados, ordenados alfabéticamente
+  const edpList = useMemo(() => {
+    const edps = new Set();
+    for (const { estado, edp } of Object.values(protMap)) {
+      if (estado === 'enviado' && edp) edps.add(edp);
+    }
+    return [...edps].sort();
+  }, [protMap]);
+
+  const edpColorMap = useMemo(() => generarEscalaEdp(edpList), [edpList]);
+
+  const cellProps = { protMap, avanceSet, navigate, verPorEdp, edpColorMap };
 
   return (
     <div style={s.page}>
       <h1 style={s.titulo}>Matriz de Protocolos</h1>
 
-      <div style={s.leyenda}>
-        {Object.entries(ESTADOS).map(([key, { label, color }]) => (
-          <span key={key} style={s.leyendaItem}>
-            <span style={{ ...s.swatch, background: color }} />
-            {label}
-          </span>
-        ))}
+      <div style={s.controles}>
+        <div style={s.leyenda}>
+          {verPorEdp ? (
+            <>
+              {['sin_iniciar', 'por_protoc', 'listo'].map(key => (
+                <span key={key} style={s.leyendaItem}>
+                  <span style={{ ...s.swatch, background: ESTADOS[key].color }} />
+                  {ESTADOS[key].label}
+                </span>
+              ))}
+              {edpList.length > 0 ? edpList.map(edp => (
+                <span key={edp} style={s.leyendaItem}>
+                  <span style={{ ...s.swatch, background: edpColorMap[edp] }} />
+                  {edp}
+                </span>
+              )) : (
+                <span style={s.leyendaItem}>
+                  <span style={{ ...s.swatch, background: COLOR_ENVIADO_BASE }} />
+                  Enviado EDP
+                </span>
+              )}
+            </>
+          ) : (
+            Object.entries(ESTADOS).map(([key, { label, color }]) => (
+              <span key={key} style={s.leyendaItem}>
+                <span style={{ ...s.swatch, background: color }} />
+                {label}
+              </span>
+            ))
+          )}
+        </div>
+
+        <button
+          style={{ ...s.btnToggle, ...(verPorEdp ? s.btnToggleActivo : {}) }}
+          onClick={() => setVerPorEdp(v => !v)}
+        >
+          {verPorEdp ? '🟢 Ver por EDP: ON' : '⬜ Ver por EDP: OFF'}
+        </button>
       </div>
 
       <div style={s.contenedor}>
@@ -233,9 +304,22 @@ const s = {
   page: { maxWidth: '1120px', margin: '0 auto' },
   titulo: { color: '#ccd6f6', fontSize: '24px', fontWeight: 700, marginBottom: '16px', textAlign: 'center' },
 
-  leyenda: { display: 'flex', gap: '28px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '28px' },
+  controles: {
+    display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+    gap: '20px', flexWrap: 'wrap', marginBottom: '28px',
+  },
+  leyenda: { display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'center' },
   leyendaItem: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: '#ccd6f6' },
-  swatch: { width: '18px', height: '18px', borderRadius: '4px', display: 'inline-block', border: '1px solid #0f3460' },
+  swatch: { width: '18px', height: '18px', borderRadius: '4px', display: 'inline-block', border: '1px solid #0f3460', flexShrink: 0 },
+
+  btnToggle: {
+    background: '#16213e', border: '1px solid #0f3460', color: '#8892b0',
+    borderRadius: '8px', padding: '7px 16px', fontSize: '12px', fontWeight: 700,
+    cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+  },
+  btnToggleActivo: {
+    background: 'rgba(39,174,96,0.12)', border: '1px solid #27ae60', color: '#82e0aa',
+  },
 
   contenedor: {
     display: 'flex',
