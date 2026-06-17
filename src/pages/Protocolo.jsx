@@ -473,6 +473,17 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     }
   }, [cargando, protocolo]);
 
+  // Si la imagen ya estaba cacheada con CORS, onLoad no re-dispara; inicializar crop manualmente
+  useEffect(() => {
+    if (fotoNubeModal === null || modoCrop || cropGuardado) return;
+    const img = imgRef.current;
+    if (img?.complete && img.naturalWidth > 0) {
+      const c = calcCentrado(img);
+      setCropActivo(c);
+      setCropGuardado(c);
+    }
+  }, [fotoNubeModal, modoCrop]);
+
   function mostrarToast(msg, tipo = 'ok') {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast({ msg, tipo });
@@ -593,20 +604,20 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   // Aplica cropGuardado (en %) sobre imgRef y devuelve dataURL
   function aplicarCropNube(guardado) {
     const img = imgRef.current;
-    if (!img || !guardado) return null;
-    const { width, height } = img;
-    const x = guardado.x      / 100 * width;
-    const y = guardado.y      / 100 * height;
-    const w = guardado.width  / 100 * width;
-    const h = guardado.height / 100 * height;
-    const scaleX = img.naturalWidth  / width;
-    const scaleY = img.naturalHeight / height;
+    if (!img || !guardado || !(guardado.width > 0) || !(guardado.height > 0)) return null;
+    const scaleX = img.naturalWidth  / img.width;
+    const scaleY = img.naturalHeight / img.height;
+    // Convierte % a px renderizados, luego a px naturales
+    const sx = guardado.x      / 100 * img.width  * scaleX;
+    const sy = guardado.y      / 100 * img.height * scaleY;
+    const sw = guardado.width  / 100 * img.width  * scaleX;
+    const sh = guardado.height / 100 * img.height * scaleY;
     const canvas = document.createElement('canvas');
-    canvas.width  = Math.round(w * scaleX);
-    canvas.height = Math.round(h * scaleY);
+    canvas.width  = Math.round(sw);
+    canvas.height = Math.round(sh);
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, Math.round(x*scaleX), Math.round(y*scaleY), canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
-    try   { return canvas.toDataURL('image/jpeg', 0.9); }
+    ctx.drawImage(img, Math.round(sx), Math.round(sy), canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+    try   { return canvas.toDataURL('image/jpeg', 0.92); }
     catch { return null; }
   }
 
@@ -746,11 +757,15 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   function agregarAlProtocolo() {
     const foto = fotosTerrenoFiltradas[fotoNubeModal];
     if (!foto) return;
-    const guardado   = cropGuardado ?? cropActivo;
-    const croppedUrl = aplicarCropNube(guardado) ?? (foto.storageUrl || foto.dataUrl);
+    const guardado = cropGuardado ?? cropActivo;
+    let imagenFinal = foto.storageUrl || foto.dataUrl;
+    if (guardado && guardado.width > 0 && guardado.height > 0) {
+      const cropped = aplicarCropNube(guardado);
+      if (cropped) imagenFinal = cropped;
+    }
     setFotosNubeSeleccionadas(prev => [
       ...prev,
-      { storageUrl: foto.storageUrl ?? null, dataUrl: foto.dataUrl ?? null, croppedDataUrl: croppedUrl, descripcion: descModalTexto },
+      { storageUrl: foto.storageUrl ?? null, dataUrl: foto.dataUrl ?? null, croppedDataUrl: imagenFinal, descripcion: descModalTexto },
     ]);
     cerrarFotoNubeModal();
   }
@@ -1169,6 +1184,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                   <img
                     ref={imgRef}
                     src={srcUrlModal}
+                    crossOrigin="anonymous"
                     alt="recortar"
                     style={{ maxWidth: '100%', maxHeight: '52vh', display: 'block' }}
                     onLoad={e => {
@@ -1189,6 +1205,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                     <img
                       ref={imgRef}
                       src={srcUrlModal}
+                      crossOrigin="anonymous"
                       alt=""
                       style={s.fotoModalImg}
                       onLoad={e => {
