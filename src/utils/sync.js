@@ -47,14 +47,16 @@ async function sincronizarProtocolos() {
         .select('id')
         .single();
 
+      console.log(`Protocolo ${protocolo.id} — resultado Supabase:`, data, error);
       if (error) throw error;
+      if (!data) throw new Error('Upsert no retornó datos');
 
       await db.protocolos.update(protocolo.id, {
         supabaseId:  data.id,
         sincronizada: true,
       });
     } catch (err) {
-      console.warn(`[Sync] Protocolo ${protocolo.id}:`, err?.message ?? err);
+      console.warn(`[Sync] Protocolo ${protocolo.id}:`, err);
     }
   }
 }
@@ -126,7 +128,7 @@ async function sincronizarFotosTerreno() {
         foto.deviceFotoTerrenoId = deviceFotoTerrenoId;
       }
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('fotos_terreno')
         .upsert(
           {
@@ -143,13 +145,16 @@ async function sincronizarFotosTerreno() {
             fecha_captura:  foto.fechaCaptura ?? null,
           },
           { onConflict: 'device_foto_terreno_id' }
-        );
+        )
+        .select();
 
+      console.log(`FotoTerreno ${foto.id} — resultado Supabase:`, data, error);
       if (error) throw error;
+      if (!data?.length) throw new Error('Upsert no retornó datos');
 
       await db.fotos_terreno.update(foto.id, { sincronizada: true });
     } catch (err) {
-      console.warn(`[Sync] FotoTerreno ${foto.id}:`, err?.message ?? err);
+      console.warn(`[Sync] FotoTerreno ${foto.id}:`, err);
     }
   }
 }
@@ -175,7 +180,7 @@ async function sincronizarFotos() {
         foto.deviceFotoId = deviceFotoId;
       }
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('fotos')
         .upsert(
           {
@@ -191,13 +196,16 @@ async function sincronizarFotos() {
             subida_storage:    foto.subidaStorage ?? false,
           },
           { onConflict: 'device_foto_id' }
-        );
+        )
+        .select();
 
+      console.log(`Foto ${foto.id} — resultado Supabase:`, data, error);
       if (error) throw error;
+      if (!data?.length) throw new Error('Upsert no retornó datos');
 
       await db.fotos.update(foto.id, { sincronizada: true });
     } catch (err) {
-      console.warn(`[Sync] Foto ${foto.id}:`, err?.message ?? err);
+      console.warn(`[Sync] Foto ${foto.id}:`, err);
     }
   }
 }
@@ -312,14 +320,16 @@ async function sincronizarCamiones() {
         .select('id')
         .single();
 
+      console.log(`Camion ${camion.id} — resultado Supabase:`, data, error);
       if (error) throw error;
+      if (!data) throw new Error('Upsert no retornó datos');
 
       await db.camiones.update(camion.id, {
         supabaseId:   data.id,
         sincronizado: true,
       });
     } catch (err) {
-      console.warn(`[Sync] Camion ${camion.id}:`, err?.message ?? err);
+      console.warn(`[Sync] Camion ${camion.id}:`, err);
     }
   }
 }
