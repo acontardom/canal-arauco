@@ -679,6 +679,14 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
     if (cropModal.tipo === 'nueva') {
       await guardarFotoNueva(croppedUrl, cropModal.meta.file.name, cropModal.meta.file.type);
+    } else if (cropModal.tipo === 'editar-nube') {
+      setFotosNubeSeleccionadas(prev => prev.map(f =>
+        (f.storageUrl || f.dataUrl) === cropModal.meta.key
+          ? { ...f, dataUrlRecortado: croppedUrl }
+          : f
+      ));
+    } else if (cropModal.tipo === 'editar-nueva') {
+      await db.fotos.update(cropModal.meta.fotoId, { dataUrl: croppedUrl });
     } else {
       const { foto } = cropModal.meta;
       setFotosNubeSeleccionadas(prev => [
@@ -691,12 +699,23 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     setRotacionPasos(0);
     setImgRotada(null);
 
-    // Procesar siguiente archivo pendiente
-    if (pendingFiles.length > 0) {
+    // Procesar siguiente archivo pendiente (solo aplica para tipo 'nueva')
+    if (cropModal.tipo === 'nueva' && pendingFiles.length > 0) {
       const [next, ...rest] = pendingFiles;
       setPendingFiles(rest);
       const dataUrl = await comprimirFoto(next);
       abrirCropModal(dataUrl, 'nueva', { file: next });
+    }
+  }
+
+  function abrirEditarFoto(foto) {
+    if (readOnly) return;
+    if (foto.origen === 'nube') {
+      const src = foto.storageUrl || foto.dataUrl;
+      abrirCropModal(src, 'editar-nube', { key: foto.key, descripcion: foto.descripcion });
+    } else {
+      const src = foto.dataUrl || foto.storageUrl;
+      abrirCropModal(src, 'editar-nueva', { fotoId: foto.fotoId, descripcion: foto.descripcion });
     }
   }
 
@@ -963,12 +982,18 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         <div style={s.fotosGrid}>
           {fotosCombinadas.map(foto => (
             <div key={foto.id} style={s.fotoCard}>
-              <div style={s.fotoThumb}>
+              <div
+                style={{ ...s.fotoThumb, cursor: readOnly ? 'default' : 'pointer' }}
+                onClick={() => abrirEditarFoto(foto)}
+              >
                 <img src={foto.dataUrlRecortado || foto.dataUrl || foto.storageUrl} alt="" style={s.fotoImg} />
+                {!readOnly && (
+                  <div style={s.fotoThumbOverlay}>✏️</div>
+                )}
                 {!readOnly && (
                   <button
                     style={s.btnEliminarFoto}
-                    onClick={() => foto.origen === 'nueva' ? eliminarFoto(foto.fotoId) : quitarFotoNube(foto.key)}
+                    onClick={e => { e.stopPropagation(); foto.origen === 'nueva' ? eliminarFoto(foto.fotoId) : quitarFotoNube(foto.key); }}
                     title="Quitar de la selección"
                   >
                     ×
@@ -1346,7 +1371,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         <div style={s.cropModalOverlay} onClick={cancelarCrop}>
           <div style={s.cropModalContent} onClick={e => e.stopPropagation()}>
             <div style={s.cropModalTitulo}>
-              ✂️ Recortar foto
+              {cropModal.tipo?.startsWith('editar') ? '✏️ Editar foto' : '✂️ Recortar foto'}
               <span style={{ fontSize: '12px', color: '#8892b0', fontWeight: 400, marginLeft: '8px' }}>
                 {esHA ? 'Proporción fija 4:3' : 'Proporción fija 3:4'}
               </span>
@@ -1374,7 +1399,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
               </ReactCrop>
             </div>
             <div style={s.cropBotones}>
-              <button style={s.btnCropUsar} onClick={confirmarCrop}>✔ Usar recorte</button>
+              <button style={s.btnCropUsar} onClick={confirmarCrop}>
+                {cropModal.tipo?.startsWith('editar') ? '✔ Confirmar cambios' : '✔ Usar recorte'}
+              </button>
               <button style={s.btnCropCancelar} onClick={cancelarCrop}>✕ Cancelar</button>
             </div>
           </div>
@@ -1523,6 +1550,7 @@ const s = {
   btnFotoModalPrimario: { padding: '10px 22px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 700, cursor: 'pointer' },
   btnFotoModalSecundario: { padding: '10px 18px', background: '#0f3460', color: '#ccd6f6', border: '1px solid #1e3a5f', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' },
   cropOverlayRect: { position: 'absolute', border: '2px dashed rgba(255,255,255,0.8)', boxShadow: '0 0 8px rgba(0,0,0,0.5)', boxSizing: 'border-box', pointerEvents: 'none' },
+  fotoThumbOverlay: { position: 'absolute', bottom: '4px', left: '4px', fontSize: '14px', opacity: 0.8, pointerEvents: 'none' },
 
   previewOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: '16px' },
   previewContent: { background: '#16213e', borderRadius: '16px', border: '1px solid #0f3460', width: '90vw', height: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
