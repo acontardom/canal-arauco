@@ -321,10 +321,13 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [fotosNubeSeleccionadas, setFotosNubeSeleccionadas] = useState([]);
   const [fotoNubeModal, setFotoNubeModal] = useState(null);
   const [descModalTexto, setDescModalTexto] = useState('');
-  const [cropModal, setCropModal]       = useState(null); // { srcUrl, tipo: 'nueva'|'nube', meta }
-  const [crop, setCrop]                 = useState(null);
+  const [cropModal, setCropModal]         = useState(null); // para fotos nuevas (cámara/galería)
+  const [crop, setCrop]                   = useState(null);
   const [completedCrop, setCompletedCrop] = useState(null);
-  const [pendingFiles, setPendingFiles] = useState([]);
+  const [pendingFiles, setPendingFiles]   = useState([]);
+  const [modalModo, setModalModo]         = useState('ver'); // 'ver' | 'crop'
+  const [overlayRect, setOverlayRect]     = useState(null); // { left, top, width, height } en %
+  const [croppedPreviewUrl, setCroppedPreviewUrl] = useState(null);
 
   const cargadoRef = useRef(false);
   const toastTimerRef = useRef(null);
@@ -548,22 +551,27 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   // ── Crop helpers ──────────────────────────────────────────────────────────────
 
-  function onCropImageLoad(e) {
-    const { width, height } = e.currentTarget;
-    const percentCrop = centerCrop(
+  function calcCropCentrado(imgEl) {
+    const { width, height } = imgEl;
+    const pct = centerCrop(
       makeAspectCrop({ unit: '%', width: 90 }, 4 / 3, width, height),
       width, height,
     );
-    setCrop(percentCrop);
-    // Pre-calcular completedCrop en píxeles para el caso en que el usuario
-    // no arrastre el recuadro y confirme directamente.
-    setCompletedCrop({
-      unit: 'px',
-      x:      (percentCrop.x      / 100) * width,
-      y:      (percentCrop.y      / 100) * height,
-      width:  (percentCrop.width  / 100) * width,
-      height: (percentCrop.height / 100) * height,
-    });
+    setCrop(pct);
+    setCompletedCrop({ unit: 'px', x: (pct.x / 100) * width, y: (pct.y / 100) * height, width: (pct.width / 100) * width, height: (pct.height / 100) * height });
+    setOverlayRect({ left: `${pct.x}%`, top: `${pct.y}%`, width: `${pct.width}%`, height: `${pct.height}%` });
+  }
+
+  function onCropImageLoad(e) {
+    const { width, height } = e.currentTarget;
+    if (!completedCrop || !crop) {
+      // Primera carga: centrar el recuadro
+      calcCropCentrado(e.currentTarget);
+    } else {
+      // Re-montaje al cambiar de modo: recomputa completedCrop con las nuevas dimensiones
+      // manteniendo la posición % que el usuario haya ajustado
+      setCompletedCrop({ unit: 'px', x: (crop.x / 100) * width, y: (crop.y / 100) * height, width: (crop.width / 100) * width, height: (crop.height / 100) * height });
+    }
   }
 
   function aplicarCropACanvas() {
@@ -659,13 +667,13 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     await db.fotos.delete(fotoId);
   }
 
-  function toggleFotoNube(foto) {
+  function toggleFotoNube(foto, index) {
     const key = foto.storageUrl || foto.dataUrl;
     const yaSeleccionada = fotosNubeSeleccionadas.some(f => (f.storageUrl || f.dataUrl) === key);
     if (yaSeleccionada) {
       setFotosNubeSeleccionadas(prev => prev.filter(f => (f.storageUrl || f.dataUrl) !== key));
     } else {
-      abrirCropModal(foto.storageUrl || foto.dataUrl, 'nube', { foto });
+      abrirFotoNubeModal(index);
     }
   }
 
@@ -694,19 +702,58 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     const key = foto.storageUrl || foto.dataUrl;
     const sel = fotosNubeSeleccionadas.find(f => (f.storageUrl || f.dataUrl) === key);
     setDescModalTexto(sel?.descripcion ?? '');
+    setModalModo('ver');
+    setCrop(null);
+    setCompletedCrop(null);
+    setCroppedPreviewUrl(null);
+    setOverlayRect(null);
     setFotoNubeModal(indice);
   }
 
   function cerrarFotoNubeModal() {
-    guardarDescModalPara(fotoNubeModal, descModalTexto);
+    // Si la foto ya estaba seleccionada, persistir cambios de descripción
+    if (fotoNubeModal !== null) {
+      const foto = fotosTerrenoFiltradas[fotoNubeModal];
+      if (foto) {
+        const key = foto.storageUrl || foto.dataUrl;
+        const actual = fotosNubeSeleccionadas.find(f => (f.storageUrl || f.dataUrl) === key);
+        if (actual && descModalTexto !== (actual.descripcion ?? '')) {
+          setDescFotoNube(key, descModalTexto);
+        }
+      }
+    }
     setFotoNubeModal(null);
+    setModalModo('ver');
+    setCroppedPreviewUrl(null);
   }
 
   function navegarFotoNubeModal(delta) {
-    guardarDescModalPara(fotoNubeModal, descModalTexto);
     const len = fotosTerrenoFiltradas.length;
     const nuevo = (fotoNubeModal + delta + len) % len;
     abrirFotoNubeModal(nuevo);
+  }
+
+  function confirmarAjusteCrop() {
+    const url = aplicarCropACanvas();
+    if (url) setCroppedPreviewUrl(url);
+    setModalModo('ver');
+  }
+
+  function cancelarAjusteCrop() {
+    if (imgCropRef.current) calcCropCentrado(imgCropRef.current);
+    setCroppedPreviewUrl(null);
+    setModalModo('ver');
+  }
+
+  function agregarAlProtocolo() {
+    const foto = fotosTerrenoFiltradas[fotoNubeModal];
+    if (!foto) return;
+    const croppedUrl = croppedPreviewUrl ?? aplicarCropACanvas() ?? (foto.storageUrl || foto.dataUrl);
+    setFotosNubeSeleccionadas(prev => [
+      ...prev,
+      { storageUrl: foto.storageUrl ?? null, dataUrl: foto.dataUrl ?? null, croppedDataUrl: croppedUrl, descripcion: descModalTexto },
+    ]);
+    cerrarFotoNubeModal();
   }
 
   async function actualizarEntidadCamion(camion, nuevoTipo, nuevoEntidadIdStr) {
@@ -765,6 +812,13 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     ? fotosTerreno
     : fotosTerreno.filter(f => f.etiquetas?.includes(filtroEtiqueta));
 
+  // Variables derivadas para el modal de foto nube
+  const fotoActualModal   = fotoNubeModal !== null ? (fotosTerrenoFiltradas[fotoNubeModal] ?? null) : null;
+  const srcUrlModal       = fotoActualModal ? (fotoActualModal.storageUrl || fotoActualModal.dataUrl) : null;
+  const fotoModalSeleccionada = srcUrlModal
+    ? fotosNubeSeleccionadas.some(f => (f.storageUrl || f.dataUrl) === srcUrlModal)
+    : false;
+
   const fotosNubeData = fotosNubeSeleccionadas.map(sel => {
     const key = sel.storageUrl || sel.dataUrl;
     return {
@@ -811,7 +865,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                 <img src={key} alt="" style={s.fotoImg} />
                 <div
                   style={{ ...s.checkOverlay, cursor: readOnly ? 'default' : 'pointer' }}
-                  onClick={(e) => { e.stopPropagation(); if (!readOnly) toggleFotoNube(foto); }}
+                  onClick={(e) => { e.stopPropagation(); if (!readOnly) toggleFotoNube(foto, index); }}
                 >
                   <input type="checkbox" checked={seleccionada} readOnly style={s.checkboxNube} />
                 </div>
@@ -1098,34 +1152,103 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         />
       )}
 
-      {fotoNubeModal !== null && fotosTerrenoFiltradas[fotoNubeModal] && (
+      {fotoActualModal && (
         <div style={s.fotoModalOverlay} onClick={cerrarFotoNubeModal}>
-          <div style={s.fotoModalContent} onClick={(e) => e.stopPropagation()}>
+          <div style={s.fotoModalContent} onClick={e => e.stopPropagation()}>
             <button style={s.fotoModalCerrar} onClick={cerrarFotoNubeModal}>✕</button>
+
+            {/* ── Imagen ──────────────────────────────────────────────────── */}
             <div style={s.fotoModalImgWrap}>
-              {fotosTerrenoFiltradas.length > 1 && (
-                <button style={{ ...s.fotoModalNavBtn, left: '8px' }} onClick={() => navegarFotoNubeModal(-1)}>‹</button>
-              )}
-              <img
-                src={fotosTerrenoFiltradas[fotoNubeModal].storageUrl || fotosTerrenoFiltradas[fotoNubeModal].dataUrl}
-                alt=""
-                style={s.fotoModalImg}
-              />
-              {fotosTerrenoFiltradas.length > 1 && (
-                <button style={{ ...s.fotoModalNavBtn, right: '8px' }} onClick={() => navegarFotoNubeModal(1)}>›</button>
+              {modalModo === 'ver' ? (
+                <>
+                  {fotosTerrenoFiltradas.length > 1 && (
+                    <button style={{ ...s.fotoModalNavBtn, left: '8px' }} onClick={() => navegarFotoNubeModal(-1)}>‹</button>
+                  )}
+                  <div style={{ position: 'relative', lineHeight: 0 }}>
+                    {croppedPreviewUrl ? (
+                      <>
+                        <img src={croppedPreviewUrl} alt="" style={s.fotoModalImg} />
+                        <span style={s.badgeCropAjustado}>✂ Recorte ajustado</span>
+                      </>
+                    ) : (
+                      <>
+                        <img
+                          ref={imgCropRef}
+                          src={srcUrlModal}
+                          alt=""
+                          onLoad={onCropImageLoad}
+                          style={s.fotoModalImg}
+                        />
+                        {overlayRect && (
+                          <div style={{ ...s.cropOverlayRect, ...overlayRect }} />
+                        )}
+                      </>
+                    )}
+                  </div>
+                  {fotosTerrenoFiltradas.length > 1 && (
+                    <button style={{ ...s.fotoModalNavBtn, right: '8px' }} onClick={() => navegarFotoNubeModal(1)}>›</button>
+                  )}
+                </>
+              ) : (
+                <ReactCrop
+                  crop={crop}
+                  onChange={c => setCrop(c)}
+                  onComplete={c => setCompletedCrop(c)}
+                  aspect={4 / 3}
+                  keepSelection
+                >
+                  <img
+                    ref={imgCropRef}
+                    src={srcUrlModal}
+                    alt="recortar"
+                    onLoad={onCropImageLoad}
+                    style={{ maxWidth: '100%', maxHeight: '52vh', display: 'block' }}
+                  />
+                </ReactCrop>
               )}
             </div>
+
+            {/* ── Descripción ─────────────────────────────────────────────── */}
             <div style={s.fotoModalInfo}>
               <label style={s.fotoModalDescLabel}>Descripción</label>
               <textarea
                 style={s.fotoModalDescInput}
                 rows={2}
                 value={descModalTexto}
-                onChange={(e) => setDescModalTexto(e.target.value)}
+                onChange={e => setDescModalTexto(e.target.value)}
                 readOnly={readOnly}
                 placeholder="Agregar descripción..."
               />
             </div>
+
+            {/* ── Botones de acción ───────────────────────────────────────── */}
+            {!readOnly && (
+              <div style={s.fotoModalBotones}>
+                {modalModo === 'ver' ? (
+                  fotoModalSeleccionada ? (
+                    <button style={s.btnFotoModalSecundario} onClick={cerrarFotoNubeModal}>Cerrar</button>
+                  ) : (
+                    <>
+                      <button style={s.btnFotoModalSecundario} onClick={() => setModalModo('crop')}>
+                        ✂️ Ajustar recorte
+                      </button>
+                      <button style={s.btnFotoModalPrimario} onClick={agregarAlProtocolo}>
+                        Agregar al protocolo
+                      </button>
+                    </>
+                  )
+                ) : (
+                  <>
+                    <button style={s.btnFotoModalSecundario} onClick={cancelarAjusteCrop}>
+                      Cancelar
+                    </button>
+                    <button style={s.btnFotoModalPrimario} onClick={confirmarAjusteCrop}>
+                      Confirmar recorte
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1292,14 +1415,19 @@ const s = {
   btnModalConfirmar: { flex: 1, padding: '12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' },
 
   fotoModalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: '16px' },
-  fotoModalContent: { background: '#16213e', borderRadius: '16px', padding: '20px', maxWidth: '560px', width: '100%', border: '1px solid #0f3460', position: 'relative', maxHeight: '90vh', overflow: 'auto' },
+  fotoModalContent: { background: '#16213e', borderRadius: '16px', padding: '20px', maxWidth: '560px', width: '100%', border: '1px solid #0f3460', position: 'relative', maxHeight: '92vh', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '14px' },
   fotoModalCerrar: { position: 'absolute', top: '12px', right: '12px', background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: '32px', height: '32px', fontSize: '16px', lineHeight: '30px', cursor: 'pointer', padding: 0, textAlign: 'center', zIndex: 1 },
-  fotoModalImgWrap: { position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px', background: '#0a1f3a', borderRadius: '10px', minHeight: '200px', overflow: 'hidden' },
-  fotoModalImg: { maxWidth: '100%', maxHeight: '60vh', display: 'block', objectFit: 'contain' },
-  fotoModalNavBtn: { position: 'absolute', top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: '36px', height: '36px', fontSize: '20px', lineHeight: '34px', cursor: 'pointer', textAlign: 'center', padding: 0 },
+  fotoModalImgWrap: { display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0a1f3a', borderRadius: '10px', minHeight: '200px', overflow: 'hidden', position: 'relative' },
+  fotoModalImg: { maxWidth: '100%', maxHeight: '58vh', display: 'block' },
+  fotoModalNavBtn: { position: 'absolute', top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: '36px', height: '36px', fontSize: '20px', lineHeight: '34px', cursor: 'pointer', textAlign: 'center', padding: 0, zIndex: 2 },
   fotoModalInfo: { display: 'flex', flexDirection: 'column', gap: '6px' },
   fotoModalDescLabel: { color: '#64ffda', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px' },
   fotoModalDescInput: { width: '100%', background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '6px', color: '#ccd6f6', fontSize: '13px', padding: '8px 10px', fontFamily: 'inherit', outline: 'none', lineHeight: '1.4', resize: 'vertical' },
+  fotoModalBotones: { display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' },
+  btnFotoModalPrimario: { padding: '10px 22px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 700, cursor: 'pointer' },
+  btnFotoModalSecundario: { padding: '10px 18px', background: '#0f3460', color: '#ccd6f6', border: '1px solid #1e3a5f', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' },
+  cropOverlayRect: { position: 'absolute', border: '2px dashed rgba(255,255,255,0.8)', boxShadow: '0 0 8px rgba(0,0,0,0.5)', boxSizing: 'border-box', pointerEvents: 'none' },
+  badgeCropAjustado: { position: 'absolute', bottom: '8px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(16,185,129,0.92)', color: '#fff', fontSize: '11px', fontWeight: 700, padding: '3px 12px', borderRadius: '10px', whiteSpace: 'nowrap', pointerEvents: 'none' },
 
   previewOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: '16px' },
   previewContent: { background: '#16213e', borderRadius: '16px', border: '1px solid #0f3460', width: '90vw', height: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
