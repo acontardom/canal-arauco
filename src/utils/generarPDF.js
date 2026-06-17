@@ -592,17 +592,23 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
 
   const esG5 = protocolo.protocoloId === 'G5';
   const COLS = 2;
-  const GAP = 4;
-  const imgW = (CW - GAP) / COLS;
-  const imgH = esG5 ? 110 : 65;
-  const descH = 10;
-  const cellH = imgH + descH + GAP;
+  const GAP_COL = 6;   // espacio horizontal entre las 2 columnas
+  const GAP_ROW = 4;   // espacio vertical entre filas
+  const descH   = 7;
+
+  // Fotos verticales (3:4): G5 usa columna completa, el resto centra con margen
+  const imgH = esG5 ? 117 : 100;
+  const imgW = esG5 ? Math.round((CW - GAP_COL) / COLS)           // 88mm, llena ancho
+                    : Math.round(imgH * 3 / 4);                     // 75mm, proporción exacta
+  const cellH = imgH + descH + GAP_ROW;
+  // Offset horizontal para centrar las fotos dentro del área de contenido
+  const offsetX = ML + (CW - (COLS * imgW + GAP_COL)) / 2;
 
   for (let i = 0; i < fotosBatch.length; i++) {
     const foto = fotosBatch[i];
     const col = i % COLS;
     const row = Math.floor(i / COLS);
-    const x = ML + col * (imgW + GAP);
+    const x = offsetX + col * (imgW + GAP_COL);
     const cellY = y + row * cellH;
 
     doc.setDrawColor(120, 120, 120);

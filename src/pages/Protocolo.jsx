@@ -567,10 +567,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   function onCropImageLoad(e) {
     const { width, height } = e.currentTarget;
-    const pct = centerCrop(
-      makeAspectCrop({ unit: '%', width: 90 }, 4 / 3, width, height),
-      width, height,
-    );
+    const aspecto = esHA ? 4/3 : 3/4;
+    const dim     = esHA ? { unit: '%', width: 90 } : { unit: '%', height: 90 };
+    const pct = centerCrop(makeAspectCrop(dim, aspecto, width, height), width, height);
     setCrop(pct);
     setCompletedCrop({ unit: 'px', x: pct.x/100*width, y: pct.y/100*height, width: pct.width/100*width, height: pct.height/100*height });
   }
@@ -592,13 +591,12 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   // ── Crop: modal nube ──────────────────────────────────────────────────────────
 
-  // Calcula crop 4:3 centrado en %, relativo al elemento img
+  // Calcula crop centrado en % según el aspecto del protocolo
   function calcCentrado(imgEl) {
     const { width, height } = imgEl;
-    return centerCrop(
-      makeAspectCrop({ unit: '%', width: 90 }, 4 / 3, width, height),
-      width, height,
-    );
+    const aspecto = esHA ? 4/3 : 3/4;
+    const dim     = esHA ? { unit: '%', width: 90 } : { unit: '%', height: 90 };
+    return centerCrop(makeAspectCrop(dim, aspecto, width, height), width, height);
   }
 
   // Aplica cropGuardado (en %) sobre imgRef y devuelve dataURL
@@ -1181,7 +1179,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                 <ReactCrop
                   crop={cropActivo ?? cropGuardado}
                   onChange={(_, pct) => setCropActivo(pct)}
-                  aspect={4 / 3}
+                  aspect={esHA ? 4/3 : 3/4}
                   keepSelection
                 >
                   <img
@@ -1294,7 +1292,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             <div style={s.cropModalTitulo}>
               ✂️ Recortar foto
               <span style={{ fontSize: '12px', color: '#8892b0', fontWeight: 400, marginLeft: '8px' }}>
-                Proporción fija 4:3
+                {esHA ? 'Proporción fija 4:3' : 'Proporción fija 3:4'}
               </span>
             </div>
             <div style={s.cropWrapper}>
@@ -1302,7 +1300,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                 crop={crop}
                 onChange={c => setCrop(c)}
                 onComplete={c => setCompletedCrop(c)}
-                aspect={4 / 3}
+                aspect={esHA ? 4/3 : 3/4}
                 keepSelection
               >
                 <img
