@@ -1,7 +1,11 @@
+import { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
 import { TRAMOS, CAIDAS, ATRAVIESOS, PROTOCOLOS } from '../constants/estructura';
+import { supabase } from '../config/supabase';
+
+// ─── Orden y etiquetas de columnas ────────────────────────────────────────────
 
 const ORDEN_MATRIZ = [
   'PICE1', 'G5', 'PICE4_RADIER', 'PICE4_MURO', 'PICE3', 'PICE2_RADIER', 'PICE2_MURO', 'HA_RADIER', 'HA_MURO',
@@ -21,25 +25,50 @@ const COL_LABEL = {
   HA_MURO:      'H.A. Muro',
 };
 
-const COLOR_PENDIENTE  = '#2a2a3e';
-const COLOR_COMPLETADO = '#3d7ebf';
-const COLOR_ENVIADO    = '#27ae60';
+// ─── Mapeo protocolo → partida de avance ──────────────────────────────────────
+// HA_RADIER / HA_MURO no tienen partida de avance correspondiente
 
-function colorEstado(estado) {
-  if (estado === 'enviado') return COLOR_ENVIADO;
-  if (estado === 'borrador' || estado === 'completado') return COLOR_COMPLETADO;
-  return COLOR_PENDIENTE;
+const PROTOCOLO_A_PARTIDA = {
+  PICE1:        'excavacion',
+  G5:           'emplantillado',
+  PICE4_RADIER: 'enfierradura',
+  PICE4_MURO:   'enfierradura',
+  PICE2_RADIER: 'hormigon_radier',
+  PICE3:        'moldaje',
+  PICE2_MURO:   'hormigon_muro',
+};
+
+// ─── Estados y colores ────────────────────────────────────────────────────────
+
+const ESTADOS = {
+  sin_iniciar: { label: 'Sin iniciar',       color: '#2a2a3e' },
+  por_protoc:  { label: 'Por protocolizar',  color: '#e6a817' },
+  listo:       { label: 'Protocolo listo',   color: '#3d7ebf' },
+  enviado:     { label: 'Enviado EDP',       color: '#27ae60' },
+};
+
+function calcEstado(protEstado, recepcionada) {
+  if (protEstado === 'enviado')    return 'enviado';
+  if (protEstado === 'completado') return 'listo';
+  if (recepcionada)                return 'por_protoc';
+  return 'sin_iniciar';
 }
+
+// ─── Componentes de tabla ─────────────────────────────────────────────────────
 
 const isMobile = window.innerWidth < 768;
 
-function MatrizCell({ tipo, entidadId, protocolo, mapa, navigate, nombreEntidad }) {
-  const estado = mapa[`${tipo}-${entidadId}-${protocolo.id}`];
-  const bg = colorEstado(estado);
+function MatrizCell({ tipo, entidadId, protocolo, protMap, avanceSet, navigate, nombreEntidad }) {
+  const protEstado   = protMap[`${tipo}-${entidadId}-${protocolo.id}`];
+  const partidaId    = PROTOCOLO_A_PARTIDA[protocolo.id];
+  const recepcionada = partidaId ? avanceSet.has(`${tipo}-${String(entidadId)}-${partidaId}`) : false;
+  const estado       = calcEstado(protEstado, recepcionada);
+  const { label, color } = ESTADOS[estado];
+
   return (
     <td
-      style={{ ...s.celda, background: bg }}
-      title={`${nombreEntidad} — ${protocolo.nombre}: ${estado ?? 'pendiente'}`}
+      style={{ ...s.celda, background: color }}
+      title={`${nombreEntidad} — ${protocolo.nombre}: ${label}`}
       onClick={() => navigate(`/protocolo/${tipo}/${entidadId}/${protocolo.id}`)}
     />
   );
@@ -65,30 +94,47 @@ function EncabezadoColumnas() {
   );
 }
 
+// ─── Componente principal ─────────────────────────────────────────────────────
+
 export default function DashboardMatriz() {
   const navigate = useNavigate();
 
   const protocolos = useLiveQuery(() => db.protocolos.toArray(), []) ?? [];
 
-  const mapa = {};
+  // Mapa de protocolos locales: "tipo-entidadId-protocoloId" → estado
+  const protMap = {};
   protocolos.forEach(p => {
-    mapa[`${p.tipo}-${p.entidadId}-${p.protocoloId}`] = p.estado;
+    protMap[`${p.tipo}-${p.entidadId}-${p.protocoloId}`] = p.estado;
   });
+
+  // Set de avance desde Supabase: "tipo_entidad-entidad_id-partida_id"
+  const [avanceSet, setAvanceSet] = useState(new Set());
+
+  useEffect(() => {
+    if (!supabase) return;
+    supabase
+      .from('avance')
+      .select('tipo_entidad,entidad_id,partida_id')
+      .then(({ data }) => {
+        setAvanceSet(new Set(
+          (data ?? []).map(r => `${r.tipo_entidad}-${String(r.entidad_id)}-${r.partida_id}`)
+        ));
+      });
+  }, []);
+
+  const cellProps = { protMap, avanceSet, navigate };
 
   return (
     <div style={s.page}>
       <h1 style={s.titulo}>Matriz de Protocolos</h1>
 
       <div style={s.leyenda}>
-        <span style={s.leyendaItem}>
-          <span style={{ ...s.swatch, background: COLOR_PENDIENTE }} /> Pendiente
-        </span>
-        <span style={s.leyendaItem}>
-          <span style={{ ...s.swatch, background: COLOR_COMPLETADO }} /> Completado
-        </span>
-        <span style={s.leyendaItem}>
-          <span style={{ ...s.swatch, background: COLOR_ENVIADO }} /> Enviado
-        </span>
+        {Object.entries(ESTADOS).map(([key, { label, color }]) => (
+          <span key={key} style={s.leyendaItem}>
+            <span style={{ ...s.swatch, background: color }} />
+            {label}
+          </span>
+        ))}
       </div>
 
       <div style={s.contenedor}>
@@ -112,9 +158,8 @@ export default function DashboardMatriz() {
                       tipo="tramo"
                       entidadId={tramoId}
                       protocolo={p}
-                      mapa={mapa}
-                      navigate={navigate}
                       nombreEntidad={`Tramo ${tramoId}`}
+                      {...cellProps}
                     />
                   ))}
                 </tr>
@@ -143,9 +188,8 @@ export default function DashboardMatriz() {
                       tipo="caida"
                       entidadId={caidaId}
                       protocolo={p}
-                      mapa={mapa}
-                      navigate={navigate}
                       nombreEntidad={`Caída ${caidaId}`}
+                      {...cellProps}
                     />
                   ))}
                 </tr>
@@ -164,9 +208,8 @@ export default function DashboardMatriz() {
                       tipo="atravieso"
                       entidadId={atId}
                       protocolo={p}
-                      mapa={mapa}
-                      navigate={navigate}
                       nombreEntidad={`Atravieso ${atId}`}
+                      {...cellProps}
                     />
                   ))}
                 </tr>
