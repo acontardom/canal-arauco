@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate } from 'react-router-dom';
-import { db } from '../db/database';
 import { TRAMOS, CAIDAS, ATRAVIESOS, PROTOCOLOS } from '../constants/estructura';
 import { supabase } from '../config/supabase';
 
@@ -99,27 +97,24 @@ function EncabezadoColumnas() {
 export default function DashboardMatriz() {
   const navigate = useNavigate();
 
-  const protocolos = useLiveQuery(() => db.protocolos.toArray(), []) ?? [];
-
-  // Mapa de protocolos locales: "tipo-entidadId-protocoloId" → estado
-  const protMap = {};
-  protocolos.forEach(p => {
-    protMap[`${p.tipo}-${p.entidadId}-${p.protocoloId}`] = p.estado;
-  });
-
-  // Set de avance desde Supabase: "tipo_entidad-entidad_id-partida_id"
+  const [protMap, setProtMap]     = useState({});
   const [avanceSet, setAvanceSet] = useState(new Set());
 
   useEffect(() => {
     if (!supabase) return;
-    supabase
-      .from('avance')
-      .select('tipo_entidad,entidad_id,partida_id')
-      .then(({ data }) => {
-        setAvanceSet(new Set(
-          (data ?? []).map(r => `${r.tipo_entidad}-${String(r.entidad_id)}-${r.partida_id}`)
-        ));
-      });
+    Promise.all([
+      supabase.from('protocolos').select('tipo,entidad_id,protocolo_id,estado'),
+      supabase.from('avance').select('tipo_entidad,entidad_id,partida_id'),
+    ]).then(([{ data: prots }, { data: avance }]) => {
+      const pMap = {};
+      for (const p of prots ?? []) {
+        pMap[`${p.tipo}-${p.entidad_id}-${p.protocolo_id}`] = p.estado;
+      }
+      setProtMap(pMap);
+      setAvanceSet(new Set(
+        (avance ?? []).map(r => `${r.tipo_entidad}-${String(r.entidad_id)}-${r.partida_id}`)
+      ));
+    });
   }, []);
 
   const cellProps = { protMap, avanceSet, navigate };
