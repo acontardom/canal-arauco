@@ -330,6 +330,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [modoCrop, setModoCrop]           = useState(false);  // false=preview, true=edición
   const [cropActivo, setCropActivo]       = useState(null);   // % live mientras arrastra
   const [cropGuardado, setCropGuardado]   = useState(null);   // % confirmado
+  const [rotacionPasos, setRotacionPasos] = useState(0);      // 0=0°, 1=90°, 2=180°, 3=270°
+  const [imgRotada, setImgRotada]         = useState(null);   // data URL con rotación aplicada
 
   const cargadoRef = useRef(false);
   const toastTimerRef = useRef(null);
@@ -591,6 +593,37 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   // ── Crop: modal nube ──────────────────────────────────────────────────────────
 
+  // Rota la imagen srcUrlModal en pasos de 90° y guarda el data URL resultante
+  function rotarImagen(delta) {
+    const pasos = ((rotacionPasos + delta) % 4 + 4) % 4;
+    setRotacionPasos(pasos);
+    if (pasos === 0) {
+      setImgRotada(null);
+      setCropGuardado(null);
+      setCropActivo(null);
+      return;
+    }
+    const tempImg = new Image();
+    tempImg.crossOrigin = 'anonymous';
+    tempImg.onload = () => {
+      const grados  = pasos * 90;
+      const swap    = pasos % 2 !== 0;               // 90° y 270° intercambian ancho/alto
+      const canvas  = document.createElement('canvas');
+      canvas.width  = swap ? tempImg.height : tempImg.width;
+      canvas.height = swap ? tempImg.width  : tempImg.height;
+      const ctx = canvas.getContext('2d');
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(grados * Math.PI / 180);
+      ctx.drawImage(tempImg, -tempImg.width / 2, -tempImg.height / 2);
+      try {
+        setImgRotada(canvas.toDataURL('image/jpeg', 0.92));
+      } catch { /* CORS: no se puede rotar */ }
+      setCropGuardado(null);
+      setCropActivo(null);
+    };
+    tempImg.src = srcUrlModal;
+  }
+
   // Calcula crop centrado en % según el aspecto del protocolo
   function calcCentrado(imgEl) {
     const { width, height } = imgEl;
@@ -730,6 +763,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     setModoCrop(false);
     setCropActivo(null);
     setCropGuardado(null);
+    setRotacionPasos(0);
+    setImgRotada(null);
     setFotoNubeModal(indice);
   }
 
@@ -744,6 +779,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     }
     setFotoNubeModal(null);
     setModoCrop(false);
+    setRotacionPasos(0);
+    setImgRotada(null);
   }
 
   function navegarFotoNubeModal(delta) {
@@ -1172,6 +1209,14 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           <div style={s.fotoModalContent} onClick={e => e.stopPropagation()}>
             <button style={s.fotoModalCerrar} onClick={cerrarFotoNubeModal}>✕</button>
 
+            {/* ── Rotación ────────────────────────────────────────────────── */}
+            {!readOnly && !fotoModalSeleccionada && (
+              <div style={s.rotacionRow}>
+                <button style={s.btnRotar} onClick={() => rotarImagen(-1)}>↺ Rotar izquierda</button>
+                <button style={s.btnRotar} onClick={() => rotarImagen(1)}>↻ Rotar derecha</button>
+              </div>
+            )}
+
             {/* ── Imagen ──────────────────────────────────────────────────── */}
             <div style={s.fotoModalImgWrap}>
               {modoCrop ? (
@@ -1184,12 +1229,11 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                 >
                   <img
                     ref={imgRef}
-                    src={srcUrlModal}
+                    src={imgRotada ?? srcUrlModal}
                     crossOrigin="anonymous"
                     alt="recortar"
                     style={{ maxWidth: '100%', maxHeight: '52vh', display: 'block' }}
                     onLoad={e => {
-                      // Inicializar cropActivo desde cropGuardado (o centrado si es la primera vez)
                       const c = cropGuardado ?? calcCentrado(e.currentTarget);
                       setCropActivo(c);
                       if (!cropGuardado) setCropGuardado(c);
@@ -1205,7 +1249,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                   <div style={{ position: 'relative', lineHeight: 0 }}>
                     <img
                       ref={imgRef}
-                      src={srcUrlModal}
+                      src={imgRotada ?? srcUrlModal}
                       crossOrigin="anonymous"
                       alt=""
                       style={s.fotoModalImg}
@@ -1457,6 +1501,8 @@ const s = {
   fotoModalDescLabel: { color: '#64ffda', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px' },
   fotoModalDescInput: { width: '100%', background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '6px', color: '#ccd6f6', fontSize: '13px', padding: '8px 10px', fontFamily: 'inherit', outline: 'none', lineHeight: '1.4', resize: 'vertical' },
   fotoModalBotones: { display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' },
+  rotacionRow: { display: 'flex', gap: '8px', justifyContent: 'center' },
+  btnRotar: { padding: '6px 14px', background: '#0f3460', color: '#ccd6f6', border: '1px solid #1e3a5f', borderRadius: '6px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' },
   btnFotoModalPrimario: { padding: '10px 22px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 700, cursor: 'pointer' },
   btnFotoModalSecundario: { padding: '10px 18px', background: '#0f3460', color: '#ccd6f6', border: '1px solid #1e3a5f', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' },
   cropOverlayRect: { position: 'absolute', border: '2px dashed rgba(255,255,255,0.8)', boxShadow: '0 0 8px rgba(0,0,0,0.5)', boxSizing: 'border-box', pointerEvents: 'none' },
