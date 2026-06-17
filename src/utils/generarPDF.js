@@ -214,9 +214,15 @@ function blobToDataUrl(blob) {
   });
 }
 
-// Resuelve la imagen de una foto a embeber: si tiene storage_url se descarga
-// desde la URL pública, si no se usa el dataUrl directamente.
+// Resuelve la imagen de una foto a embeber.
+// Prioridad: dataUrlRecortado (recorte canvas) > dataUrl local > descarga desde storageUrl.
 async function obtenerImagenBase64(foto) {
+  if (foto.dataUrlRecortado?.startsWith('data:')) {
+    return { dataUrl: foto.dataUrlRecortado, formato: detectFormat(foto.dataUrlRecortado) };
+  }
+  if (foto.dataUrl?.startsWith('data:')) {
+    return { dataUrl: foto.dataUrl, formato: detectFormat(foto.dataUrl) };
+  }
   if (foto.storageUrl) {
     try {
       const resp = await fetch(foto.storageUrl);

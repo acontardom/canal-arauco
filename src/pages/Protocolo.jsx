@@ -642,7 +642,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       const { foto } = cropModal.meta;
       setFotosNubeSeleccionadas(prev => [
         ...prev,
-        { storageUrl: foto.storageUrl ?? null, dataUrl: foto.dataUrl ?? null, croppedDataUrl: croppedUrl, descripcion: '' },
+        { storageUrl: foto.storageUrl ?? null, dataUrl: foto.dataUrl ?? null, dataUrlRecortado: croppedUrl, descripcion: '' },
       ]);
     }
 
@@ -765,7 +765,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     }
     setFotosNubeSeleccionadas(prev => [
       ...prev,
-      { storageUrl: foto.storageUrl ?? null, dataUrl: foto.dataUrl ?? null, croppedDataUrl: imagenFinal, descripcion: descModalTexto },
+      { storageUrl: foto.storageUrl ?? null, dataUrl: foto.dataUrl ?? null, dataUrlRecortado: imagenFinal, descripcion: descModalTexto },
     ]);
     cerrarFotoNubeModal();
   }
@@ -835,10 +835,13 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   const fotosNubeData = fotosNubeSeleccionadas.map(sel => {
     const key = sel.storageUrl || sel.dataUrl;
+    // compat: datos guardados antes del renombrado usaban croppedDataUrl
+    const recortado = sel.dataUrlRecortado ?? sel.croppedDataUrl ?? null;
     return {
       id: `nube-${key}`,
       key,
-      dataUrl: sel.croppedDataUrl || sel.storageUrl || sel.dataUrl,
+      dataUrlRecortado: recortado?.startsWith('data:') ? recortado : null,
+      dataUrl: sel.dataUrl ?? null,
       storageUrl: sel.storageUrl ?? null,
       descripcion: sel.descripcion ?? '',
       origen: 'nube',
@@ -914,7 +917,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           {fotosCombinadas.map(foto => (
             <div key={foto.id} style={s.fotoCard}>
               <div style={s.fotoThumb}>
-                <img src={foto.dataUrl} alt="" style={s.fotoImg} />
+                <img src={foto.dataUrlRecortado || foto.dataUrl || foto.storageUrl} alt="" style={s.fotoImg} />
                 {!readOnly && (
                   <button
                     style={s.btnEliminarFoto}
