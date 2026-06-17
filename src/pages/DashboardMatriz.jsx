@@ -101,7 +101,7 @@ function MatrizCell({ tipo, entidadId, protocolo, protMap, avanceSet, navigate, 
     <td
       style={{ ...s.celda, background: cellColor }}
       title={tooltip}
-      onClick={() => navigate(`/protocolo/${tipo}/${entidadId}/${protocolo.id}`)}
+      onClick={() => navigate(`/protocolo/${tipo}/${entidadId}/${protocolo.id}?from=matriz`)}
     />
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
 import { PROTOCOLOS, CHECKLISTS, TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
@@ -277,6 +277,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const entidadId = entidadIdProp ?? params.entidadId;
   const protocoloId = protocoloIdProp ?? params.protocoloId;
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { usuario } = useUser();
   const { kmInicio, kmFin } = useKm(tipo, entidadId);
 
@@ -286,7 +287,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const emptyChecklist = Object.fromEntries(itemsChecklist.map(i => [i.id, { valor: null, obs: '' }]));
   const nombreEntidad = `${NOMBRES_TIPO[tipo] ?? tipo} ${entidadId}`;
   const titulo = `${nombreEntidad} — ${protocoloInfo?.nombre ?? protocoloId}`;
-  const volverUrl = `${VOLVER_BASE[tipo] ?? '/'}/${entidadId}`;
+  const volverUrl = searchParams.get('from') === 'matriz'
+    ? '/matriz'
+    : `${VOLVER_BASE[tipo] ?? '/'}/${entidadId}`;
   // Protocolos de Control H.A. — solo muestran la vista de camiones
   const esHA = protocoloId === 'HA_RADIER' || protocoloId === 'HA_MURO';
   // Protocolos solo-fotos (ej. G5 Emplantillado) — sin checklist ni observaciones
