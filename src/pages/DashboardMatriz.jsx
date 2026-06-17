@@ -57,16 +57,22 @@ function calcEstado(protEstado, recepcionada) {
 const isMobile = window.innerWidth < 768;
 
 function MatrizCell({ tipo, entidadId, protocolo, protMap, avanceSet, navigate, nombreEntidad }) {
-  const protEstado   = protMap[`${tipo}-${entidadId}-${protocolo.id}`];
+  const protData     = protMap[`${tipo}-${entidadId}-${protocolo.id}`];
+  const protEstado   = protData?.estado;
+  const edp          = protData?.edp;
   const partidaId    = PROTOCOLO_A_PARTIDA[protocolo.id];
   const recepcionada = partidaId ? avanceSet.has(`${tipo}-${String(entidadId)}-${partidaId}`) : false;
   const estado       = calcEstado(protEstado, recepcionada);
   const { label, color } = ESTADOS[estado];
 
+  const tooltip = (estado === 'listo' || estado === 'enviado') && edp
+    ? `${nombreEntidad} — ${protocolo.nombre}: ${label} — ${edp}`
+    : `${nombreEntidad} — ${protocolo.nombre}: ${label}`;
+
   return (
     <td
       style={{ ...s.celda, background: color }}
-      title={`${nombreEntidad} — ${protocolo.nombre}: ${label}`}
+      title={tooltip}
       onClick={() => navigate(`/protocolo/${tipo}/${entidadId}/${protocolo.id}`)}
     />
   );
@@ -103,12 +109,12 @@ export default function DashboardMatriz() {
   useEffect(() => {
     if (!supabase) return;
     Promise.all([
-      supabase.from('protocolos').select('tipo,entidad_id,protocolo_id,estado'),
+      supabase.from('protocolos').select('tipo,entidad_id,protocolo_id,estado,edp'),
       supabase.from('avance').select('tipo_entidad,entidad_id,partida_id'),
     ]).then(([{ data: prots }, { data: avance }]) => {
       const pMap = {};
       for (const p of prots ?? []) {
-        pMap[`${p.tipo}-${p.entidad_id}-${p.protocolo_id}`] = p.estado;
+        pMap[`${p.tipo}-${p.entidad_id}-${p.protocolo_id}`] = { estado: p.estado, edp: p.edp ?? null };
       }
       setProtMap(pMap);
       setAvanceSet(new Set(

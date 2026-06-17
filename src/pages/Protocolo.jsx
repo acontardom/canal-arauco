@@ -296,6 +296,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   const [checklist, setChecklist] = useState(emptyChecklist);
   const [observaciones, setObservaciones] = useState('');
+  const [edp, setEdp] = useState('');
   const [camionesRegistrados, setCamionesRegistrados] = useState([]);
   const [cargandoCamiones, setCargandoCamiones] = useState(true);
   const [expandidoCamion, setExpandidoCamion] = useState(null);
@@ -451,6 +452,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         setFotosNubeSeleccionadas(protocolo.datos?.fotosNubeSeleccionadas ?? []);
         setEstado(protocolo.estado);
         setFechaEnvio(protocolo.fechaEnvio ?? null);
+        setEdp(protocolo.edp ?? '');
       }
     }
   }, [cargando, protocolo]);
@@ -487,6 +489,15 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     });
   }
 
+  async function guardarEdp(valor) {
+    if (!protocolo?.id) return;
+    await db.protocolos.update(protocolo.id, { edp: valor.trim() || null, sincronizada: false });
+    if (supabase && navigator.onLine) {
+      setSincronizando(true);
+      sincronizar().finally(() => setSincronizando(false));
+    }
+  }
+
   async function guardar(nuevoEstado, extra = {}, mensaje = null) {
     if (guardando) return;
     setGuardando(true);
@@ -497,6 +508,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       const campos = {
         estado: nuevoEstado, usuarioNombre: usuario,
         fechaModificacion: now, datos, sincronizada: false,
+        edp: edp.trim() || null,
         ...extra,
       };
 
@@ -785,6 +797,17 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           <h1 style={s.titulo}>{titulo}</h1>
           <EstadoBadge estado={estado} />
         </div>
+        <div style={s.edpRow}>
+          <label style={s.edpLabel}>EDP</label>
+          <input
+            type="text"
+            style={s.edpInput}
+            value={edp}
+            onChange={e => setEdp(e.target.value)}
+            onBlur={e => guardarEdp(e.target.value)}
+            placeholder="Ej: EDP-1, EDP-2..."
+          />
+        </div>
       </div>
 
       {esHA && (
@@ -1060,6 +1083,9 @@ const s = {
   headerInfo: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' },
   titulo: { color: '#ccd6f6', fontSize: '20px', fontWeight: 700, flex: 1 },
   estadoBadge: { fontSize: '12px', fontWeight: 600, border: '1.5px solid', borderRadius: '6px', padding: '3px 10px', whiteSpace: 'nowrap', flexShrink: 0 },
+  edpRow: { display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' },
+  edpLabel: { color: '#8892b0', fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 },
+  edpInput: { background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '6px', color: '#64ffda', fontSize: '13px', fontWeight: 600, padding: '6px 10px', fontFamily: 'inherit', outline: 'none', maxWidth: '180px' },
 
   seccion: { background: '#16213e', borderRadius: '12px', padding: '20px', border: '1px solid #0f3460', marginBottom: '16px' },
   seccionTitulo: { color: '#8892b0', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '16px' },

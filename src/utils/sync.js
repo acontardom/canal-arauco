@@ -34,6 +34,7 @@ async function sincronizarProtocolos() {
         entidad_id:         String(protocolo.entidadId),
         protocolo_id:       protocolo.protocoloId,
         estado:             protocolo.estado,
+        edp:                protocolo.edp ?? null,
         fecha_envio:        protocolo.fechaEnvio ?? null,
         usuario_nombre:     protocolo.usuarioNombre ?? null,
         fecha_creacion:     protocolo.fechaCreacion ?? null,
