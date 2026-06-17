@@ -321,20 +321,22 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [fotosNubeSeleccionadas, setFotosNubeSeleccionadas] = useState([]);
   const [fotoNubeModal, setFotoNubeModal] = useState(null);
   const [descModalTexto, setDescModalTexto] = useState('');
-  const [cropModal, setCropModal]         = useState(null); // para fotos nuevas (cámara/galería)
-  const [crop, setCrop]                   = useState(null); // cropActivo: % live en ReactCrop
-  const [completedCrop, setCompletedCrop] = useState(null); // cropActivoPx: px live
-  const [cropConfirmado, setCropConfirmado] = useState(null); // { pct, px } — persiste entre modos
+  // ── Modal cámara/galería (fotos nuevas) ──────────────────────────────────────
+  const [cropModal, setCropModal]         = useState(null);
+  const [crop, setCrop]                   = useState(null);
+  const [completedCrop, setCompletedCrop] = useState(null);
   const [pendingFiles, setPendingFiles]   = useState([]);
-  const [modalModo, setModalModo]         = useState('ver'); // 'ver' | 'crop'
-  const [overlayRect, setOverlayRect]     = useState(null); // siempre refleja cropConfirmado
-  const [croppedPreviewUrl, setCroppedPreviewUrl] = useState(null);
+  // ── Modal nube ────────────────────────────────────────────────────────────────
+  const [modoCrop, setModoCrop]           = useState(false);  // false=preview, true=edición
+  const [cropActivo, setCropActivo]       = useState(null);   // % live mientras arrastra
+  const [cropGuardado, setCropGuardado]   = useState(null);   // % confirmado
 
   const cargadoRef = useRef(false);
   const toastTimerRef = useRef(null);
   const inputCamaraRef = useRef(null);
   const inputGaleriaRef = useRef(null);
-  const imgCropRef = useRef(null);
+  const imgCropRef = useRef(null); // modal cámara/galería
+  const imgRef     = useRef(null); // modal nube (preview y crop)
 
   const protocoloArr = useLiveQuery(
     () =>
@@ -550,33 +552,16 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     }
   }
 
-  // ── Crop helpers ──────────────────────────────────────────────────────────────
+  // ── Crop: modal cámara/galería ────────────────────────────────────────────────
 
-  function calcCropCentrado(imgEl) {
-    const { width, height } = imgEl;
+  function onCropImageLoad(e) {
+    const { width, height } = e.currentTarget;
     const pct = centerCrop(
       makeAspectCrop({ unit: '%', width: 90 }, 4 / 3, width, height),
       width, height,
     );
-    const px = { unit: 'px', x: (pct.x / 100) * width, y: (pct.y / 100) * height, width: (pct.width / 100) * width, height: (pct.height / 100) * height };
     setCrop(pct);
-    setCompletedCrop(px);
-    setCropConfirmado({ pct, px });
-    setOverlayRect({ left: `${pct.x}%`, top: `${pct.y}%`, width: `${pct.width}%`, height: `${pct.height}%` });
-  }
-
-  function onCropImageLoad(e) {
-    const { width, height } = e.currentTarget;
-    // Usar crop activo o el confirmado para re-montar en el tamaño correcto
-    const sourcePct = crop ?? cropConfirmado?.pct;
-    if (!sourcePct) {
-      calcCropCentrado(e.currentTarget);
-    } else {
-      // Recomputar px al nuevo tamaño renderizado manteniendo la posición %
-      const px = { unit: 'px', x: (sourcePct.x / 100) * width, y: (sourcePct.y / 100) * height, width: (sourcePct.width / 100) * width, height: (sourcePct.height / 100) * height };
-      if (!crop) setCrop(sourcePct);
-      setCompletedCrop(px);
-    }
+    setCompletedCrop({ unit: 'px', x: pct.x/100*width, y: pct.y/100*height, width: pct.width/100*width, height: pct.height/100*height });
   }
 
   function aplicarCropACanvas() {
@@ -589,14 +574,40 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     canvas.width  = Math.round(c.width  * scaleX);
     canvas.height = Math.round(c.height * scaleY);
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(
-      img,
-      Math.round(c.x * scaleX), Math.round(c.y * scaleY),
-      canvas.width, canvas.height,
-      0, 0, canvas.width, canvas.height,
-    );
+    ctx.drawImage(img, Math.round(c.x*scaleX), Math.round(c.y*scaleY), canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
     try   { return canvas.toDataURL('image/jpeg', 0.88); }
-    catch { return null; } // fallo CORS → usar original
+    catch { return null; }
+  }
+
+  // ── Crop: modal nube ──────────────────────────────────────────────────────────
+
+  // Calcula crop 4:3 centrado en %, relativo al elemento img
+  function calcCentrado(imgEl) {
+    const { width, height } = imgEl;
+    return centerCrop(
+      makeAspectCrop({ unit: '%', width: 90 }, 4 / 3, width, height),
+      width, height,
+    );
+  }
+
+  // Aplica cropGuardado (en %) sobre imgRef y devuelve dataURL
+  function aplicarCropNube(guardado) {
+    const img = imgRef.current;
+    if (!img || !guardado) return null;
+    const { width, height } = img;
+    const x = guardado.x      / 100 * width;
+    const y = guardado.y      / 100 * height;
+    const w = guardado.width  / 100 * width;
+    const h = guardado.height / 100 * height;
+    const scaleX = img.naturalWidth  / width;
+    const scaleY = img.naturalHeight / height;
+    const canvas = document.createElement('canvas');
+    canvas.width  = Math.round(w * scaleX);
+    canvas.height = Math.round(h * scaleY);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, Math.round(x*scaleX), Math.round(y*scaleY), canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+    try   { return canvas.toDataURL('image/jpeg', 0.9); }
+    catch { return null; }
   }
 
   function abrirCropModal(srcUrl, tipo, meta) {
@@ -704,68 +715,39 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   function abrirFotoNubeModal(indice) {
     const foto = fotosTerrenoFiltradas[indice];
-    const key = foto.storageUrl || foto.dataUrl;
-    const sel = fotosNubeSeleccionadas.find(f => (f.storageUrl || f.dataUrl) === key);
+    const key  = foto.storageUrl || foto.dataUrl;
+    const sel  = fotosNubeSeleccionadas.find(f => (f.storageUrl || f.dataUrl) === key);
     setDescModalTexto(sel?.descripcion ?? '');
-    setModalModo('ver');
-    setCrop(null);
-    setCompletedCrop(null);
-    setCropConfirmado(null);
-    setCroppedPreviewUrl(null);
-    setOverlayRect(null);
+    setModoCrop(false);
+    setCropActivo(null);
+    setCropGuardado(null);
     setFotoNubeModal(indice);
   }
 
   function cerrarFotoNubeModal() {
-    // Si la foto ya estaba seleccionada, persistir cambios de descripción
     if (fotoNubeModal !== null) {
       const foto = fotosTerrenoFiltradas[fotoNubeModal];
       if (foto) {
-        const key = foto.storageUrl || foto.dataUrl;
+        const key    = foto.storageUrl || foto.dataUrl;
         const actual = fotosNubeSeleccionadas.find(f => (f.storageUrl || f.dataUrl) === key);
-        if (actual && descModalTexto !== (actual.descripcion ?? '')) {
-          setDescFotoNube(key, descModalTexto);
-        }
+        if (actual && descModalTexto !== (actual.descripcion ?? '')) setDescFotoNube(key, descModalTexto);
       }
     }
     setFotoNubeModal(null);
-    setModalModo('ver');
-    setCroppedPreviewUrl(null);
+    setModoCrop(false);
   }
 
   function navegarFotoNubeModal(delta) {
-    const len = fotosTerrenoFiltradas.length;
+    const len  = fotosTerrenoFiltradas.length;
     const nuevo = (fotoNubeModal + delta + len) % len;
     abrirFotoNubeModal(nuevo);
-  }
-
-  function confirmarAjusteCrop() {
-    // Persistir posición del usuario
-    if (crop && completedCrop) {
-      setCropConfirmado({ pct: crop, px: completedCrop });
-      setOverlayRect({ left: `${crop.x}%`, top: `${crop.y}%`, width: `${crop.width}%`, height: `${crop.height}%` });
-    }
-    const url = aplicarCropACanvas();
-    if (url) setCroppedPreviewUrl(url);
-    setModalModo('ver');
-  }
-
-  function cancelarAjusteCrop() {
-    if (cropConfirmado) {
-      // Restaurar al último estado confirmado (descarta cambios del usuario)
-      setCrop(cropConfirmado.pct);
-      setCompletedCrop(cropConfirmado.px);
-    } else if (imgCropRef.current) {
-      // Nunca se confirmó nada: volver al centrado
-      calcCropCentrado(imgCropRef.current);
-    }
-    setModalModo('ver');
   }
 
   function agregarAlProtocolo() {
     const foto = fotosTerrenoFiltradas[fotoNubeModal];
     if (!foto) return;
-    const croppedUrl = croppedPreviewUrl ?? aplicarCropACanvas() ?? (foto.storageUrl || foto.dataUrl);
+    const guardado   = cropGuardado ?? cropActivo;
+    const croppedUrl = aplicarCropNube(guardado) ?? (foto.storageUrl || foto.dataUrl);
     setFotosNubeSeleccionadas(prev => [
       ...prev,
       { storageUrl: foto.storageUrl ?? null, dataUrl: foto.dataUrl ?? null, croppedDataUrl: croppedUrl, descripcion: descModalTexto },
@@ -1176,52 +1158,61 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
             {/* ── Imagen ──────────────────────────────────────────────────── */}
             <div style={s.fotoModalImgWrap}>
-              {modalModo === 'ver' ? (
+              {modoCrop ? (
+                /* MODO EDICIÓN — ReactCrop interactivo */
+                <ReactCrop
+                  crop={cropActivo ?? cropGuardado}
+                  onChange={(_, pct) => setCropActivo(pct)}
+                  aspect={4 / 3}
+                  keepSelection
+                >
+                  <img
+                    ref={imgRef}
+                    src={srcUrlModal}
+                    alt="recortar"
+                    style={{ maxWidth: '100%', maxHeight: '52vh', display: 'block' }}
+                    onLoad={e => {
+                      // Inicializar cropActivo desde cropGuardado (o centrado si es la primera vez)
+                      const c = cropGuardado ?? calcCentrado(e.currentTarget);
+                      setCropActivo(c);
+                      if (!cropGuardado) setCropGuardado(c);
+                    }}
+                  />
+                </ReactCrop>
+              ) : (
+                /* MODO PREVIEW — imagen con overlay sutil */
                 <>
                   {fotosTerrenoFiltradas.length > 1 && (
                     <button style={{ ...s.fotoModalNavBtn, left: '8px' }} onClick={() => navegarFotoNubeModal(-1)}>‹</button>
                   )}
                   <div style={{ position: 'relative', lineHeight: 0 }}>
-                    {croppedPreviewUrl ? (
-                      <>
-                        <img src={croppedPreviewUrl} alt="" style={s.fotoModalImg} />
-                        <span style={s.badgeCropAjustado}>✂ Recorte ajustado</span>
-                      </>
-                    ) : (
-                      <>
-                        <img
-                          ref={imgCropRef}
-                          src={srcUrlModal}
-                          alt=""
-                          onLoad={onCropImageLoad}
-                          style={s.fotoModalImg}
-                        />
-                        {overlayRect && (
-                          <div style={{ ...s.cropOverlayRect, ...overlayRect }} />
-                        )}
-                      </>
+                    <img
+                      ref={imgRef}
+                      src={srcUrlModal}
+                      alt=""
+                      style={s.fotoModalImg}
+                      onLoad={e => {
+                        if (!cropGuardado) {
+                          const c = calcCentrado(e.currentTarget);
+                          setCropActivo(c);
+                          setCropGuardado(c);
+                        }
+                      }}
+                    />
+                    {cropGuardado && (
+                      <div style={{
+                        ...s.cropOverlayRect,
+                        left:   `${cropGuardado.x}%`,
+                        top:    `${cropGuardado.y}%`,
+                        width:  `${cropGuardado.width}%`,
+                        height: `${cropGuardado.height}%`,
+                      }} />
                     )}
                   </div>
                   {fotosTerrenoFiltradas.length > 1 && (
                     <button style={{ ...s.fotoModalNavBtn, right: '8px' }} onClick={() => navegarFotoNubeModal(1)}>›</button>
                   )}
                 </>
-              ) : (
-                <ReactCrop
-                  crop={crop}
-                  onChange={c => setCrop(c)}
-                  onComplete={c => setCompletedCrop(c)}
-                  aspect={4 / 3}
-                  keepSelection
-                >
-                  <img
-                    ref={imgCropRef}
-                    src={srcUrlModal}
-                    alt="recortar"
-                    onLoad={onCropImageLoad}
-                    style={{ maxWidth: '100%', maxHeight: '52vh', display: 'block' }}
-                  />
-                </ReactCrop>
               )}
             </div>
 
@@ -1238,36 +1229,36 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
               />
             </div>
 
-            {/* ── Botones de acción ───────────────────────────────────────── */}
+            {/* ── Botones ─────────────────────────────────────────────────── */}
             {!readOnly && (
               <div style={s.fotoModalBotones}>
-                {modalModo === 'ver' ? (
-                  fotoModalSeleccionada ? (
-                    <button style={s.btnFotoModalSecundario} onClick={cerrarFotoNubeModal}>Cerrar</button>
-                  ) : (
-                    <>
-                      <button style={s.btnFotoModalSecundario} onClick={() => {
-                        // Inicializar cropActivo desde el estado confirmado antes de abrir
-                        if (cropConfirmado) {
-                          setCrop(cropConfirmado.pct);
-                          setCompletedCrop(cropConfirmado.px);
-                        }
-                        setModalModo('crop');
-                      }}>
-                        ✂️ Ajustar recorte
-                      </button>
-                      <button style={s.btnFotoModalPrimario} onClick={agregarAlProtocolo}>
-                        Agregar al protocolo
-                      </button>
-                    </>
-                  )
+                {modoCrop ? (
+                  <>
+                    <button style={s.btnFotoModalSecundario} onClick={() => {
+                      setCropActivo(cropGuardado); // descartar cambios, volver a lo guardado
+                      setModoCrop(false);
+                    }}>
+                      ↩ Cancelar
+                    </button>
+                    <button style={s.btnFotoModalPrimario} onClick={() => {
+                      if (cropActivo) setCropGuardado(cropActivo);
+                      setModoCrop(false);
+                    }}>
+                      ✅ Confirmar
+                    </button>
+                  </>
+                ) : fotoModalSeleccionada ? (
+                  <button style={s.btnFotoModalSecundario} onClick={cerrarFotoNubeModal}>Cerrar</button>
                 ) : (
                   <>
-                    <button style={s.btnFotoModalSecundario} onClick={cancelarAjusteCrop}>
-                      Cancelar
+                    <button style={s.btnFotoModalSecundario} onClick={() => {
+                      setCropActivo(cropGuardado ?? null);
+                      setModoCrop(true);
+                    }}>
+                      ✂️ Ajustar recorte
                     </button>
-                    <button style={s.btnFotoModalPrimario} onClick={confirmarAjusteCrop}>
-                      Confirmar recorte
+                    <button style={s.btnFotoModalPrimario} onClick={agregarAlProtocolo}>
+                      Agregar al protocolo
                     </button>
                   </>
                 )}
@@ -1451,7 +1442,6 @@ const s = {
   btnFotoModalPrimario: { padding: '10px 22px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 700, cursor: 'pointer' },
   btnFotoModalSecundario: { padding: '10px 18px', background: '#0f3460', color: '#ccd6f6', border: '1px solid #1e3a5f', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' },
   cropOverlayRect: { position: 'absolute', border: '2px dashed rgba(255,255,255,0.8)', boxShadow: '0 0 8px rgba(0,0,0,0.5)', boxSizing: 'border-box', pointerEvents: 'none' },
-  badgeCropAjustado: { position: 'absolute', bottom: '8px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(16,185,129,0.92)', color: '#fff', fontSize: '11px', fontWeight: 700, padding: '3px 12px', borderRadius: '10px', whiteSpace: 'nowrap', pointerEvents: 'none' },
 
   previewOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: '16px' },
   previewContent: { background: '#16213e', borderRadius: '16px', border: '1px solid #0f3460', width: '90vw', height: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
