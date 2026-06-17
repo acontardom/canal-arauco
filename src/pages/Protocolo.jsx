@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
 import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
 import { PROTOCOLOS, CHECKLISTS, TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
@@ -319,11 +321,16 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [fotosNubeSeleccionadas, setFotosNubeSeleccionadas] = useState([]);
   const [fotoNubeModal, setFotoNubeModal] = useState(null);
   const [descModalTexto, setDescModalTexto] = useState('');
+  const [cropModal, setCropModal]       = useState(null); // { srcUrl, tipo: 'nueva'|'nube', meta }
+  const [crop, setCrop]                 = useState(null);
+  const [completedCrop, setCompletedCrop] = useState(null);
+  const [pendingFiles, setPendingFiles] = useState([]);
 
   const cargadoRef = useRef(false);
   const toastTimerRef = useRef(null);
   const inputCamaraRef = useRef(null);
   const inputGaleriaRef = useRef(null);
+  const imgCropRef = useRef(null);
 
   const protocoloArr = useLiveQuery(
     () =>
@@ -539,35 +546,113 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     }
   }
 
-  async function handleFotoSeleccionada(e) {
-    const files = Array.from(e.target.files ?? []);
-    if (files.length === 0) return;
+  // ── Crop helpers ──────────────────────────────────────────────────────────────
+
+  function onCropImageLoad(e) {
+    const { width, height } = e.currentTarget;
+    const percentCrop = centerCrop(
+      makeAspectCrop({ unit: '%', width: 90 }, 4 / 3, width, height),
+      width, height,
+    );
+    setCrop(percentCrop);
+    // Pre-calcular completedCrop en píxeles para el caso en que el usuario
+    // no arrastre el recuadro y confirme directamente.
+    setCompletedCrop({
+      unit: 'px',
+      x:      (percentCrop.x      / 100) * width,
+      y:      (percentCrop.y      / 100) * height,
+      width:  (percentCrop.width  / 100) * width,
+      height: (percentCrop.height / 100) * height,
+    });
+  }
+
+  function aplicarCropACanvas() {
+    const img = imgCropRef.current;
+    const c   = completedCrop;
+    if (!img || !c?.width || !c?.height) return null;
+    const scaleX = img.naturalWidth  / img.width;
+    const scaleY = img.naturalHeight / img.height;
+    const canvas = document.createElement('canvas');
+    canvas.width  = Math.round(c.width  * scaleX);
+    canvas.height = Math.round(c.height * scaleY);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(
+      img,
+      Math.round(c.x * scaleX), Math.round(c.y * scaleY),
+      canvas.width, canvas.height,
+      0, 0, canvas.width, canvas.height,
+    );
+    try   { return canvas.toDataURL('image/jpeg', 0.88); }
+    catch { return null; } // fallo CORS → usar original
+  }
+
+  function abrirCropModal(srcUrl, tipo, meta) {
+    setCropModal({ srcUrl, tipo, meta });
+    setCrop(null);
+    setCompletedCrop(null);
+  }
+
+  function cancelarCrop() {
+    setCropModal(null);
+    setPendingFiles([]);
+  }
+
+  async function confirmarCrop() {
+    if (!cropModal) return;
+    const croppedUrl = aplicarCropACanvas() ?? cropModal.srcUrl;
+
+    if (cropModal.tipo === 'nueva') {
+      await guardarFotoNueva(croppedUrl, cropModal.meta.file.name, cropModal.meta.file.type);
+    } else {
+      const { foto } = cropModal.meta;
+      setFotosNubeSeleccionadas(prev => [
+        ...prev,
+        { storageUrl: foto.storageUrl ?? null, dataUrl: foto.dataUrl ?? null, croppedDataUrl: croppedUrl, descripcion: '' },
+      ]);
+    }
+
+    setCropModal(null);
+
+    // Procesar siguiente archivo pendiente
+    if (pendingFiles.length > 0) {
+      const [next, ...rest] = pendingFiles;
+      setPendingFiles(rest);
+      const dataUrl = await comprimirFoto(next);
+      abrirCropModal(dataUrl, 'nueva', { file: next });
+    }
+  }
+
+  async function guardarFotoNueva(croppedDataUrl, nombre, tipoMime) {
     try {
       const protocoloLocalId = await obtenerOCrearId();
-      for (const file of files) {
-        const dataUrl = await comprimirFoto(file);
-        const fotoId = await db.fotos.add({
-          protocoloLocalId, nombre: file.name, tipo: file.type, dataUrl,
-          sincronizada: false, storageUrl: null, subidaStorage: false,
-        });
-
-        if (supabase && navigator.onLine) {
-          try {
-            const storageUrl = await uploadFoto(dataUrl, { tipo, entidadId: entidadIdReal, nombre: file.name });
-            if (storageUrl) {
-              await db.fotos.update(fotoId, { storageUrl, subidaStorage: true });
-            }
-          } catch (err) {
-            console.warn('[Foto] Error al subir a Storage:', err?.message ?? err);
-          }
+      const fotoId = await db.fotos.add({
+        protocoloLocalId, nombre, tipo: tipoMime, dataUrl: croppedDataUrl,
+        sincronizada: false, storageUrl: null, subidaStorage: false,
+      });
+      if (supabase && navigator.onLine) {
+        try {
+          const storageUrl = await uploadFoto(croppedDataUrl, { tipo, entidadId: entidadIdReal, nombre });
+          if (storageUrl) await db.fotos.update(fotoId, { storageUrl, subidaStorage: true });
+        } catch (err) {
+          console.warn('[Foto] Error al subir a Storage:', err?.message ?? err);
         }
       }
-      mostrarToast(files.length > 1 ? `${files.length} fotos agregadas` : 'Foto agregada');
+      mostrarToast('Foto agregada');
     } catch {
       mostrarToast('Error al guardar foto', 'error');
-    } finally {
-      e.target.value = '';
     }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  async function handleFotoSeleccionada(e) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (files.length === 0) return;
+    const [first, ...rest] = files;
+    setPendingFiles(rest);
+    const dataUrl = await comprimirFoto(first);
+    abrirCropModal(dataUrl, 'nueva', { file: first });
   }
 
   async function eliminarFoto(fotoId) {
@@ -576,11 +661,12 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   function toggleFotoNube(foto) {
     const key = foto.storageUrl || foto.dataUrl;
-    setFotosNubeSeleccionadas(prev =>
-      prev.some(f => (f.storageUrl || f.dataUrl) === key)
-        ? prev.filter(f => (f.storageUrl || f.dataUrl) !== key)
-        : [...prev, { storageUrl: foto.storageUrl ?? null, dataUrl: foto.dataUrl ?? null, descripcion: '' }]
-    );
+    const yaSeleccionada = fotosNubeSeleccionadas.some(f => (f.storageUrl || f.dataUrl) === key);
+    if (yaSeleccionada) {
+      setFotosNubeSeleccionadas(prev => prev.filter(f => (f.storageUrl || f.dataUrl) !== key));
+    } else {
+      abrirCropModal(foto.storageUrl || foto.dataUrl, 'nube', { foto });
+    }
   }
 
   function quitarFotoNube(key) {
@@ -684,7 +770,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     return {
       id: `nube-${key}`,
       key,
-      dataUrl: sel.storageUrl || sel.dataUrl,
+      dataUrl: sel.croppedDataUrl || sel.storageUrl || sel.dataUrl,
       storageUrl: sel.storageUrl ?? null,
       descripcion: sel.descripcion ?? '',
       origen: 'nube',
@@ -1044,6 +1130,40 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         </div>
       )}
 
+      {cropModal && (
+        <div style={s.cropModalOverlay} onClick={cancelarCrop}>
+          <div style={s.cropModalContent} onClick={e => e.stopPropagation()}>
+            <div style={s.cropModalTitulo}>
+              ✂️ Recortar foto
+              <span style={{ fontSize: '12px', color: '#8892b0', fontWeight: 400, marginLeft: '8px' }}>
+                Proporción fija 4:3
+              </span>
+            </div>
+            <div style={s.cropWrapper}>
+              <ReactCrop
+                crop={crop}
+                onChange={c => setCrop(c)}
+                onComplete={c => setCompletedCrop(c)}
+                aspect={4 / 3}
+                keepSelection
+              >
+                <img
+                  ref={imgCropRef}
+                  src={cropModal.srcUrl}
+                  alt="recortar"
+                  onLoad={onCropImageLoad}
+                  style={{ maxWidth: '100%', maxHeight: '60vh', display: 'block' }}
+                />
+              </ReactCrop>
+            </div>
+            <div style={s.cropBotones}>
+              <button style={s.btnCropUsar} onClick={confirmarCrop}>✔ Usar recorte</button>
+              <button style={s.btnCropCancelar} onClick={cancelarCrop}>✕ Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {previewPDF && (
         <div style={s.previewOverlay} onClick={cerrarVistaPrevia}>
           <div style={s.previewContent} onClick={(e) => e.stopPropagation()}>
@@ -1189,4 +1309,13 @@ const s = {
   btnPreviewDescargar: { padding: '8px 16px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' },
   btnPreviewCerrar: { padding: '8px 16px', background: '#0f3460', color: '#ccd6f6', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' },
   previewIframe: { flex: 1, width: '100%', border: 'none', background: '#fff' },
+
+  // ── Crop modal ────────────────────────────────────────────────────────────────
+  cropModalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' },
+  cropModalContent: { background: '#16213e', borderRadius: '14px', border: '1px solid #0f3460', width: '100%', maxWidth: '680px', display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px', boxSizing: 'border-box' },
+  cropModalTitulo: { color: '#64ffda', fontSize: '16px', fontWeight: 700 },
+  cropWrapper: { display: 'flex', justifyContent: 'center', background: '#0a0a1a', borderRadius: '8px', overflow: 'hidden', minHeight: '200px', alignItems: 'center' },
+  cropBotones: { display: 'flex', gap: '12px', justifyContent: 'flex-end' },
+  btnCropUsar: { padding: '10px 22px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 700, cursor: 'pointer' },
+  btnCropCancelar: { padding: '10px 22px', background: '#0f3460', color: '#ccd6f6', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 700, cursor: 'pointer' },
 };
