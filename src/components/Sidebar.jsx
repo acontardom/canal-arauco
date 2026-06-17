@@ -22,8 +22,9 @@ const SECCIONES = [
   {
     titulo: 'Avance',
     items: [
+      { to: '/planificacion',      label: 'Planificación',      icono: '📅' },
       { to: '/recepcionar-avance', label: 'Recepcionar Avance', icono: '✅' },
-      { to: '/cuadrillas', label: 'Cuadrillas', icono: '👷' },
+      { to: '/cuadrillas',         label: 'Cuadrillas',         icono: '👷' },
     ],
   },
   {
