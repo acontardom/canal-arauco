@@ -1,9 +1,10 @@
-import { useLiveQuery } from 'dexie-react-hooks';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { db } from '../db/database';
+import { supabase } from '../config/supabase';
 import { CAIDAS, PROTOCOLOS } from '../constants/estructura';
 
 const TOTAL = PROTOCOLOS.length;
+const PRIORIDAD = { enviado: 3, completado: 2, borrador: 1, pendiente: 0 };
 
 function colorProgreso(completados) {
   if (completados === 0) return '#ef4444';
@@ -11,50 +12,76 @@ function colorProgreso(completados) {
   return '#f59e0b';
 }
 
+// Ante duplicados (entidad_id, protocolo_id), conserva el de mayor estado
+function dedup(rows) {
+  const map = {};
+  for (const r of rows) {
+    const key = `${r.entidad_id}__${r.protocolo_id}`;
+    const prev = map[key];
+    if (!prev || (PRIORIDAD[r.estado] ?? -1) > (PRIORIDAD[prev.estado] ?? -1)) {
+      map[key] = r;
+    }
+  }
+  return Object.values(map);
+}
+
 export default function Caidas() {
   const navigate = useNavigate();
+  const [completadosPor, setCompletadosPor] = useState({});
+  const [cargando, setCargando] = useState(true);
 
-  const protocolos = useLiveQuery(
-    () => db.protocolos.where('tipo').equals('caida').toArray(),
-    []
-  ) ?? [];
-
-  const completadosPor = protocolos.reduce((acc, p) => {
-    if (p.estado === 'completado' || p.estado === 'enviado') acc[p.entidadId] = (acc[p.entidadId] || 0) + 1;
-    return acc;
-  }, {});
+  useEffect(() => {
+    if (!supabase) { setCargando(false); return; }
+    supabase
+      .from('protocolos')
+      .select('entidad_id,protocolo_id,estado')
+      .eq('tipo', 'caida')
+      .then(({ data }) => {
+        const conteo = {};
+        for (const r of dedup(data ?? [])) {
+          if (r.estado === 'completado' || r.estado === 'enviado') {
+            conteo[r.entidad_id] = (conteo[r.entidad_id] ?? 0) + 1;
+          }
+        }
+        setCompletadosPor(conteo);
+      })
+      .finally(() => setCargando(false));
+  }, []);
 
   return (
     <div style={s.page}>
       <h1 style={s.titulo}>Caídas</h1>
-      <div style={s.grid}>
-        {CAIDAS.map(caidaId => {
-          const completados = completadosPor[caidaId] ?? 0;
-          const color = colorProgreso(completados);
-          const pct = (completados / TOTAL) * 100;
-
-          return (
-            <div
-              key={caidaId}
-              style={{ ...s.card, borderColor: color + '55' }}
-              onClick={() => navigate(`/caidas/${caidaId}`)}
-            >
-              <div style={s.cardTop}>
-                <span style={s.caidaNum}>Caída {caidaId}</span>
-                <span style={{ ...s.badge, color, borderColor: color }}>
-                  {completados}/{TOTAL}
+      {cargando ? (
+        <p style={s.msgCargando}>Cargando...</p>
+      ) : (
+        <div style={s.grid}>
+          {CAIDAS.map(caidaId => {
+            const completados = completadosPor[caidaId] ?? 0;
+            const color = colorProgreso(completados);
+            const pct = (completados / TOTAL) * 100;
+            return (
+              <div
+                key={caidaId}
+                style={{ ...s.card, borderColor: color + '55' }}
+                onClick={() => navigate(`/caidas/${caidaId}`)}
+              >
+                <div style={s.cardTop}>
+                  <span style={s.caidaNum}>Caída {caidaId}</span>
+                  <span style={{ ...s.badge, color, borderColor: color }}>
+                    {completados}/{TOTAL}
+                  </span>
+                </div>
+                <div style={s.barraFondo}>
+                  <div style={{ ...s.barraRelleno, width: `${pct}%`, background: color }} />
+                </div>
+                <span style={{ color, fontSize: '11px', fontWeight: 600 }}>
+                  {completados === 0 ? 'Sin iniciar' : completados === TOTAL ? 'Completo' : 'En progreso'}
                 </span>
               </div>
-              <div style={s.barraFondo}>
-                <div style={{ ...s.barraRelleno, width: `${pct}%`, background: color }} />
-              </div>
-              <span style={{ color, fontSize: '11px', fontWeight: 600 }}>
-                {completados === 0 ? 'Sin iniciar' : completados === TOTAL ? 'Completo' : 'En progreso'}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -62,6 +89,7 @@ export default function Caidas() {
 const s = {
   page: { maxWidth: '900px', margin: '0 auto' },
   titulo: { color: '#ccd6f6', fontSize: '24px', fontWeight: 700, marginBottom: '24px' },
+  msgCargando: { color: '#8892b0', fontSize: '14px', fontStyle: 'italic' },
   grid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',

@@ -1,11 +1,10 @@
-import { useLiveQuery } from 'dexie-react-hooks';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { db } from '../db/database';
+import { supabase } from '../config/supabase';
 import { TRAMOS, CAIDAS, PROTOCOLOS } from '../constants/estructura';
 
-const NOMBRE_PROTOCOLO = Object.fromEntries(
-  PROTOCOLOS.map(p => [p.id, p.nombre])
-);
+const NOMBRE_PROTOCOLO = Object.fromEntries(PROTOCOLOS.map(p => [p.id, p.nombre]));
+const PRIORIDAD = { enviado: 3, completado: 2, borrador: 1, pendiente: 0 };
 
 function formatFecha(iso) {
   if (!iso) return '—';
@@ -14,85 +13,129 @@ function formatFecha(iso) {
   });
 }
 
-const ESTADO_COLOR = { completado: '#10b981', borrador: '#f59e0b', pendiente: '#8892b0' };
+const ESTADO_COLOR = { completado: '#10b981', enviado: '#27ae60', borrador: '#f59e0b', pendiente: '#8892b0' };
+
+// Ante duplicados (tipo, entidad_id, protocolo_id), conserva el de mayor estado
+function dedup(rows) {
+  const map = {};
+  for (const r of rows) {
+    const key = `${r.tipo}__${r.entidad_id}__${r.protocolo_id}`;
+    const prev = map[key];
+    if (!prev || (PRIORIDAD[r.estado] ?? -1) > (PRIORIDAD[prev.estado] ?? -1)) {
+      map[key] = r;
+    }
+  }
+  return Object.values(map);
+}
+
+function calcMetricas(rows, tipo, entidades) {
+  const conteo = {};
+  for (const r of rows) {
+    if (r.tipo === tipo && (r.estado === 'completado' || r.estado === 'enviado')) {
+      conteo[r.entidad_id] = (conteo[r.entidad_id] ?? 0) + 1;
+    }
+  }
+  let completos = 0, enProgreso = 0;
+  for (const id of entidades) {
+    const n = conteo[id] ?? 0;
+    if (n === PROTOCOLOS.length) completos++;
+    else if (n > 0) enProgreso++;
+  }
+  return { completos, enProgreso };
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [tramos, setTramos]     = useState({ completos: 0, enProgreso: 0 });
+  const [caidas, setCaidas]     = useState({ completos: 0, enProgreso: 0 });
+  const [recientes, setRecientes] = useState([]);
+  const [cargando, setCargando] = useState(true);
 
-  const protocolos = useLiveQuery(() => db.protocolos.toArray(), []) ?? [];
-  const recientes = useLiveQuery(
-    () => db.protocolos.orderBy('fechaModificacion').reverse().limit(5).toArray(),
-    []
-  ) ?? [];
+  useEffect(() => {
+    if (!supabase) { setCargando(false); return; }
 
-  function calcMetricas(tipo, entidades) {
-    const conteo = {};
-    protocolos.forEach(p => {
-      if (p.tipo === tipo && p.estado === 'completado') {
-        conteo[p.entidadId] = (conteo[p.entidadId] ?? 0) + 1;
+    Promise.all([
+      supabase.from('protocolos').select('tipo,entidad_id,protocolo_id,estado'),
+      supabase
+        .from('protocolos')
+        .select('tipo,entidad_id,protocolo_id,estado,usuario_nombre,fecha_modificacion')
+        .order('fecha_modificacion', { ascending: false })
+        .limit(30),
+    ]).then(([{ data: todos }, { data: ultimos }]) => {
+      const deduped = dedup(todos ?? []);
+      setTramos(calcMetricas(deduped, 'tramo', TRAMOS));
+      setCaidas(calcMetricas(deduped, 'caida', CAIDAS));
+
+      // Dedup recientes por orden de aparición (ya vienen desc por fecha)
+      const seenRec = new Set();
+      const rec = [];
+      for (const r of (ultimos ?? [])) {
+        const key = `${r.tipo}__${r.entidad_id}__${r.protocolo_id}`;
+        if (!seenRec.has(key)) {
+          seenRec.add(key);
+          rec.push(r);
+          if (rec.length === 5) break;
+        }
       }
-    });
-    let completos = 0, enProgreso = 0;
-    entidades.forEach(id => {
-      const n = conteo[id] ?? 0;
-      if (n === PROTOCOLOS.length) completos++;
-      else if (n > 0) enProgreso++;
-    });
-    return { completos, enProgreso };
-  }
-
-  const tramos  = calcMetricas('tramo', TRAMOS);
-  const caidas  = calcMetricas('caida', CAIDAS);
+      setRecientes(rec);
+    }).finally(() => setCargando(false));
+  }, []);
 
   return (
     <div style={s.page}>
       <h1 style={s.titulo}>Proyecto Canal Arauco</h1>
 
-      <div style={s.cards}>
-        <TarjetaResumen
-          titulo="Tramos"
-          completos={tramos.completos}
-          enProgreso={tramos.enProgreso}
-          total={TRAMOS.length}
-          onClick={() => navigate('/tramos')}
-          btnLabel="Ver Tramos"
-        />
-        <TarjetaResumen
-          titulo="Caídas"
-          completos={caidas.completos}
-          enProgreso={caidas.enProgreso}
-          total={CAIDAS.length}
-          onClick={() => navigate('/caidas')}
-          btnLabel="Ver Caídas"
-        />
-      </div>
+      {cargando ? (
+        <p style={s.msgCargando}>Cargando...</p>
+      ) : (
+        <>
+          <div style={s.cards}>
+            <TarjetaResumen
+              titulo="Tramos"
+              completos={tramos.completos}
+              enProgreso={tramos.enProgreso}
+              total={TRAMOS.length}
+              onClick={() => navigate('/tramos')}
+              btnLabel="Ver Tramos"
+            />
+            <TarjetaResumen
+              titulo="Caídas"
+              completos={caidas.completos}
+              enProgreso={caidas.enProgreso}
+              total={CAIDAS.length}
+              onClick={() => navigate('/caidas')}
+              btnLabel="Ver Caídas"
+            />
+          </div>
 
-      <h2 style={s.seccionTitulo}>Actividad Reciente</h2>
-      <div style={s.actividad}>
-        {recientes.length === 0 ? (
-          <p style={s.vacio}>Sin actividad aún. Los protocolos guardados aparecerán aquí.</p>
-        ) : (
-          recientes.map(p => (
-            <div key={p.id} style={s.actividadItem}>
-              <div style={s.actividadLeft}>
-                <span style={s.entidad}>
-                  {p.tipo === 'tramo' ? 'Tramo' : 'Caída'} {p.entidadId}
-                </span>
-                <span style={s.protNombre}>
-                  {NOMBRE_PROTOCOLO[p.protocoloId] ?? p.protocoloId}
-                </span>
-              </div>
-              <div style={s.actividadRight}>
-                <span style={{ ...s.estadoBadge, background: ESTADO_COLOR[p.estado] + '22', color: ESTADO_COLOR[p.estado] }}>
-                  {p.estado}
-                </span>
-                <span style={s.usuario}>{p.usuarioNombre}</span>
-                <span style={s.fecha}>{formatFecha(p.fechaModificacion)}</span>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+          <h2 style={s.seccionTitulo}>Actividad Reciente</h2>
+          <div style={s.actividad}>
+            {recientes.length === 0 ? (
+              <p style={s.vacio}>Sin actividad aún. Los protocolos guardados aparecerán aquí.</p>
+            ) : (
+              recientes.map((p, i) => (
+                <div key={i} style={s.actividadItem}>
+                  <div style={s.actividadLeft}>
+                    <span style={s.entidad}>
+                      {p.tipo === 'tramo' ? 'Tramo' : p.tipo === 'caida' ? 'Caída' : 'Atravieso'} {p.entidad_id}
+                    </span>
+                    <span style={s.protNombre}>
+                      {NOMBRE_PROTOCOLO[p.protocolo_id] ?? p.protocolo_id}
+                    </span>
+                  </div>
+                  <div style={s.actividadRight}>
+                    <span style={{ ...s.estadoBadge, background: (ESTADO_COLOR[p.estado] ?? '#8892b0') + '22', color: ESTADO_COLOR[p.estado] ?? '#8892b0' }}>
+                      {p.estado}
+                    </span>
+                    <span style={s.usuario}>{p.usuario_nombre}</span>
+                    <span style={s.fecha}>{formatFecha(p.fecha_modificacion)}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -130,6 +173,7 @@ function TarjetaResumen({ titulo, completos, enProgreso, total, onClick, btnLabe
 const s = {
   page: { maxWidth: '800px', margin: '0 auto' },
   titulo: { color: '#ccd6f6', fontSize: '24px', fontWeight: 700, marginBottom: '24px' },
+  msgCargando: { color: '#8892b0', fontSize: '14px', fontStyle: 'italic' },
   cards: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '40px' },
   card: {
     background: '#16213e', borderRadius: '12px', padding: '24px',
