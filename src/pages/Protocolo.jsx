@@ -322,11 +322,12 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [fotoNubeModal, setFotoNubeModal] = useState(null);
   const [descModalTexto, setDescModalTexto] = useState('');
   const [cropModal, setCropModal]         = useState(null); // para fotos nuevas (cámara/galería)
-  const [crop, setCrop]                   = useState(null);
-  const [completedCrop, setCompletedCrop] = useState(null);
+  const [crop, setCrop]                   = useState(null); // cropActivo: % live en ReactCrop
+  const [completedCrop, setCompletedCrop] = useState(null); // cropActivoPx: px live
+  const [cropConfirmado, setCropConfirmado] = useState(null); // { pct, px } — persiste entre modos
   const [pendingFiles, setPendingFiles]   = useState([]);
   const [modalModo, setModalModo]         = useState('ver'); // 'ver' | 'crop'
-  const [overlayRect, setOverlayRect]     = useState(null); // { left, top, width, height } en %
+  const [overlayRect, setOverlayRect]     = useState(null); // siempre refleja cropConfirmado
   const [croppedPreviewUrl, setCroppedPreviewUrl] = useState(null);
 
   const cargadoRef = useRef(false);
@@ -557,20 +558,24 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       makeAspectCrop({ unit: '%', width: 90 }, 4 / 3, width, height),
       width, height,
     );
+    const px = { unit: 'px', x: (pct.x / 100) * width, y: (pct.y / 100) * height, width: (pct.width / 100) * width, height: (pct.height / 100) * height };
     setCrop(pct);
-    setCompletedCrop({ unit: 'px', x: (pct.x / 100) * width, y: (pct.y / 100) * height, width: (pct.width / 100) * width, height: (pct.height / 100) * height });
+    setCompletedCrop(px);
+    setCropConfirmado({ pct, px });
     setOverlayRect({ left: `${pct.x}%`, top: `${pct.y}%`, width: `${pct.width}%`, height: `${pct.height}%` });
   }
 
   function onCropImageLoad(e) {
     const { width, height } = e.currentTarget;
-    if (!completedCrop || !crop) {
-      // Primera carga: centrar el recuadro
+    // Usar crop activo o el confirmado para re-montar en el tamaño correcto
+    const sourcePct = crop ?? cropConfirmado?.pct;
+    if (!sourcePct) {
       calcCropCentrado(e.currentTarget);
     } else {
-      // Re-montaje al cambiar de modo: recomputa completedCrop con las nuevas dimensiones
-      // manteniendo la posición % que el usuario haya ajustado
-      setCompletedCrop({ unit: 'px', x: (crop.x / 100) * width, y: (crop.y / 100) * height, width: (crop.width / 100) * width, height: (crop.height / 100) * height });
+      // Recomputar px al nuevo tamaño renderizado manteniendo la posición %
+      const px = { unit: 'px', x: (sourcePct.x / 100) * width, y: (sourcePct.y / 100) * height, width: (sourcePct.width / 100) * width, height: (sourcePct.height / 100) * height };
+      if (!crop) setCrop(sourcePct);
+      setCompletedCrop(px);
     }
   }
 
@@ -705,6 +710,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     setModalModo('ver');
     setCrop(null);
     setCompletedCrop(null);
+    setCropConfirmado(null);
     setCroppedPreviewUrl(null);
     setOverlayRect(null);
     setFotoNubeModal(indice);
@@ -734,14 +740,25 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   }
 
   function confirmarAjusteCrop() {
+    // Persistir posición del usuario
+    if (crop && completedCrop) {
+      setCropConfirmado({ pct: crop, px: completedCrop });
+      setOverlayRect({ left: `${crop.x}%`, top: `${crop.y}%`, width: `${crop.width}%`, height: `${crop.height}%` });
+    }
     const url = aplicarCropACanvas();
     if (url) setCroppedPreviewUrl(url);
     setModalModo('ver');
   }
 
   function cancelarAjusteCrop() {
-    if (imgCropRef.current) calcCropCentrado(imgCropRef.current);
-    setCroppedPreviewUrl(null);
+    if (cropConfirmado) {
+      // Restaurar al último estado confirmado (descarta cambios del usuario)
+      setCrop(cropConfirmado.pct);
+      setCompletedCrop(cropConfirmado.px);
+    } else if (imgCropRef.current) {
+      // Nunca se confirmó nada: volver al centrado
+      calcCropCentrado(imgCropRef.current);
+    }
     setModalModo('ver');
   }
 
@@ -1229,7 +1246,14 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                     <button style={s.btnFotoModalSecundario} onClick={cerrarFotoNubeModal}>Cerrar</button>
                   ) : (
                     <>
-                      <button style={s.btnFotoModalSecundario} onClick={() => setModalModo('crop')}>
+                      <button style={s.btnFotoModalSecundario} onClick={() => {
+                        // Inicializar cropActivo desde el estado confirmado antes de abrir
+                        if (cropConfirmado) {
+                          setCrop(cropConfirmado.pct);
+                          setCompletedCrop(cropConfirmado.px);
+                        }
+                        setModalModo('crop');
+                      }}>
                         ✂️ Ajustar recorte
                       </button>
                       <button style={s.btnFotoModalPrimario} onClick={agregarAlProtocolo}>
