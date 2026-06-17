@@ -85,6 +85,15 @@ export const CHECKLISTS = {
   G5: [],
 };
 
+export const PARTIDAS = [
+  { id: 'excavacion',     nombre: 'Excavación',       orden: 1 },
+  { id: 'emplantillado',  nombre: 'Emplantillado',     orden: 2 },
+  { id: 'enfierradura',   nombre: 'Enfierradura',      orden: 3 },
+  { id: 'hormigon_radier',nombre: 'Hormigón Radier',   orden: 4 },
+  { id: 'moldaje',        nombre: 'Moldaje',           orden: 5 },
+  { id: 'hormigon_muro',  nombre: 'Hormigón Muro',     orden: 6 },
+];
+
 export const USUARIOS = [
   'Álvaro Muñoz',
   'Diego Oñate',

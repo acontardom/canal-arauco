@@ -15,6 +15,8 @@ import HistorialCamiones from './pages/HistorialCamiones';
 import Proximamente from './pages/Proximamente';
 import SubirFotos from './pages/SubirFotos';
 import RecibirCamion from './pages/RecibirCamion';
+import RecepcionarAvance from './pages/RecepcionarAvance';
+import Cuadrillas from './pages/Cuadrillas';
 import Tramos from './pages/Tramos';
 import TramoDetalle from './pages/TramoDetalle';
 import Caidas from './pages/Caidas';
@@ -56,6 +58,7 @@ const bs = {
 function esFlujoInterno(pathname) {
   return pathname.startsWith('/subir-fotos')
     || pathname.startsWith('/recibir-camion')
+    || pathname.startsWith('/recepcionar-avance')
     || pathname.startsWith('/generar-protocolo')
     || pathname.startsWith('/protocolo');
 }
@@ -115,6 +118,8 @@ export default function App() {
             <Route path="/subir-fotos" element={<SubirFotos />} />
             <Route path="/subir-fotos/:tipo/:entidadId" element={<SubirFotos />} />
             <Route path="/recibir-camion" element={<RecibirCamion />} />
+            <Route path="/recepcionar-avance" element={<RecepcionarAvance />} />
+            <Route path="/cuadrillas" element={<Cuadrillas />} />
             <Route path="/tramos" element={<Tramos />} />
             <Route path="/tramos/:tramoId" element={<TramoDetalle />} />
             <Route path="/caidas" element={<Caidas />} />

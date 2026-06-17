@@ -20,6 +20,13 @@ const SECCIONES = [
     ],
   },
   {
+    titulo: 'Avance',
+    items: [
+      { to: '/recepcionar-avance', label: 'Recepcionar Avance', icono: '✅' },
+      { to: '/cuadrillas', label: 'Cuadrillas', icono: '👷' },
+    ],
+  },
+  {
     titulo: 'Acciones',
     items: [
       { to: '/generar-protocolo', label: 'Generar Protocolo', icono: '📋' },

@@ -59,6 +59,10 @@ export default function Inicio() {
             <button style={s.btnTerreno} onClick={() => navigate('/recibir-camion')}>
               🚛 Recibir Camión
             </button>
+            <div style={s.divisor} />
+            <button style={s.btnTerreno} onClick={() => navigate('/recepcionar-avance')}>
+              ✅ Recepcionar Avance
+            </button>
           </section>
 
           <section style={s.bloqueActividad}>
@@ -110,6 +114,8 @@ const s = {
     background: '#0f3460', color: '#ccd6f6', border: '1px solid #1e3a5f',
     borderRadius: '10px', padding: '14px 16px', fontSize: '15px', fontWeight: 600, cursor: 'pointer',
   },
+
+  divisor: { borderTop: '1px solid rgba(100,255,218,0.12)', margin: '2px 0' },
 
   bloqueTerreno: {
     background: 'linear-gradient(135deg, #0f3460, #16213e)',
