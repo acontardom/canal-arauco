@@ -25,6 +25,7 @@ const SECCIONES = [
       { to: '/planificacion',      label: 'Planificación',      icono: '📅' },
       { to: '/recepcionar-avance', label: 'Recepcionar Avance', icono: '✅' },
       { to: '/cuadrillas',         label: 'Cuadrillas',         icono: '👷' },
+      { to: '/vista-canal',        label: 'Vista Canal',        icono: '🗺️' },
     ],
   },
   {

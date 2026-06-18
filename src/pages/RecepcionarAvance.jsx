@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import { TRAMOS, CAIDAS, ATRAVIESOS, PARTIDAS } from '../constants/estructura';
 import { supabase } from '../config/supabase';
@@ -16,9 +16,15 @@ function formatFecha(iso) {
 export default function RecepcionarAvance() {
   const navigate = useNavigate();
   const { usuario } = useUser();
+  const [searchParams] = useSearchParams();
 
-  const [tipo, setTipo]             = useState('tramo');
-  const [entidadId, setEntidadId]   = useState(String(TRAMOS[0]));
+  const initTipo    = searchParams.get('tipo')    ?? 'tramo';
+  const initEntidad = searchParams.get('entidad') ?? String(TRAMOS[0]);
+  const initPartida = searchParams.get('partida') ?? null;
+
+  const [tipo, setTipo]             = useState(initTipo);
+  const [entidadId, setEntidadId]   = useState(initEntidad);
+  const partidaInitRef              = useRef(false);
   const [registros, setRegistros]   = useState(null);
   const [planMap, setPlanMap]       = useState({}); // { partida_id: cuadrilla_id }
   const [cuadrillas, setCuadrillas] = useState([]);
@@ -69,6 +75,20 @@ export default function RecepcionarAvance() {
   }, [tipo, entidadId]);
 
   useEffect(() => { cargarRegistros(); }, [cargarRegistros]);
+
+  // Preseleccionar partida desde URL param (solo la primera vez que carguen los registros)
+  useEffect(() => {
+    if (!initPartida || !registros || partidaInitRef.current) return;
+    partidaInitRef.current = true;
+    const partida = PARTIDAS.find(p => p.id === initPartida);
+    if (!partida) return;
+    const rec = registros.find(r => r.partida_id === partida.id);
+    const disponible = !rec && (partida.orden === 1 || registros.find(r => {
+      const anterior = PARTIDAS.find(p => p.orden === partida.orden - 1);
+      return r.partida_id === anterior?.id;
+    }));
+    if (disponible) abrirForm(partida.id);
+  }, [registros]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function estadoPartida(partida) {
     const rec = registros?.find(r => r.partida_id === partida.id);
