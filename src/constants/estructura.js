@@ -2,12 +2,12 @@ export const TRAMOS = [
   'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
   'K', 'L', 'M', 'N1', 'N2', 'O', 'P', 'Q', 'R', 'S', 'T',
   'U', 'V', 'W', 'X', 'Y1', 'Y2', 'Z',
-  'AZ', 'BZ', 'CZ', 'DZ',
+  'AZ', 'BZ', 'CZ', 'DZ', 'TEST',
 ];
 
 export const CAIDAS = Array.from({ length: 29 }, (_, i) => i + 1);
 
-export const ATRAVIESOS = ['1', '2'];
+export const ATRAVIESOS = ['1', '2', '3'];
 
 export const PROTOCOLOS = [
   { id: 'PICE1',       codigo: 'PICE-01', nombre: 'Excavación',           subtipo: null },
@@ -136,7 +136,8 @@ export const KM_DATA = {
     'AZ': { inicio: '3.279,7',  fin: '3.417,7' },
     'BZ': { inicio: '3.429,7',  fin: '3.537,7' },
     'CZ': { inicio: '3.549,7',  fin: '3.597,7' },
-    'DZ': { inicio: '3.609,7',  fin: '3.934,2' },
+    'DZ':   { inicio: '3.609,7',  fin: '3.934,2' },
+    'TEST': { inicio: '0,0',      fin: '0,0' },
   },
   caida: {
     '1':  { inicio: '237,7',    fin: '249,7' },
@@ -172,5 +173,6 @@ export const KM_DATA = {
   atravieso: {
     '1': { inicio: '1.763,0', fin: '1.769,0' },
     '2': { inicio: '3.002,7', fin: '3.008,7' },
+    '3': { inicio: '0,0',     fin: '0,0' },
   },
 };
