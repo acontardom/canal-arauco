@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 const TABS = [
   { to: '/', label: 'Inicio', icono: '🏠', end: true },
   { to: '/gestion', label: 'Gestión', icono: '📊', end: false },
+  { to: '/vista-canal', label: 'Canal', icono: '🗺️', end: false },
   { to: '/galeria', label: 'Galería', icono: '📁', end: false },
   { to: '/perfil', label: 'Yo', icono: '👤', end: false },
 ];

@@ -65,6 +65,19 @@ export default function Inicio() {
             </button>
           </section>
 
+          <section style={s.bloqueGestion}>
+            <h2 style={s.bloqueTitulo}>Gestión</h2>
+            <button style={s.btnGestion} onClick={() => navigate('/vista-canal')}>
+              🗺️ Vista Canal
+            </button>
+            <button style={s.btnGestion} onClick={() => navigate('/matriz')}>
+              📊 Matriz
+            </button>
+            <button style={s.btnGestion} onClick={() => navigate('/dashboard')}>
+              📈 Dashboard
+            </button>
+          </section>
+
           <section style={s.bloqueActividad}>
             <h2 style={s.bloqueTitulo}>Actividad de hoy</h2>
             {actividad && (actividad.fotos.length > 0 || actividad.camiones.length > 0) ? (
@@ -129,6 +142,16 @@ const s = {
     textAlign: 'left', boxShadow: '0 4px 14px rgba(100,255,218,0.18)',
   },
 
+  bloqueGestion: {
+    background: '#16213e',
+    border: '1px solid #1e3a5f', borderRadius: '16px', padding: '18px',
+    display: 'flex', flexDirection: 'column', gap: '10px',
+  },
+  btnGestion: {
+    background: '#0f3460', color: '#ccd6f6', border: '1px solid #1e3a5f',
+    borderRadius: '10px', padding: '14px 16px', fontSize: '15px', fontWeight: 600,
+    cursor: 'pointer', textAlign: 'left',
+  },
   bloqueActividad: { display: 'flex', flexDirection: 'column', gap: '10px' },
   actividadLista: { display: 'flex', flexDirection: 'column', gap: '8px' },
   actividadItem: {
