@@ -30,9 +30,11 @@ const PROTOCOLO_A_PARTIDA = {
   G5:           'emplantillado',
   PICE4_RADIER: 'enfierradura',
   PICE4_MURO:   'enfierradura',
-  PICE2_RADIER: 'hormigon_radier',
   PICE3:        'moldaje',
+  PICE2_RADIER: 'hormigon_radier',
   PICE2_MURO:   'hormigon_muro',
+  HA_RADIER:    'hormigon_radier',
+  HA_MURO:      'hormigon_muro',
 };
 
 // ─── Estados base y colores ────────────────────────────────────────────────────
