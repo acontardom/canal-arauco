@@ -325,6 +325,13 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [sincronizando, setSincronizando] = useState(false);
   const [toast, setToast] = useState(null);
   const [filtroEtiqueta, setFiltroEtiqueta] = useState(ETIQUETA_PROTOCOLO[protocoloId] ?? 'Todas');
+  // Búsqueda de fotos en otra entidad
+  const [busquedaPanel, setBusquedaPanel]         = useState(false);
+  const [busquedaTipo, setBusquedaTipo]           = useState('tramo');
+  const [busquedaEntidadId, setBusquedaEntidadId] = useState(String(TRAMOS[0]));
+  const [fotosOtraEntidad, setFotosOtraEntidad]   = useState([]);
+  const [cargandoBusqueda, setCargandoBusqueda]   = useState(false);
+  const [busquedaActiva, setBusquedaActiva]       = useState(null); // { tipo, entidadId, label }
   const [fotosNubeSeleccionadas, setFotosNubeSeleccionadas] = useState([]);
   const [fotoNubeModal, setFotoNubeModal] = useState(null);
   const [descModalTexto, setDescModalTexto] = useState('');
@@ -682,6 +689,49 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     catch { return null; }
   }
 
+  async function buscarFotosOtraEntidad() {
+    if (!busquedaEntidadId) return;
+    setCargandoBusqueda(true);
+    try {
+      let lista = [];
+      if (supabase && navigator.onLine) {
+        const { data, error } = await supabase
+          .from('fotos_terreno')
+          .select('*')
+          .eq('tipo', busquedaTipo)
+          .eq('entidad_id', String(busquedaEntidadId));
+        if (error) throw error;
+        lista = (data ?? []).map(f => ({
+          id: f.id, etiquetas: f.etiquetas ?? [], descripcion: f.descripcion ?? '',
+          storageUrl: f.storage_url ?? null, dataUrl: f.data_url ?? null,
+        }));
+      } else {
+        const locales = await db.fotos_terreno
+          .where('tipo').equals(busquedaTipo)
+          .and(f => String(f.entidadId) === String(busquedaEntidadId))
+          .toArray();
+        lista = locales.map(f => ({
+          id: f.id, etiquetas: f.etiquetas ?? [], descripcion: f.descripcion ?? '',
+          storageUrl: f.storageUrl ?? null, dataUrl: f.dataUrl ?? null,
+        }));
+      }
+      setFotosOtraEntidad(lista);
+      const label = `${NOMBRES_TIPO[busquedaTipo] ?? busquedaTipo} ${busquedaEntidadId}`;
+      setBusquedaActiva({ tipo: busquedaTipo, entidadId: busquedaEntidadId, label });
+      setBusquedaPanel(false);
+    } catch (err) {
+      mostrarToast('Error al buscar fotos', 'error');
+    } finally {
+      setCargandoBusqueda(false);
+    }
+  }
+
+  function resetearBusqueda() {
+    setBusquedaActiva(null);
+    setFotosOtraEntidad([]);
+    setBusquedaPanel(false);
+  }
+
   function abrirCropModal(srcUrl, tipo, meta) {
     setCropModal({ srcUrl, tipo, meta });
     setCrop(null);
@@ -912,9 +962,10 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   const respondidos = itemsChecklist.filter(item => checklist[item.id]?.valor !== null).length;
 
+  const fotosActivasTerreno = busquedaActiva ? fotosOtraEntidad : fotosTerreno;
   const fotosTerrenoFiltradas = filtroEtiqueta === 'Todas'
-    ? fotosTerreno
-    : fotosTerreno.filter(f => f.etiquetas?.includes(filtroEtiqueta));
+    ? fotosActivasTerreno
+    : fotosActivasTerreno.filter(f => f.etiquetas?.includes(filtroEtiqueta));
 
   // Variables derivadas para el modal de foto nube
   const fotoActualModal   = fotoNubeModal !== null ? (fotosTerrenoFiltradas[fotoNubeModal] ?? null) : null;
@@ -958,6 +1009,61 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           </button>
         ))}
       </div>
+
+      {/* ── Búsqueda en otra entidad ─────────────────────────────────────────── */}
+      {busquedaActiva ? (
+        <div style={s.busquedaActivaBanner}>
+          <span style={s.busquedaActivaLabel}>
+            📍 Fotos de <strong>{busquedaActiva.label}</strong>
+          </span>
+          <button style={s.btnResetBusqueda} onClick={resetearBusqueda}>
+            ✕ Volver a {nombreEntidad}
+          </button>
+        </div>
+      ) : (
+        <button
+          style={s.btnBuscarOtraEntidad}
+          onClick={() => setBusquedaPanel(v => !v)}
+        >
+          🔍 {busquedaPanel ? 'Cancelar búsqueda' : 'Buscar en otra entidad'}
+        </button>
+      )}
+
+      {busquedaPanel && !busquedaActiva && (
+        <div style={s.panelBusqueda}>
+          <select
+            style={s.inputEdit}
+            value={busquedaTipo}
+            onChange={e => {
+              setBusquedaTipo(e.target.value);
+              setBusquedaEntidadId(String(LISTAS_HA[e.target.value][0]));
+            }}
+          >
+            <option value="tramo">Tramo</option>
+            <option value="caida">Caída</option>
+            <option value="atravieso">Atravieso</option>
+          </select>
+          <select
+            style={s.inputEdit}
+            value={busquedaEntidadId}
+            onChange={e => setBusquedaEntidadId(e.target.value)}
+          >
+            {LISTAS_HA[busquedaTipo].map(id => (
+              <option key={id} value={String(id)}>
+                {NOMBRES_TIPO[busquedaTipo]} {id}
+              </option>
+            ))}
+          </select>
+          <button
+            style={{ ...s.btnFoto, opacity: cargandoBusqueda ? 0.6 : 1 }}
+            onClick={buscarFotosOtraEntidad}
+            disabled={cargandoBusqueda}
+          >
+            {cargandoBusqueda ? 'Buscando...' : '🔍 Buscar fotos'}
+          </button>
+        </div>
+      )}
+
       {fotosTerrenoFiltradas.length > 0 ? (
         <div style={s.fotosGrid}>
           {fotosTerrenoFiltradas.map((foto, index) => {
@@ -981,7 +1087,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           })}
         </div>
       ) : (
-        <p style={s.sinFotos}>Sin fotos en la nube para esta entidad</p>
+        <p style={s.sinFotos}>
+          Sin fotos en la nube para {busquedaActiva ? busquedaActiva.label : 'esta entidad'}
+        </p>
       )}
       <div style={s.badgeSeleccion}>
         {fotosNubeSeleccionadas.length} {fotosNubeSeleccionadas.length === 1 ? 'foto seleccionada' : 'fotos seleccionadas'}
@@ -1566,6 +1674,11 @@ const s = {
   checkOverlay: { position: 'absolute', top: '6px', left: '6px', background: 'rgba(0,0,0,0.6)', borderRadius: '4px', padding: '2px', display: 'flex' },
   checkboxNube: { width: '18px', height: '18px', cursor: 'pointer' },
   badgeSeleccion: { background: '#0a2040', border: '1px solid #64ffda', borderRadius: '8px', padding: '8px 14px', color: '#ccd6f6', fontSize: '13px', fontWeight: 600, marginBottom: '4px', textAlign: 'center' },
+  btnBuscarOtraEntidad: { width: '100%', background: '#0a1f3a', color: '#8892b0', border: '1px dashed #1e3a5f', borderRadius: '8px', padding: '8px 14px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', textAlign: 'center', marginBottom: '4px' },
+  panelBusqueda: { display: 'flex', flexDirection: 'column', gap: '8px', background: '#0a1f3a', border: '1px solid #1e3a5f', borderRadius: '10px', padding: '12px', marginBottom: '4px' },
+  busquedaActivaBanner: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', background: 'rgba(100,255,218,0.07)', border: '1px solid rgba(100,255,218,0.2)', borderRadius: '8px', padding: '8px 12px', marginBottom: '4px' },
+  busquedaActivaLabel: { color: '#ccd6f6', fontSize: '13px' },
+  btnResetBusqueda: { background: 'none', border: '1px solid #1e3a5f', borderRadius: '6px', color: '#8892b0', fontSize: '12px', fontWeight: 600, padding: '4px 10px', cursor: 'pointer', whiteSpace: 'nowrap' },
 
   accionesCabecera: { display: 'flex', justifyContent: 'flex-end', marginBottom: '6px', minHeight: '20px' },
   syncLabel: { color: '#8892b0', fontSize: '12px' },
