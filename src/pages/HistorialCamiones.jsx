@@ -515,8 +515,10 @@ function CamionCard({ camion: c, expandido, onToggle, onEditar, onEliminar }) {
                   <img
                     src={c.fotoGuiaUrl}
                     alt="Guía de despacho"
-                    style={s.fotoThumb}
+                    loading="lazy"
+                    style={{ ...s.fotoThumb, backgroundColor: '#2a2a3e' }}
                     onClick={e => abrirFoto(e, c.fotoGuiaUrl)}
+                    onError={e => { e.target.style.opacity = '0.3'; }}
                   />
                 </div>
               )}
@@ -529,8 +531,10 @@ function CamionCard({ camion: c, expandido, onToggle, onEditar, onEliminar }) {
                         key={i}
                         src={url}
                         alt={`Ensayo ${i + 1}`}
-                        style={s.fotoThumb}
+                        loading="lazy"
+                        style={{ ...s.fotoThumb, backgroundColor: '#2a2a3e' }}
                         onClick={e => abrirFoto(e, url)}
+                        onError={e => { e.target.style.opacity = '0.3'; }}
                       />
                     ))}
                   </div>
@@ -773,8 +777,8 @@ function EditarCamionModal({ camion: c, guardando, onGuardar, onCancelar }) {
               <p style={s.sinFotos}>Sin fotos asociadas a este registro</p>
             )}
             <div style={s.fotosGrid}>
-              {c.fotoGuiaUrl && <img src={c.fotoGuiaUrl} alt="Guía de despacho" style={s.fotoThumb} />}
-              {fotosEnsayo.map((url, i) => <img key={i} src={url} alt={`Ensayo ${i + 1}`} style={s.fotoThumb} />)}
+              {c.fotoGuiaUrl && <img src={c.fotoGuiaUrl} alt="Guía de despacho" loading="lazy" style={{ ...s.fotoThumb, backgroundColor: '#2a2a3e' }} onError={e => { e.target.style.opacity = '0.3'; }} />}
+              {fotosEnsayo.map((url, i) => <img key={i} src={url} alt={`Ensayo ${i + 1}`} loading="lazy" style={{ ...s.fotoThumb, backgroundColor: '#2a2a3e' }} onError={e => { e.target.style.opacity = '0.3'; }} />)}
             </div>
           </div>
         </div>

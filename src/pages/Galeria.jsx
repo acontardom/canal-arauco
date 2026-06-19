@@ -386,7 +386,13 @@ export default function Galeria() {
           <div className="galeria-grid">
             {grupo.items.map((f, i) => (
               <div key={f.id} className="galeria-thumb" onClick={() => abrirModal(grupo.key, i)}>
-                <img src={imgSrc(f)} alt="" />
+                <img
+                  src={imgSrc(f)}
+                  alt=""
+                  loading="lazy"
+                  style={{ backgroundColor: '#2a2a3e', minHeight: '80px', width: '100%', display: 'block' }}
+                  onError={e => { e.target.style.opacity = '0.3'; }}
+                />
                 <div className="galeria-overlay">
                   <span>{f.usuarioNombre || 'Sin usuario'}</span>
                   <span>{formatFechaCorta(f.fechaCaptura)}</span>

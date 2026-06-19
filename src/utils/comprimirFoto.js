@@ -1,5 +1,5 @@
 const MAX_DIM = 1920;
-const QUALITY = 0.78;
+const QUALITY = 0.65;
 
 function blobToDataUrl(blob) {
   return new Promise((resolve, reject) => {

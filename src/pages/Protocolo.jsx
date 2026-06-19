@@ -1075,7 +1075,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                 style={{ ...s.fotoThumb, ...(seleccionada ? s.fotoThumbSeleccionada : {}), cursor: 'pointer' }}
                 onClick={() => abrirFotoNubeModal(index)}
               >
-                <img src={key} alt="" style={s.fotoImg} />
+                <img src={key} alt="" loading="lazy" style={{ ...s.fotoImg, backgroundColor: '#2a2a3e' }} onError={e => { e.target.style.opacity = '0.3'; }} />
                 <div
                   style={{ ...s.checkOverlay, cursor: readOnly ? 'default' : 'pointer' }}
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) toggleFotoNube(foto, index); }}
