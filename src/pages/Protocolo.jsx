@@ -387,7 +387,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           console.log('Buscando fotos para:', { tipo, entidadId: entidadIdReal });
           const { data, error } = await supabase
             .from('fotos_terreno')
-            .select('*')
+            .select('id, local_id, tipo, entidad_id, etiquetas, descripcion, storage_url, usuario_nombre, fecha_captura')
             .eq('tipo', tipo)
             .eq('entidad_id', String(entidadIdReal));
           console.log('Resultado Supabase fotos_terreno:', data, error);
@@ -697,7 +697,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       if (supabase && navigator.onLine) {
         const { data, error } = await supabase
           .from('fotos_terreno')
-          .select('*')
+          .select('id, local_id, tipo, entidad_id, etiquetas, descripcion, storage_url, usuario_nombre, fecha_captura')
           .eq('tipo', busquedaTipo)
           .eq('entidad_id', String(busquedaEntidadId));
         if (error) throw error;
