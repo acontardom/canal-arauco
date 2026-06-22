@@ -68,13 +68,21 @@ function largoMetros(tipo, id) {
   return Math.round((parseKm(d.fin) - parseKm(d.inicio)) * 10) / 10;
 }
 
+function chunks(arr, size) {
+  const result = [];
+  for (let i = 0; i < arr.length; i += size) result.push(arr.slice(i, i + size));
+  return result;
+}
+
+const FILAS_CANAL = chunks(ORDEN_CANAL, 6);
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const GRID_CSS = `
   .canal-grid {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
-    column-gap: 0px;
+    column-gap: 4px;
     row-gap: 8px;
   }
   @media (max-width: 1024px) {
@@ -131,16 +139,27 @@ export default function VistaCanal() {
       {cargando ? (
         <p style={s.cargandoTxt}>Cargando datos de avance...</p>
       ) : (
-        <div className="canal-grid">
-          {ORDEN_CANAL.map(({ tipo, id }) => (
-            <Tarjeta
-              key={`${tipo}-${id}`}
-              tipo={tipo}
-              id={id}
-              avanceSet={avanceSet}
-              onClick={() => setPopup({ tipo, id })}
-              onDotClick={(e, partidaId) => { e.stopPropagation(); navAvance(tipo, id, partidaId); }}
-            />
+        <div>
+          {FILAS_CANAL.map((fila, fi) => (
+            <div key={fi}>
+              <div className="canal-grid">
+                {fila.map(({ tipo, id }) => (
+                  <Tarjeta
+                    key={`${tipo}-${id}`}
+                    tipo={tipo}
+                    id={id}
+                    avanceSet={avanceSet}
+                    onClick={() => setPopup({ tipo, id })}
+                    onDotClick={(e, partidaId) => { e.stopPropagation(); navAvance(tipo, id, partidaId); }}
+                  />
+                ))}
+              </div>
+              {fi < FILAS_CANAL.length - 1 && (
+                <div style={s.lineaCanal}>
+                  <span style={s.lineaCanalArrow}>→</span>
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -254,6 +273,17 @@ const s = {
   titulo: { color: '#64ffda', fontWeight: 800, margin: '0 0 4px', fontSize: '22px' },
   subtitulo: { color: '#8892b0', fontSize: '13px', margin: 0 },
   cargandoTxt: { color: '#8892b0', fontSize: '14px' },
+
+  lineaCanal: {
+    position: 'relative', width: '100%', height: '2px',
+    backgroundColor: 'rgba(6,182,212,0.3)',
+    margin: '8px 0', borderRadius: '1px',
+  },
+  lineaCanalArrow: {
+    position: 'absolute', right: '8px', top: '-9px',
+    fontSize: '11px', color: 'rgba(6,182,212,0.6)',
+    letterSpacing: '1px',
+  },
 
   tarjeta: {
     background: '#0f172a',
