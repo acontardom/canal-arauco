@@ -132,30 +132,6 @@ export default function VistaCanal() {
         {!isMobile && <p style={s.subtitulo}>Avance por partida a lo largo del canal</p>}
       </div>
 
-      {/* Leyenda */}
-      <div style={s.leyenda}>
-        <div style={{ ...s.leyendaPartidas, ...(isMobile ? s.leyendaPartidasMobile : {}) }}>
-          {PARTIDAS_DISPLAY.map(p => (
-            <div key={p.id} style={s.leyendaPartidaItem}>
-              <div style={s.leyendaDotNeutral} />
-              <span style={{ ...s.leyendaAbrev, fontSize: isMobile ? '11px' : '11px' }}>{p.label}</span>
-              <span style={{ ...s.leyendaNombre, fontSize: isMobile ? '10px' : '10px' }}>{p.nombre}</span>
-            </div>
-          ))}
-        </div>
-        <div style={s.leyendaDivider} />
-        <div style={s.leyendaEstados}>
-          <div style={s.leyendaEstadoItem}>
-            <div style={{ ...s.leyendaDot, background: '#10b981' }} />
-            <span style={s.leyendaEstadoLabel}>Recepcionado</span>
-          </div>
-          <div style={s.leyendaEstadoItem}>
-            <div style={{ ...s.leyendaDot, background: '#f59e0b' }} />
-            <span style={s.leyendaEstadoLabel}>Pendiente</span>
-          </div>
-        </div>
-      </div>
-
       {cargando ? (
         <p style={s.cargandoTxt}>Cargando datos de avance...</p>
       ) : isMobile ? (
@@ -304,8 +280,8 @@ function Tarjeta({ tipo, id, avanceSet, onClick, onDotClick, isMobile }) {
                 background: rec ? '#10b981' : '#f59e0b',
                 boxShadow: rec ? '0 0 4px rgba(16,185,129,0.5)' : 'none',
               }} />
-              <span style={{ ...s.puntoLabel, color: rec ? '#a7f3d0' : '#6b7280' }}>
-                {p.label}
+              <span style={{ ...s.puntoLabel, color: rec ? '#a7f3d0' : '#6b7280', fontSize: isMobile ? '10px' : '11px' }}>
+                {p.nombre}
               </span>
             </div>
           );
@@ -322,25 +298,6 @@ const s = {
   header: { marginBottom: '14px' },
   titulo: { color: '#64ffda', fontWeight: 800, margin: '0 0 4px' },
   subtitulo: { color: '#8892b0', fontSize: '13px', margin: 0 },
-
-  leyenda: {
-    marginBottom: '20px', padding: '12px 14px',
-    background: '#0f2a4a', borderRadius: '8px', border: '1px solid #1e3a5f',
-    display: 'flex', flexDirection: 'column', gap: '10px',
-  },
-  leyendaPartidas: { display: 'flex', flexWrap: 'wrap', gap: '6px 16px' },
-  leyendaPartidasMobile: {
-    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 10px',
-  },
-  leyendaPartidaItem: { display: 'flex', alignItems: 'center', gap: '4px' },
-  leyendaDotNeutral: { width: 8, height: 8, borderRadius: '50%', background: '#475569', flexShrink: 0 },
-  leyendaAbrev: { color: '#ccd6f6', fontWeight: 700 },
-  leyendaNombre: { color: '#64748b' },
-  leyendaDivider: { width: '100%', height: '1px', background: '#1e3a5f' },
-  leyendaEstados: { display: 'flex', gap: '16px' },
-  leyendaEstadoItem: { display: 'flex', alignItems: 'center', gap: '5px' },
-  leyendaDot: { width: 9, height: 9, borderRadius: '50%', flexShrink: 0 },
-  leyendaEstadoLabel: { color: '#ccd6f6', fontSize: '12px', fontWeight: 600 },
 
   cargandoTxt: { color: '#8892b0', fontSize: '14px' },
 
@@ -404,8 +361,8 @@ const s = {
     flexShrink: 0, transition: 'transform 0.1s',
   },
   puntoLabel: {
-    fontSize: '10px', fontWeight: 600, lineHeight: 1,
-    letterSpacing: '0.1px', userSelect: 'none',
+    fontSize: '11px', fontWeight: 500, lineHeight: 1,
+    letterSpacing: '0px', userSelect: 'none',
   },
 
   // Modal popup
