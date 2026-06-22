@@ -594,7 +594,7 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
   const COLS = 2;
   const GAP_COL = 6;   // espacio horizontal entre las 2 columnas
   const GAP_ROW = 4;   // espacio vertical entre filas
-  const descH   = 7;
+  const descH   = 14;
 
   // Fotos verticales (3:4): G5 usa columna completa, el resto centra con margen
   const imgH = esG5 ? 117 : 100;
@@ -621,12 +621,24 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
       catch (err) { console.warn('[PDF] Error al incrustar imagen:', err?.message ?? err); }
     }
 
+    const DESC_LINE_H = 4.5;
+    const DESC_PAD = 2;
+    const maxWidth = imgW - DESC_PAD * 2;
+    const lineas = foto.descripcion
+      ? doc.splitTextToSize(foto.descripcion, maxWidth)
+      : [''];
+
+    doc.setDrawColor(120, 120, 120);
+    doc.setLineWidth(0.2);
     doc.rect(x, cellY + imgH, imgW, descH);
+
     if (foto.descripcion) {
       doc.setFont(undefined, 'normal');
-      doc.setFontSize(8);
+      doc.setFontSize(7.5);
       doc.setTextColor(30, 30, 30);
-      doc.text(foto.descripcion, x + 2, cellY + imgH + 6, { maxWidth: imgW - 4 });
+      lineas.forEach((linea, idx) => {
+        doc.text(linea, x + DESC_PAD, cellY + imgH + DESC_PAD + DESC_LINE_H * (idx + 0.8));
+      });
     }
   }
 
