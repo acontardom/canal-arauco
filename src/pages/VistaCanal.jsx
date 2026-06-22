@@ -76,12 +76,24 @@ function largoMetros(tipo, id) {
   return Math.round((parseKm(d.fin) - parseKm(d.inicio)) * 10) / 10;
 }
 
+function useIsMobile() {
+  const [mobile, setMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const handler = e => setMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return mobile;
+}
+
 const FILAS = chunks(ORDEN_CANAL, 9); // 63 elementos / 9 = 7 filas exactas
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function VistaCanal() {
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const isMobile  = useIsMobile();
   const [avanceSet, setAvanceSet] = useState(new Set());
   const [cargando, setCargando]   = useState(true);
   const [popup, setPopup]         = useState(null);
@@ -116,18 +128,18 @@ export default function VistaCanal() {
   return (
     <div style={s.page}>
       <div style={s.header}>
-        <h1 style={s.titulo}>Vista Canal</h1>
-        <p style={s.subtitulo}>Avance por partida a lo largo del canal</p>
+        <h1 style={{ ...s.titulo, fontSize: isMobile ? '20px' : '22px' }}>Vista Canal</h1>
+        {!isMobile && <p style={s.subtitulo}>Avance por partida a lo largo del canal</p>}
       </div>
 
       {/* Leyenda */}
       <div style={s.leyenda}>
-        <div style={s.leyendaPartidas}>
+        <div style={{ ...s.leyendaPartidas, ...(isMobile ? s.leyendaPartidasMobile : {}) }}>
           {PARTIDAS_DISPLAY.map(p => (
             <div key={p.id} style={s.leyendaPartidaItem}>
               <div style={s.leyendaDotNeutral} />
-              <span style={s.leyendaAbrev}>{p.label}</span>
-              <span style={s.leyendaNombre}>{p.nombre}</span>
+              <span style={{ ...s.leyendaAbrev, fontSize: isMobile ? '11px' : '11px' }}>{p.label}</span>
+              <span style={{ ...s.leyendaNombre, fontSize: isMobile ? '10px' : '10px' }}>{p.nombre}</span>
             </div>
           ))}
         </div>
@@ -146,7 +158,23 @@ export default function VistaCanal() {
 
       {cargando ? (
         <p style={s.cargandoTxt}>Cargando datos de avance...</p>
+      ) : isMobile ? (
+        /* ── Layout móvil: grid 2 columnas, sin líneas conectoras ── */
+        <div style={s.gridMobile}>
+          {ORDEN_CANAL.map(({ tipo, id }) => (
+            <Tarjeta
+              key={`${tipo}-${id}`}
+              tipo={tipo}
+              id={id}
+              avanceSet={avanceSet}
+              isMobile={true}
+              onClick={() => setPopup({ tipo, id })}
+              onDotClick={(e, partidaId) => { e.stopPropagation(); navAvance(tipo, id, partidaId); }}
+            />
+          ))}
+        </div>
       ) : (
+        /* ── Layout desktop: filas horizontales con línea conectora ── */
         <div style={s.filasCont}>
           {FILAS.map((fila, fi) => (
             <div key={fi} style={s.filaWrap}>
@@ -158,6 +186,7 @@ export default function VistaCanal() {
                     tipo={tipo}
                     id={id}
                     avanceSet={avanceSet}
+                    isMobile={false}
                     onClick={() => setPopup({ tipo, id })}
                     onDotClick={(e, partidaId) => { e.stopPropagation(); navAvance(tipo, id, partidaId); }}
                   />
@@ -220,39 +249,53 @@ export default function VistaCanal() {
 
 // ── Tarjeta individual ────────────────────────────────────────────────────────
 
-function Tarjeta({ tipo, id, avanceSet, onClick, onDotClick }) {
-  const w = CARD_W[tipo];
+function Tarjeta({ tipo, id, avanceSet, onClick, onDotClick, isMobile }) {
   const metros = largoMetros(tipo, id);
   const mostrarMetros = metros !== null && metros > 0;
 
+  const tarjetaStyle = {
+    ...s.tarjeta,
+    background: CARD_BG[tipo],
+    borderColor: CARD_BDR[tipo],
+    ...(isMobile
+      ? { width: '100%', padding: '8px 8px 9px' }
+      : { width: CARD_W[tipo], padding: '7px 6px 8px' }
+    ),
+  };
+
   return (
     <div
-      style={{
-        ...s.tarjeta,
-        width: w,
-        background: CARD_BG[tipo],
-        borderColor: CARD_BDR[tipo],
-      }}
+      style={tarjetaStyle}
       onClick={onClick}
       title={`${NOMBRE_TIPO[tipo]} ${id} — click para ver detalle`}
     >
       {/* Nombre */}
-      <span style={{ ...s.tarjetaNombre, color: NOMBRE_COLOR[tipo] }}>{cardLabel(tipo, id)}</span>
+      <span style={{
+        ...s.tarjetaNombre,
+        color: NOMBRE_COLOR[tipo],
+        fontSize: isMobile ? '12px' : '13px',
+      }}>
+        {cardLabel(tipo, id)}
+      </span>
 
       {/* Metros */}
-      {mostrarMetros && <span style={s.tarjetaMetros}>{metros} m</span>}
+      {mostrarMetros && (
+        <span style={{ ...s.tarjetaMetros, fontSize: isMobile ? '10px' : '11px' }}>
+          {metros} m
+        </span>
+      )}
 
       {/* Separador */}
       <div style={s.tarjetaSep} />
 
       {/* 6 filas: punto + abreviación */}
-      <div style={s.puntosCol}>
+      <div style={{ ...s.puntosCol, gap: isMobile ? '3px' : '4px' }}>
         {PARTIDAS_DISPLAY.map(p => {
           const rec = avanceSet.has(`${tipo}-${id}-${p.id}`);
           return (
             <div
               key={p.id}
-              style={s.puntoRow}
+              style={{ ...s.puntoRow, gap: isMobile ? '3px' : '4px' }}
               onClick={e => onDotClick(e, p.id)}
               title={`${p.label}: ${rec ? 'Recepcionado ✓' : 'Pendiente'}`}
             >
@@ -277,7 +320,7 @@ function Tarjeta({ tipo, id, avanceSet, onClick, onDotClick }) {
 const s = {
   page: { padding: '0 0 48px' },
   header: { marginBottom: '14px' },
-  titulo: { color: '#64ffda', fontSize: '22px', fontWeight: 800, margin: '0 0 4px' },
+  titulo: { color: '#64ffda', fontWeight: 800, margin: '0 0 4px' },
   subtitulo: { color: '#8892b0', fontSize: '13px', margin: 0 },
 
   leyenda: {
@@ -286,10 +329,13 @@ const s = {
     display: 'flex', flexDirection: 'column', gap: '10px',
   },
   leyendaPartidas: { display: 'flex', flexWrap: 'wrap', gap: '6px 16px' },
+  leyendaPartidasMobile: {
+    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 10px',
+  },
   leyendaPartidaItem: { display: 'flex', alignItems: 'center', gap: '4px' },
   leyendaDotNeutral: { width: 8, height: 8, borderRadius: '50%', background: '#475569', flexShrink: 0 },
-  leyendaAbrev: { color: '#ccd6f6', fontSize: '11px', fontWeight: 700 },
-  leyendaNombre: { color: '#64748b', fontSize: '10px' },
+  leyendaAbrev: { color: '#ccd6f6', fontWeight: 700 },
+  leyendaNombre: { color: '#64748b' },
   leyendaDivider: { width: '100%', height: '1px', background: '#1e3a5f' },
   leyendaEstados: { display: 'flex', gap: '16px' },
   leyendaEstadoItem: { display: 'flex', alignItems: 'center', gap: '5px' },
@@ -298,9 +344,9 @@ const s = {
 
   cargandoTxt: { color: '#8892b0', fontSize: '14px' },
 
+  // Desktop layout
   filasCont: { display: 'flex', flexDirection: 'column', gap: '20px' },
   filaWrap: {},
-
   fila: {
     position: 'relative',
     display: 'flex',
@@ -316,21 +362,28 @@ const s = {
     zIndex: 0, borderRadius: '2px',
   },
 
+  // Mobile layout
+  gridMobile: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '8px',
+    width: '100%',
+  },
+
   tarjeta: {
     position: 'relative', zIndex: 1,
     display: 'flex', flexDirection: 'column',
     alignItems: 'center', justifyContent: 'flex-start',
-    padding: '7px 6px 8px',
     borderRadius: '7px', border: '1px solid',
     cursor: 'pointer', flexShrink: 0, userSelect: 'none',
     boxSizing: 'border-box',
   },
   tarjetaNombre: {
-    fontSize: '13px', fontWeight: 700,
+    fontWeight: 700,
     lineHeight: 1, textAlign: 'center', whiteSpace: 'nowrap',
   },
   tarjetaMetros: {
-    color: '#64748b', fontSize: '11px', fontWeight: 500,
+    color: '#64748b', fontWeight: 500,
     lineHeight: 1, textAlign: 'center', marginTop: '2px',
   },
   tarjetaSep: {
@@ -340,10 +393,10 @@ const s = {
   },
   puntosCol: {
     display: 'flex', flexDirection: 'column',
-    alignItems: 'flex-start', gap: '4px',
+    alignItems: 'flex-start',
   },
   puntoRow: {
-    display: 'flex', alignItems: 'center', gap: '4px',
+    display: 'flex', alignItems: 'center',
     cursor: 'pointer',
   },
   punto: {
