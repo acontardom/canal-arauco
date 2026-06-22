@@ -7,6 +7,7 @@ import { comprimirFoto } from '../utils/comprimirFoto';
 import { uploadFoto } from '../utils/uploadFoto';
 import { sincronizar } from '../utils/sync';
 import { supabase } from '../config/supabase';
+import { fechaHoy } from '../utils/fecha';
 
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 const LISTAS = { tramo: TRAMOS, caida: CAIDAS, atravieso: ATRAVIESOS };
@@ -306,7 +307,7 @@ export default function RecibirCamion() {
         puCalculado: calcPU(form.pesoHoyaHormigon),
         observaciones: form.observaciones,
         usuarioNombre: usuario,
-        fechaRecepcion: new Date().toISOString(),
+        fechaRecepcion: fechaHoy(),
         sincronizado: false,
         supabaseId: null,
         fotoGuia,

@@ -7,6 +7,7 @@ import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
 import { comprimirFoto } from '../utils/comprimirFoto';
 import { sincronizar } from '../utils/sync';
 import { supabase } from '../config/supabase';
+import { fechaHoy } from '../utils/fecha';
 
 const ETIQUETAS = ['Excavación', 'Moldaje', 'Enfierradura', 'Hormigón', 'Emplantillado', 'General'];
 
@@ -106,7 +107,7 @@ export default function SubirFotos() {
           tipo, entidadId: entidadIdReal,
           etiquetas: foto.etiquetas, descripcion: foto.descripcion,
           dataUrl: foto.dataUrl, storageUrl: null, subidaStorage: false,
-          usuarioNombre: usuario, fechaCaptura: new Date().toISOString(),
+          usuarioNombre: usuario, fechaCaptura: fechaHoy(),
           sincronizada: false,
         });
       }

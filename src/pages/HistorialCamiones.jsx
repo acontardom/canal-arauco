@@ -3,6 +3,7 @@ import { db } from '../db/database';
 import { supabase } from '../config/supabase';
 import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
 import { eliminarFotoStorage } from '../utils/uploadFoto';
+import { formatearFecha, formatearFechaLarga } from '../utils/fecha';
 
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 const LISTAS = { tramo: TRAMOS, caida: CAIDAS, atravieso: ATRAVIESOS };
@@ -70,21 +71,7 @@ function mapRemoto(r) {
   };
 }
 
-function fechaKey(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function formatFechaLarga(iso) {
-  const d = new Date(iso);
-  const partes = new Intl.DateTimeFormat('es-CL', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  }).formatToParts(d);
-  const get = tipo => partes.find(p => p.type === tipo)?.value ?? '';
-  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
-  return `${cap(get('weekday'))} ${get('day')} de ${cap(get('month'))} ${get('year')}`;
-}
+const fechaKey = s => s?.substring(0, 10) ?? '';
 
 export default function HistorialCamiones() {
   const [camiones, setCamiones] = useState([]);
@@ -283,7 +270,7 @@ export default function HistorialCamiones() {
       }
       return [...map.entries()].map(([key, items]) => ({
         key,
-        titulo: key ? formatFechaLarga(items[0].fechaRecepcion) : 'Sin fecha',
+        titulo: key ? formatearFechaLarga(items[0].fechaRecepcion) : 'Sin fecha',
         items,
       }));
     }

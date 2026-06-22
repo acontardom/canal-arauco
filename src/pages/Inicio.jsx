@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useUser } from '../context/UserContext';
 import { db } from '../db/database';
 import { USUARIOS } from '../constants/estructura';
+import { fechaHoy } from '../utils/fecha';
 
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 
@@ -10,7 +11,7 @@ export default function Inicio() {
   const { usuario, seleccionarUsuario } = useUser();
   const navigate = useNavigate();
 
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = fechaHoy();
 
   const actividad = useLiveQuery(async () => {
     const [fotos, camiones] = await Promise.all([

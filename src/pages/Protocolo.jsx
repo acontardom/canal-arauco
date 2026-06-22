@@ -10,6 +10,7 @@ import { generarPDF, construirDocumentoPDF } from '../utils/generarPDF';
 import { useKm } from '../hooks/useKm';
 import { sincronizar } from '../utils/sync';
 import { supabase } from '../config/supabase';
+import { fechaHoy, formatearFecha } from '../utils/fecha';
 import { comprimirFoto } from '../utils/comprimirFoto';
 import { uploadFoto } from '../utils/uploadFoto';
 
@@ -135,12 +136,7 @@ function EstadoBadge({ estado }) {
   return <span style={{ ...s.estadoBadge, color, borderColor: color }}>{label}</span>;
 }
 
-function formatearFechaEnvio(iso) {
-  if (!iso) return '';
-  return new Date(iso).toLocaleString('es-CL', {
-    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  });
-}
+const formatearFechaEnvio = formatearFecha;
 
 function Toast({ toast }) {
   if (!toast) return null;
@@ -539,11 +535,11 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   async function obtenerOCrearId() {
     if (protocolo?.id) return protocolo.id;
-    const now = new Date().toISOString();
+    const hoy = fechaHoy();
     return db.protocolos.add({
       tipo, entidad: tipo, entidadId: entidadIdReal, protocoloId,
       estado: 'borrador', usuarioNombre: usuario,
-      fechaCreacion: now, fechaModificacion: now,
+      fechaCreacion: hoy, fechaModificacion: hoy,
       datos: { checklist, observaciones, fotosNubeSeleccionadas },
       sincronizada: false,
     });
@@ -562,12 +558,11 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     if (guardando) return;
     setGuardando(true);
     try {
-      const now = new Date().toISOString();
       const datos = { checklist, observaciones, fotosNubeSeleccionadas };
 
       const campos = {
         estado: nuevoEstado, usuarioNombre: usuario,
-        fechaModificacion: now, datos, sincronizada: false,
+        fechaModificacion: fechaHoy(), datos, sincronizada: false,
         edp: edp.trim() || null,
         ...extra,
       };
@@ -1386,7 +1381,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           colorConfirmar="#3b82f6"
           onConfirmar={async () => {
             setConfirmandoEnvio(false);
-            await guardar('enviado', { fechaEnvio: new Date().toISOString() }, '📤 Protocolo marcado como enviado');
+            await guardar('enviado', { fechaEnvio: fechaHoy() }, '📤 Protocolo marcado como enviado');
           }}
           onCancelar={() => setConfirmandoEnvio(false)}
         />

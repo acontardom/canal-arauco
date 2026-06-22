@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { db } from '../db/database';
 import { supabase } from '../config/supabase';
 import { eliminarFotoStorage } from '../utils/uploadFoto';
+import { formatearFecha, formatearFechaLarga } from '../utils/fecha';
 import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
 
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
@@ -57,26 +58,8 @@ function nombreEntidad(f) {
   return `${NOMBRE_TIPO[f.tipo] ?? f.tipo} ${f.entidadId}`;
 }
 
-function fechaKey(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function formatFechaLarga(iso) {
-  const d = new Date(iso);
-  const partes = new Intl.DateTimeFormat('es-CL', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  }).formatToParts(d);
-  const get = tipo => partes.find(p => p.type === tipo)?.value ?? '';
-  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
-  return `${cap(get('weekday'))} ${get('day')} de ${cap(get('month'))} ${get('year')}`;
-}
-
-function formatFechaCorta(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('es-CL');
-}
+const fechaKey = s => s?.substring(0, 10) ?? '';
+const formatFechaCorta = formatearFecha;
 
 export default function Galeria() {
   const [fotos, setFotos] = useState([]);
@@ -185,7 +168,7 @@ export default function Galeria() {
       }
       return [...map.entries()].map(([key, items]) => ({
         key,
-        titulo: key ? formatFechaLarga(items[0].fechaCaptura) : 'Sin fecha',
+        titulo: key ? formatearFechaLarga(items[0].fechaCaptura) : 'Sin fecha',
         items,
       }));
     }

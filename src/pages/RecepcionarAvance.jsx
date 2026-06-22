@@ -3,15 +3,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import { TRAMOS, CAIDAS, ATRAVIESOS, PARTIDAS } from '../constants/estructura';
 import { supabase } from '../config/supabase';
+import { fechaHoy, formatearFecha } from '../utils/fecha';
 
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 const LISTAS = { tramo: TRAMOS, caida: CAIDAS, atravieso: ATRAVIESOS };
-
-function formatFecha(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-}
 
 export default function RecepcionarAvance() {
   const navigate = useNavigate();
@@ -138,7 +133,7 @@ export default function RecepcionarAvance() {
           cuadrilla_id:     cuadrillaId || null,
           observaciones:    observaciones.trim() || null,
           recepcionado_por: usuario,
-          fecha_recepcion:  new Date().toISOString(),
+          fecha_recepcion:  fechaHoy(),
         })
         .select()
         .single();
@@ -205,7 +200,7 @@ export default function RecepcionarAvance() {
                       <div style={s.partidaNombre}>{partida.nombre}</div>
                       {estado.tipo === 'recepcionada' && (
                         <div style={s.partidaMeta}>
-                          {cuadrillaMap(estado.registro.cuadrilla_id)} · {formatFecha(estado.registro.fecha_recepcion)} · {estado.registro.recepcionado_por}
+                          {cuadrillaMap(estado.registro.cuadrilla_id)} · {formatearFecha(estado.registro.fecha_recepcion)} · {estado.registro.recepcionado_por}
                         </div>
                       )}
                       {estado.tipo === 'bloqueada' && (

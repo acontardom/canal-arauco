@@ -2,16 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../config/supabase';
 import { TRAMOS, CAIDAS, PROTOCOLOS } from '../constants/estructura';
+import { formatearFecha } from '../utils/fecha';
 
 const NOMBRE_PROTOCOLO = Object.fromEntries(PROTOCOLOS.map(p => [p.id, p.nombre]));
 const PRIORIDAD = { enviado: 3, completado: 2, borrador: 1, pendiente: 0 };
-
-function formatFecha(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('es-CL', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-  });
-}
 
 const ESTADO_COLOR = { completado: '#10b981', enviado: '#27ae60', borrador: '#f59e0b', pendiente: '#8892b0' };
 
@@ -128,7 +122,7 @@ export default function Dashboard() {
                       {p.estado}
                     </span>
                     <span style={s.usuario}>{p.usuario_nombre}</span>
-                    <span style={s.fecha}>{formatFecha(p.fecha_modificacion)}</span>
+                    <span style={s.fecha}>{formatearFecha(p.fecha_modificacion)}</span>
                   </div>
                 </div>
               ))
