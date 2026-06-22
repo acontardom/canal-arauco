@@ -47,22 +47,13 @@ const PARTIDAS_DISPLAY = [
   { id: 'hormigon_muro',   label: 'H-M', nombre: 'Horm. Muro' },
 ];
 
-const CARD_W        = { tramo: 100, caida: 90, atravieso: 95 };
-const CARD_BG       = { tramo: '#0c2340', caida: '#111827', atravieso: '#1a0a30' };
-const CARD_BDR      = { tramo: '#1a8a9a', caida: '#2a3852', atravieso: '#7c3aed' };
-const NOMBRE_COLOR  = { tramo: '#64ffda', caida: '#8892b0', atravieso: '#c084fc' };
-const NOMBRE_TIPO   = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
+const BORDE_TOP = { tramo: '#06b6d4', caida: '#6b7280', atravieso: '#a855f7' };
+const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 
 function cardLabel(tipo, id) {
   if (tipo === 'atravieso') return `AT${id}`;
   if (tipo === 'caida') return `C${id}`;
   return id;
-}
-
-function chunks(arr, size) {
-  const result = [];
-  for (let i = 0; i < arr.length; i += size) result.push(arr.slice(i, i + size));
-  return result;
 }
 
 function parseKm(str) {
@@ -76,24 +67,25 @@ function largoMetros(tipo, id) {
   return Math.round((parseKm(d.fin) - parseKm(d.inicio)) * 10) / 10;
 }
 
-function useIsMobile() {
-  const [mobile, setMobile] = useState(() => window.innerWidth < 768);
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767px)');
-    const handler = e => setMobile(e.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
-  return mobile;
-}
-
-const FILAS = chunks(ORDEN_CANAL, 9); // 63 elementos / 9 = 7 filas exactas
-
 // ─────────────────────────────────────────────────────────────────────────────
+
+const GRID_CSS = `
+  .canal-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+  }
+  @media (max-width: 1024px) {
+    .canal-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+  @media (max-width: 768px) {
+    .canal-grid { grid-template-columns: repeat(2, 1fr); }
+    .canal-subtitle { display: none; }
+  }
+`;
 
 export default function VistaCanal() {
   const navigate  = useNavigate();
-  const isMobile  = useIsMobile();
   const [avanceSet, setAvanceSet] = useState(new Set());
   const [cargando, setCargando]   = useState(true);
   const [popup, setPopup]         = useState(null);
@@ -127,48 +119,26 @@ export default function VistaCanal() {
 
   return (
     <div style={s.page}>
+      <style>{GRID_CSS}</style>
+
       <div style={s.header}>
-        <h1 style={{ ...s.titulo, fontSize: isMobile ? '20px' : '22px' }}>Vista Canal</h1>
-        {!isMobile && <p style={s.subtitulo}>Avance por partida a lo largo del canal</p>}
+        <h1 style={s.titulo}>Vista Canal</h1>
+        <p className="canal-subtitle" style={s.subtitulo}>Avance por partida a lo largo del canal</p>
       </div>
 
       {cargando ? (
         <p style={s.cargandoTxt}>Cargando datos de avance...</p>
-      ) : isMobile ? (
-        /* ── Layout móvil: grid 2 columnas, sin líneas conectoras ── */
-        <div style={s.gridMobile}>
+      ) : (
+        <div className="canal-grid">
           {ORDEN_CANAL.map(({ tipo, id }) => (
             <Tarjeta
               key={`${tipo}-${id}`}
               tipo={tipo}
               id={id}
               avanceSet={avanceSet}
-              isMobile={true}
               onClick={() => setPopup({ tipo, id })}
               onDotClick={(e, partidaId) => { e.stopPropagation(); navAvance(tipo, id, partidaId); }}
             />
-          ))}
-        </div>
-      ) : (
-        /* ── Layout desktop: filas horizontales con línea conectora ── */
-        <div style={s.filasCont}>
-          {FILAS.map((fila, fi) => (
-            <div key={fi} style={s.filaWrap}>
-              <div style={s.fila}>
-                <div style={s.lineaCanal} />
-                {fila.map(({ tipo, id }) => (
-                  <Tarjeta
-                    key={`${tipo}-${id}`}
-                    tipo={tipo}
-                    id={id}
-                    avanceSet={avanceSet}
-                    isMobile={false}
-                    onClick={() => setPopup({ tipo, id })}
-                    onDotClick={(e, partidaId) => { e.stopPropagation(); navAvance(tipo, id, partidaId); }}
-                  />
-                ))}
-              </div>
-            </div>
           ))}
         </div>
       )}
@@ -225,62 +195,43 @@ export default function VistaCanal() {
 
 // ── Tarjeta individual ────────────────────────────────────────────────────────
 
-function Tarjeta({ tipo, id, avanceSet, onClick, onDotClick, isMobile }) {
+function Tarjeta({ tipo, id, avanceSet, onClick, onDotClick }) {
   const metros = largoMetros(tipo, id);
   const mostrarMetros = metros !== null && metros > 0;
-
-  const tarjetaStyle = {
-    ...s.tarjeta,
-    background: CARD_BG[tipo],
-    borderColor: CARD_BDR[tipo],
-    ...(isMobile
-      ? { width: '100%', padding: '8px 8px 9px' }
-      : { width: CARD_W[tipo], padding: '7px 6px 8px' }
-    ),
-  };
+  const count = PARTIDAS_DISPLAY.filter(p => avanceSet.has(`${tipo}-${id}-${p.id}`)).length;
+  const metricColor = count === 6 ? '#10b981' : count > 0 ? '#f59e0b' : '#6b7280';
 
   return (
     <div
-      style={tarjetaStyle}
+      style={{
+        ...s.tarjeta,
+        borderTop: `3px solid ${BORDE_TOP[tipo]}`,
+      }}
       onClick={onClick}
       title={`${NOMBRE_TIPO[tipo]} ${id} — click para ver detalle`}
     >
-      {/* Nombre */}
-      <span style={{
-        ...s.tarjetaNombre,
-        color: NOMBRE_COLOR[tipo],
-        fontSize: isMobile ? '12px' : '13px',
-      }}>
-        {cardLabel(tipo, id)}
-      </span>
+      <span style={s.tarjetaNombre}>{cardLabel(tipo, id)}</span>
 
-      {/* Metros */}
       {mostrarMetros && (
-        <span style={{ ...s.tarjetaMetros, fontSize: isMobile ? '10px' : '11px' }}>
-          {metros} m
-        </span>
+        <span style={s.tarjetaMetros}>{metros} m</span>
       )}
 
-      {/* Separador */}
+      <div style={{ ...s.tarjetaMetrica, color: metricColor }}>{count}/6</div>
+
       <div style={s.tarjetaSep} />
 
-      {/* 6 filas: punto + abreviación */}
-      <div style={{ ...s.puntosCol, gap: isMobile ? '3px' : '4px' }}>
+      <div style={s.puntosCol}>
         {PARTIDAS_DISPLAY.map(p => {
           const rec = avanceSet.has(`${tipo}-${id}-${p.id}`);
           return (
             <div
               key={p.id}
-              style={{ ...s.puntoRow, gap: isMobile ? '3px' : '4px' }}
+              style={s.puntoRow}
               onClick={e => onDotClick(e, p.id)}
-              title={`${p.label}: ${rec ? 'Recepcionado ✓' : 'Pendiente'}`}
+              title={`${p.nombre}: ${rec ? 'Recepcionado ✓' : 'Pendiente'}`}
             >
-              <div style={{
-                ...s.punto,
-                background: rec ? '#10b981' : '#f59e0b',
-                boxShadow: rec ? '0 0 4px rgba(16,185,129,0.5)' : 'none',
-              }} />
-              <span style={{ ...s.puntoLabel, color: rec ? '#a7f3d0' : '#6b7280', fontSize: isMobile ? '10px' : '11px' }}>
+              <div style={{ ...s.punto, background: rec ? '#10b981' : '#f59e0b' }} />
+              <span style={{ ...s.puntoLabel, color: rec ? '#a7f3d0' : '#6b7280' }}>
                 {p.nombre}
               </span>
             </div>
@@ -296,76 +247,59 @@ function Tarjeta({ tipo, id, avanceSet, onClick, onDotClick, isMobile }) {
 const s = {
   page: { padding: '0 0 48px' },
   header: { marginBottom: '14px' },
-  titulo: { color: '#64ffda', fontWeight: 800, margin: '0 0 4px' },
+  titulo: { color: '#64ffda', fontWeight: 800, margin: '0 0 4px', fontSize: '22px' },
   subtitulo: { color: '#8892b0', fontSize: '13px', margin: 0 },
-
   cargandoTxt: { color: '#8892b0', fontSize: '14px' },
 
-  // Desktop layout
-  filasCont: { display: 'flex', flexDirection: 'column', gap: '20px' },
-  filaWrap: {},
-  fila: {
-    position: 'relative',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-  },
-  lineaCanal: {
-    position: 'absolute',
-    height: '3px',
-    background: 'linear-gradient(90deg, #1e4a7a, #2a3a6a, #1e4a7a)',
-    left: 0, right: 0, top: '50%', transform: 'translateY(-50%)',
-    zIndex: 0, borderRadius: '2px',
-  },
-
-  // Mobile layout
-  gridMobile: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-    gap: '8px',
-    width: '100%',
-  },
-
   tarjeta: {
-    position: 'relative', zIndex: 1,
-    display: 'flex', flexDirection: 'column',
-    alignItems: 'center', justifyContent: 'flex-start',
-    borderRadius: '7px', border: '1px solid',
-    cursor: 'pointer', flexShrink: 0, userSelect: 'none',
+    background: '#0f172a',
+    border: '1px solid #1e293b',
+    borderRadius: '8px',
+    padding: '10px 10px 10px',
+    cursor: 'pointer',
+    userSelect: 'none',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
     boxSizing: 'border-box',
+    minWidth: 0,
   },
   tarjetaNombre: {
-    fontWeight: 700,
-    lineHeight: 1, textAlign: 'center', whiteSpace: 'nowrap',
+    fontSize: '14px', fontWeight: 700,
+    color: '#e2e8f0', textAlign: 'center',
+    whiteSpace: 'nowrap', lineHeight: 1,
   },
   tarjetaMetros: {
-    color: '#64748b', fontWeight: 500,
-    lineHeight: 1, textAlign: 'center', marginTop: '2px',
+    fontSize: '11px', color: '#64748b',
+    marginTop: '2px', lineHeight: 1,
+  },
+  tarjetaMetrica: {
+    fontSize: '20px', fontWeight: 700,
+    margin: '6px 0 4px', lineHeight: 1,
   },
   tarjetaSep: {
     width: '80%', height: '1px',
     background: 'rgba(255,255,255,0.08)',
-    margin: '4px 0', flexShrink: 0,
+    marginBottom: '6px', flexShrink: 0,
   },
   puntosCol: {
     display: 'flex', flexDirection: 'column',
-    alignItems: 'flex-start',
+    gap: '3px', width: '100%',
   },
   puntoRow: {
     display: 'flex', alignItems: 'center',
-    cursor: 'pointer',
+    gap: '4px', cursor: 'pointer',
   },
   punto: {
-    width: 8, height: 8, borderRadius: '50%',
-    flexShrink: 0, transition: 'transform 0.1s',
+    width: 7, height: 7, borderRadius: '50%',
+    flexShrink: 0,
   },
   puntoLabel: {
-    fontSize: '11px', fontWeight: 500, lineHeight: 1,
-    letterSpacing: '0px', userSelect: 'none',
+    fontSize: '11px', lineHeight: 1.2,
+    userSelect: 'none',
   },
 
-  // Modal popup
+  // Modal popup (sin cambios)
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' },
   modal: { background: '#16213e', border: '1px solid #0f3460', borderRadius: '14px', padding: '20px', width: '100%', maxWidth: '360px', position: 'relative', display: 'flex', flexDirection: 'column', gap: '12px' },
   modalCerrar: { position: 'absolute', top: '12px', right: '12px', background: 'none', border: 'none', color: '#8892b0', fontSize: '18px', cursor: 'pointer', lineHeight: 1 },
