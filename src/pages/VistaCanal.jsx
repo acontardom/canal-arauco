@@ -73,7 +73,8 @@ const GRID_CSS = `
   .canal-grid {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
-    gap: 8px;
+    column-gap: 8px;
+    row-gap: 0;
   }
   @media (max-width: 1024px) {
     .canal-grid { grid-template-columns: repeat(4, 1fr); }
@@ -212,11 +213,12 @@ function Tarjeta({ tipo, id, avanceSet, onClick, onDotClick }) {
     >
       <span style={s.tarjetaNombre}>{cardLabel(tipo, id)}</span>
 
-      {mostrarMetros && (
-        <span style={s.tarjetaMetros}>{metros} m</span>
-      )}
-
-      <div style={{ ...s.tarjetaMetrica, color: metricColor }}>{count}/6</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: '8px' }}>
+        <span style={{ fontSize: '18px', fontWeight: 700, color: metricColor }}>{count}/6</span>
+        {mostrarMetros && (
+          <span style={{ fontSize: '18px', fontWeight: 700, color: '#ffffff' }}>{metros} m</span>
+        )}
+      </div>
 
       <div style={s.tarjetaSep} />
 
@@ -254,6 +256,7 @@ const s = {
   tarjeta: {
     background: '#0f172a',
     border: '1px solid #1e293b',
+    borderBottom: '1px solid rgba(255,255,255,0.08)',
     borderRadius: '8px',
     padding: '10px 10px 10px',
     cursor: 'pointer',
@@ -265,17 +268,10 @@ const s = {
     minWidth: 0,
   },
   tarjetaNombre: {
-    fontSize: '14px', fontWeight: 700,
+    fontSize: '18px', fontWeight: 700,
     color: '#e2e8f0', textAlign: 'center',
     whiteSpace: 'nowrap', lineHeight: 1,
-  },
-  tarjetaMetros: {
-    fontSize: '11px', color: '#64748b',
-    marginTop: '2px', lineHeight: 1,
-  },
-  tarjetaMetrica: {
-    fontSize: '20px', fontWeight: 700,
-    margin: '6px 0 4px', lineHeight: 1,
+    marginBottom: '6px',
   },
   tarjetaSep: {
     width: '80%', height: '1px',
