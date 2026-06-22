@@ -47,7 +47,8 @@ const PARTIDAS_DISPLAY = [
   { id: 'hormigon_muro',   label: 'H-M', nombre: 'Horm. Muro' },
 ];
 
-const BORDE_TOP = { tramo: '#06b6d4', caida: '#6b7280', atravieso: '#a855f7' };
+const BORDE_TOP   = { tramo: '#06b6d4', caida: '#6b7280', atravieso: '#a855f7' };
+const BORDE_COLOR = { tramo: 'rgba(6,182,212,0.4)', caida: 'rgba(107,114,128,0.4)', atravieso: 'rgba(168,85,247,0.4)' };
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 
 function cardLabel(tipo, id) {
@@ -73,8 +74,8 @@ const GRID_CSS = `
   .canal-grid {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
-    column-gap: 8px;
-    row-gap: 0;
+    column-gap: 0px;
+    row-gap: 8px;
   }
   @media (max-width: 1024px) {
     .canal-grid { grid-template-columns: repeat(4, 1fr); }
@@ -206,6 +207,7 @@ function Tarjeta({ tipo, id, avanceSet, onClick, onDotClick }) {
     <div
       style={{
         ...s.tarjeta,
+        border: `1px solid ${BORDE_COLOR[tipo]}`,
         borderTop: `3px solid ${BORDE_TOP[tipo]}`,
       }}
       onClick={onClick}
@@ -255,8 +257,6 @@ const s = {
 
   tarjeta: {
     background: '#0f172a',
-    border: '1px solid #1e293b',
-    borderBottom: '1px solid rgba(255,255,255,0.08)',
     borderRadius: '8px',
     padding: '10px 10px 10px',
     cursor: 'pointer',
