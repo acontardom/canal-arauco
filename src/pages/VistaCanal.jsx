@@ -38,24 +38,24 @@ const ORDEN_CANAL = [
   {tipo:'tramo',id:'DZ'},
 ];
 
-// 6 partidas en orden de display
 const PARTIDAS_DISPLAY = [
-  { id: 'excavacion',      label: 'EXC' },
-  { id: 'emplantillado',   label: 'EMP' },
-  { id: 'enfierradura',    label: 'ENF' },
-  { id: 'hormigon_radier', label: 'H-R' },
-  { id: 'moldaje',         label: 'MOL' },
-  { id: 'hormigon_muro',   label: 'H-M' },
+  { id: 'excavacion',      label: 'EXC', nombre: 'Excavación' },
+  { id: 'emplantillado',   label: 'EMP', nombre: 'Emplantillado' },
+  { id: 'enfierradura',    label: 'ENF', nombre: 'Enfierradura' },
+  { id: 'hormigon_radier', label: 'H-R', nombre: 'Horm. Radier' },
+  { id: 'moldaje',         label: 'MOL', nombre: 'Moldaje' },
+  { id: 'hormigon_muro',   label: 'H-M', nombre: 'Horm. Muro' },
 ];
 
-const CARD_W   = { tramo: 70, caida: 45, atravieso: 55 };
-const CARD_H   = 116; // altura fija para todas las tarjetas
+const CARD_W   = { tramo: 72, caida: 52, atravieso: 62 };
 const CARD_BG  = { tramo: '#0c2340', caida: '#1a1a30', atravieso: '#1a0a30' };
 const CARD_BDR = { tramo: '#1e4a7a', caida: '#2a2a50', atravieso: '#3a1a60' };
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 
 function cardLabel(tipo, id) {
-  return tipo === 'atravieso' ? `AT${id}` : id;
+  if (tipo === 'atravieso') return `AT${id}`;
+  if (tipo === 'caida') return `C${id}`;
+  return id;
 }
 
 function chunks(arr, size) {
@@ -64,7 +64,6 @@ function chunks(arr, size) {
   return result;
 }
 
-// Parsea KM formato "1.529,7" → 1529.7
 function parseKm(str) {
   if (!str) return 0;
   return parseFloat(str.replace(/\./g, '').replace(',', '.'));
@@ -122,12 +121,26 @@ export default function VistaCanal() {
 
       {/* Leyenda */}
       <div style={s.leyenda}>
-        <div style={s.leyendaItem}><div style={{ ...s.leyendaPunto, background: '#10b981' }} />Recepcionado</div>
-        <div style={s.leyendaItem}><div style={{ ...s.leyendaPunto, background: '#f59e0b' }} />Pendiente</div>
-        <div style={s.leyendaSep} />
-        <span style={{ ...s.leyendaTag, background: CARD_BG.tramo,     border: `1px solid ${CARD_BDR.tramo}` }}>Tramo</span>
-        <span style={{ ...s.leyendaTag, background: CARD_BG.caida,     border: `1px solid ${CARD_BDR.caida}` }}>Caída</span>
-        <span style={{ ...s.leyendaTag, background: CARD_BG.atravieso, border: `1px solid ${CARD_BDR.atravieso}` }}>Atravieso</span>
+        <div style={s.leyendaPartidas}>
+          {PARTIDAS_DISPLAY.map(p => (
+            <div key={p.id} style={s.leyendaPartidaItem}>
+              <div style={s.leyendaDotNeutral} />
+              <span style={s.leyendaAbrev}>{p.label}</span>
+              <span style={s.leyendaNombre}>{p.nombre}</span>
+            </div>
+          ))}
+        </div>
+        <div style={s.leyendaDivider} />
+        <div style={s.leyendaEstados}>
+          <div style={s.leyendaEstadoItem}>
+            <div style={{ ...s.leyendaDot, background: '#10b981' }} />
+            <span style={s.leyendaEstadoLabel}>Recepcionado</span>
+          </div>
+          <div style={s.leyendaEstadoItem}>
+            <div style={{ ...s.leyendaDot, background: '#f59e0b' }} />
+            <span style={s.leyendaEstadoLabel}>Pendiente</span>
+          </div>
+        </div>
       </div>
 
       {cargando ? (
@@ -136,9 +149,7 @@ export default function VistaCanal() {
         <div style={s.filasCont}>
           {FILAS.map((fila, fi) => (
             <div key={fi} style={s.filaWrap}>
-              <div style={s.filaNumero}>Fila {fi + 1}</div>
               <div style={s.fila}>
-                {/* Línea de canal de extremo a extremo */}
                 <div style={s.lineaCanal} />
                 {fila.map(({ tipo, id }) => (
                   <Tarjeta
@@ -210,41 +221,49 @@ export default function VistaCanal() {
 
 function Tarjeta({ tipo, id, avanceSet, onClick, onDotClick }) {
   const w = CARD_W[tipo];
+  const metros = largoMetros(tipo, id);
+  const mostrarMetros = metros !== null && metros > 0;
+
   return (
     <div
       style={{
         ...s.tarjeta,
         width: w,
-        height: CARD_H,
         background: CARD_BG[tipo],
         borderColor: CARD_BDR[tipo],
       }}
       onClick={onClick}
       title={`${NOMBRE_TIPO[tipo]} ${id} — click para ver detalle`}
     >
-      {/* Nombre arriba */}
-      <span style={{ ...s.tarjetaLabel, fontSize: w <= 45 ? '10px' : '12px' }}>
-        {cardLabel(tipo, id)}
-      </span>
+      {/* Nombre */}
+      <span style={s.tarjetaNombre}>{cardLabel(tipo, id)}</span>
+
+      {/* Metros */}
+      {mostrarMetros && <span style={s.tarjetaMetros}>{metros} m</span>}
 
       {/* Separador */}
       <div style={s.tarjetaSep} />
 
-      {/* 6 puntos verticales */}
+      {/* 6 filas: punto + abreviación */}
       <div style={s.puntosCol}>
         {PARTIDAS_DISPLAY.map(p => {
           const rec = avanceSet.has(`${tipo}-${id}-${p.id}`);
           return (
             <div
               key={p.id}
+              style={s.puntoRow}
+              onClick={e => onDotClick(e, p.id)}
               title={`${p.label}: ${rec ? 'Recepcionado ✓' : 'Pendiente'}`}
-              style={{
+            >
+              <div style={{
                 ...s.punto,
                 background: rec ? '#10b981' : '#f59e0b',
-                boxShadow: rec ? '0 0 5px rgba(16,185,129,0.6)' : 'none',
-              }}
-              onClick={e => onDotClick(e, p.id)}
-            />
+                boxShadow: rec ? '0 0 4px rgba(16,185,129,0.5)' : 'none',
+              }} />
+              <span style={{ ...s.puntoLabel, color: rec ? '#a7f3d0' : '#6b7280' }}>
+                {p.label}
+              </span>
+            </div>
           );
         })}
       </div>
@@ -261,87 +280,78 @@ const s = {
   subtitulo: { color: '#8892b0', fontSize: '13px', margin: 0 },
 
   leyenda: {
-    display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px',
-    marginBottom: '20px', padding: '10px 14px',
+    marginBottom: '20px', padding: '12px 14px',
     background: '#0f2a4a', borderRadius: '8px', border: '1px solid #1e3a5f',
+    display: 'flex', flexDirection: 'column', gap: '10px',
   },
-  leyendaItem: { display: 'flex', alignItems: 'center', gap: '5px', color: '#ccd6f6', fontSize: '12px', fontWeight: 600 },
-  leyendaPunto: { width: 10, height: 10, borderRadius: '50%', flexShrink: 0 },
-  leyendaSep: { width: '1px', height: '16px', background: '#1e3a5f', margin: '0 4px' },
-  leyendaTag: { fontSize: '11px', fontWeight: 600, color: '#ccd6f6', padding: '2px 8px', borderRadius: '4px' },
+  leyendaPartidas: { display: 'flex', flexWrap: 'wrap', gap: '6px 16px' },
+  leyendaPartidaItem: { display: 'flex', alignItems: 'center', gap: '4px' },
+  leyendaDotNeutral: { width: 8, height: 8, borderRadius: '50%', background: '#475569', flexShrink: 0 },
+  leyendaAbrev: { color: '#ccd6f6', fontSize: '11px', fontWeight: 700 },
+  leyendaNombre: { color: '#64748b', fontSize: '10px' },
+  leyendaDivider: { width: '100%', height: '1px', background: '#1e3a5f' },
+  leyendaEstados: { display: 'flex', gap: '16px' },
+  leyendaEstadoItem: { display: 'flex', alignItems: 'center', gap: '5px' },
+  leyendaDot: { width: 9, height: 9, borderRadius: '50%', flexShrink: 0 },
+  leyendaEstadoLabel: { color: '#ccd6f6', fontSize: '12px', fontWeight: 600 },
 
   cargandoTxt: { color: '#8892b0', fontSize: '14px' },
 
   filasCont: { display: 'flex', flexDirection: 'column', gap: '20px' },
-  filaWrap: { display: 'flex', flexDirection: 'column', gap: '5px' },
-  filaNumero: { color: '#374151', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' },
+  filaWrap: {},
 
   fila: {
     position: 'relative',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between', // distribuir de extremo a extremo
+    justifyContent: 'space-between',
     width: '100%',
   },
   lineaCanal: {
     position: 'absolute',
     height: '3px',
     background: 'linear-gradient(90deg, #1e4a7a, #2a3a6a, #1e4a7a)',
-    left: 0,
-    right: 0,
-    top: '50%',
-    transform: 'translateY(-50%)',
-    zIndex: 0,
-    borderRadius: '2px',
+    left: 0, right: 0, top: '50%', transform: 'translateY(-50%)',
+    zIndex: 0, borderRadius: '2px',
   },
 
   tarjeta: {
-    position: 'relative',
-    zIndex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    gap: 0,
-    padding: '7px 3px 8px',
-    borderRadius: '7px',
-    border: '1px solid',
-    cursor: 'pointer',
-    flexShrink: 0,
-    userSelect: 'none',
+    position: 'relative', zIndex: 1,
+    display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'flex-start',
+    padding: '6px 4px 7px',
+    borderRadius: '7px', border: '1px solid',
+    cursor: 'pointer', flexShrink: 0, userSelect: 'none',
     boxSizing: 'border-box',
   },
-  tarjetaLabel: {
-    color: '#ccd6f6',
-    fontWeight: 700,
-    letterSpacing: '0.2px',
-    lineHeight: 1,
-    textAlign: 'center',
-    whiteSpace: 'nowrap',
-    paddingBottom: '2px',
+  tarjetaNombre: {
+    color: '#ccd6f6', fontSize: '11px', fontWeight: 700,
+    lineHeight: 1, textAlign: 'center', whiteSpace: 'nowrap',
+  },
+  tarjetaMetros: {
+    color: '#64748b', fontSize: '9px', fontWeight: 500,
+    lineHeight: 1, textAlign: 'center', marginTop: '2px',
   },
   tarjetaSep: {
-    width: '70%',
-    height: '1px',
+    width: '80%', height: '1px',
     background: 'rgba(255,255,255,0.08)',
-    margin: '4px 0',
-    flexShrink: 0,
+    margin: '4px 0', flexShrink: 0,
   },
   puntosCol: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '5px',
-    flex: 1,
-    justifyContent: 'center',
+    display: 'flex', flexDirection: 'column',
+    alignItems: 'flex-start', gap: '3px',
+  },
+  puntoRow: {
+    display: 'flex', alignItems: 'center', gap: '3px',
+    cursor: 'pointer',
   },
   punto: {
-    width: 11,
-    height: 11,
-    borderRadius: '50%',
-    cursor: 'pointer',
-    flexShrink: 0,
-    transition: 'transform 0.1s',
+    width: 8, height: 8, borderRadius: '50%',
+    flexShrink: 0, transition: 'transform 0.1s',
+  },
+  puntoLabel: {
+    fontSize: '8px', fontWeight: 600, lineHeight: 1,
+    letterSpacing: '0.1px', userSelect: 'none',
   },
 
   // Modal popup
