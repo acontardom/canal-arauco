@@ -592,16 +592,37 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
 
   const esG5 = protocolo.protocoloId === 'G5';
   const COLS = 2;
-  const GAP_COL = 6;   // espacio horizontal entre las 2 columnas
-  const GAP_ROW = 4;   // espacio vertical entre filas
-  const descH   = 14;
+  const GAP_COL = 6;
+  const GAP_ROW = 4;
+  const DESC_LINE_H = 4.5;
+  const DESC_PAD = 2;
 
-  // Fotos verticales (3:4): G5 usa columna completa, el resto centra con margen
-  const imgH = esG5 ? 117 : 100;
-  const imgW = esG5 ? Math.round((CW - GAP_COL) / COLS)           // 88mm, llena ancho
-                    : Math.round(imgH * 3 / 4);                     // 75mm, proporción exacta
+  // Espacio disponible para fotos + descripciones (reservar pie de firma al fondo)
+  const espacioDisponible = PH - 42 - y;
+
+  // imgW base según tipo
+  const imgWBase = esG5
+    ? Math.round((CW - GAP_COL) / COLS)
+    : Math.round(100 * 3 / 4); // proporción 3:4 de imgH=100
+
+  // Calcular descH compartido: descripción más larga del batch
+  const maxLineas = Math.max(1, ...fotosBatch.map(foto => {
+    if (!foto.descripcion) return 1;
+    return doc.splitTextToSize(foto.descripcion, imgWBase - DESC_PAD * 2).length;
+  }));
+  const descH = Math.max(7, maxLineas * DESC_LINE_H + DESC_PAD * 2);
+
+  // Calcular imgH para que todo quepa en el espacio disponible
+  const numRows = Math.ceil(fotosBatch.length / COLS);
+  const alturaTotal = numRows * GAP_ROW + descH * numRows;
+  const imgHMax = (espacioDisponible - alturaTotal) / numRows;
+  const imgH = esG5 ? Math.min(117, imgHMax) : Math.min(100, imgHMax);
+
+  const imgW = esG5
+    ? Math.round((CW - GAP_COL) / COLS)
+    : Math.round(imgH * 3 / 4);
+
   const cellH = imgH + descH + GAP_ROW;
-  // Offset horizontal para centrar las fotos dentro del área de contenido
   const offsetX = ML + (CW - (COLS * imgW + GAP_COL)) / 2;
 
   for (let i = 0; i < fotosBatch.length; i++) {
@@ -621,18 +642,16 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
       catch (err) { console.warn('[PDF] Error al incrustar imagen:', err?.message ?? err); }
     }
 
-    const DESC_LINE_H = 4.5;
-    const DESC_PAD = 2;
-    const maxWidth = imgW - DESC_PAD * 2;
+    // Recuadro descripción — altura compartida por todo el batch
     const lineas = foto.descripcion
-      ? doc.splitTextToSize(foto.descripcion, maxWidth)
-      : [''];
+      ? doc.splitTextToSize(foto.descripcion, imgW - DESC_PAD * 2)
+      : [];
 
     doc.setDrawColor(120, 120, 120);
     doc.setLineWidth(0.2);
     doc.rect(x, cellY + imgH, imgW, descH);
 
-    if (foto.descripcion) {
+    if (lineas.length > 0) {
       doc.setFont(undefined, 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(30, 30, 30);
@@ -642,8 +661,8 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
     }
   }
 
-  const numRows = Math.ceil(fotosBatch.length / COLS);
-  agregarPieFirma(doc, pieFirmaY(y + numRows * cellH));
+  // Pie de firma siempre anclado al fondo de la página
+  agregarPieFirma(doc, PH - 42);
 }
 
 // ─── Control H.A. (Radier / Muro) — bloques por camión ────────────────────────
