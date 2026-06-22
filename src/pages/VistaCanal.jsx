@@ -47,10 +47,11 @@ const PARTIDAS_DISPLAY = [
   { id: 'hormigon_muro',   label: 'H-M', nombre: 'Horm. Muro' },
 ];
 
-const CARD_W   = { tramo: 72, caida: 52, atravieso: 62 };
-const CARD_BG  = { tramo: '#0c2340', caida: '#1a1a30', atravieso: '#1a0a30' };
-const CARD_BDR = { tramo: '#1e4a7a', caida: '#2a2a50', atravieso: '#3a1a60' };
-const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
+const CARD_W        = { tramo: 100, caida: 90, atravieso: 95 };
+const CARD_BG       = { tramo: '#0c2340', caida: '#111827', atravieso: '#1a0a30' };
+const CARD_BDR      = { tramo: '#1a8a9a', caida: '#2a3852', atravieso: '#7c3aed' };
+const NOMBRE_COLOR  = { tramo: '#64ffda', caida: '#8892b0', atravieso: '#c084fc' };
+const NOMBRE_TIPO   = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 
 function cardLabel(tipo, id) {
   if (tipo === 'atravieso') return `AT${id}`;
@@ -75,7 +76,7 @@ function largoMetros(tipo, id) {
   return Math.round((parseKm(d.fin) - parseKm(d.inicio)) * 10) / 10;
 }
 
-const FILAS = chunks(ORDEN_CANAL, 10);
+const FILAS = chunks(ORDEN_CANAL, 9); // 63 elementos / 9 = 7 filas exactas
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -236,7 +237,7 @@ function Tarjeta({ tipo, id, avanceSet, onClick, onDotClick }) {
       title={`${NOMBRE_TIPO[tipo]} ${id} — click para ver detalle`}
     >
       {/* Nombre */}
-      <span style={s.tarjetaNombre}>{cardLabel(tipo, id)}</span>
+      <span style={{ ...s.tarjetaNombre, color: NOMBRE_COLOR[tipo] }}>{cardLabel(tipo, id)}</span>
 
       {/* Metros */}
       {mostrarMetros && <span style={s.tarjetaMetros}>{metros} m</span>}
@@ -319,17 +320,17 @@ const s = {
     position: 'relative', zIndex: 1,
     display: 'flex', flexDirection: 'column',
     alignItems: 'center', justifyContent: 'flex-start',
-    padding: '6px 4px 7px',
+    padding: '7px 6px 8px',
     borderRadius: '7px', border: '1px solid',
     cursor: 'pointer', flexShrink: 0, userSelect: 'none',
     boxSizing: 'border-box',
   },
   tarjetaNombre: {
-    color: '#ccd6f6', fontSize: '11px', fontWeight: 700,
+    fontSize: '13px', fontWeight: 700,
     lineHeight: 1, textAlign: 'center', whiteSpace: 'nowrap',
   },
   tarjetaMetros: {
-    color: '#64748b', fontSize: '9px', fontWeight: 500,
+    color: '#64748b', fontSize: '11px', fontWeight: 500,
     lineHeight: 1, textAlign: 'center', marginTop: '2px',
   },
   tarjetaSep: {
@@ -339,10 +340,10 @@ const s = {
   },
   puntosCol: {
     display: 'flex', flexDirection: 'column',
-    alignItems: 'flex-start', gap: '3px',
+    alignItems: 'flex-start', gap: '4px',
   },
   puntoRow: {
-    display: 'flex', alignItems: 'center', gap: '3px',
+    display: 'flex', alignItems: 'center', gap: '4px',
     cursor: 'pointer',
   },
   punto: {
@@ -350,7 +351,7 @@ const s = {
     flexShrink: 0, transition: 'transform 0.1s',
   },
   puntoLabel: {
-    fontSize: '8px', fontWeight: 600, lineHeight: 1,
+    fontSize: '10px', fontWeight: 600, lineHeight: 1,
     letterSpacing: '0.1px', userSelect: 'none',
   },
 
