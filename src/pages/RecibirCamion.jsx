@@ -63,6 +63,8 @@ const initialForm = {
   fotosEnsayo: [],
   usoHormigon: '',
   llevaEnsayo: false,
+  tipoEspecificacion: '',
+  valorTotal: '',
 };
 
 export default function RecibirCamion() {
@@ -313,6 +315,8 @@ export default function RecibirCamion() {
         fotosEnsayoUrls,
         estadoCalidad,
         llevaEnsayo: form.llevaEnsayo,
+        tipoEspecificacion: TIPOS_CON_ENSAYO.includes(form.tipoHormigon) ? (form.tipoEspecificacion || null) : null,
+        valorTotal: form.valorTotal || null,
       };
 
       const id = await db.camiones.add(camion);
@@ -441,6 +445,21 @@ export default function RecibirCamion() {
         </div>
       )}
 
+      {TIPOS_CON_ENSAYO.includes(form.tipoHormigon) && (
+        <div style={s.campo}>
+          <label style={s.label}>Especificación técnica</label>
+          <select style={s.input} value={form.tipoEspecificacion} onChange={e => set('tipoEspecificacion', e.target.value)}>
+            <option value="">Sin especificación</option>
+            <option value="10-20-08">10-20-08</option>
+            <option value="10-40-06">10-40-06</option>
+            <option value="10-40-08">10-40-08</option>
+            <option value="80-40-08">80-40-08</option>
+            <option value="90-20-08">90-20-08</option>
+            <option value="90-40-08">90-40-08</option>
+          </select>
+        </div>
+      )}
+
       {form.tipoHormigon && (
         <>
           <div style={s.row}>
@@ -460,6 +479,11 @@ export default function RecibirCamion() {
           <div style={s.campo}>
             <label style={s.label}>Volumen (m³)</label>
             <input style={s.input} type="number" step="0.1" placeholder="8.5" value={form.volumen} onChange={e => set('volumen', e.target.value)} />
+          </div>
+
+          <div style={s.campo}>
+            <label style={s.label}>Valor ($)</label>
+            <input style={s.input} type="number" placeholder="Ej: 850000" value={form.valorTotal} onChange={e => set('valorTotal', e.target.value)} />
           </div>
 
           {TIPOS_CON_ENSAYO.includes(form.tipoHormigon) && (

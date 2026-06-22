@@ -65,6 +65,8 @@ function mapRemoto(r) {
     estadoCalidad: r.estado_calidad ?? null,
     fotoGuiaUrl: r.foto_guia_url ?? null,
     fotosEnsayoUrls: r.fotos_ensayo_urls ?? [],
+    tipoEspecificacion: r.tipo_especificacion ?? null,
+    valorTotal: r.valor_total != null ? String(r.valor_total) : '',
   };
 }
 
@@ -124,7 +126,7 @@ export default function HistorialCamiones() {
             const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000));
             const consulta = supabase
               .from('camiones')
-              .select('id, local_id, tipo_entidad, entidad_id, entidad_secundaria_tipo, entidad_secundaria_id, tipo_hormigon, volumen, numero_guia, planta, cono, temp_hormigon, temp_ambiente, hora_carga, hora_descarga, tiempo_traslado, peso_hoya_hormigon, pu_calculado, observaciones, usuario_nombre, fecha_recepcion, uso_hormigon, estado_calidad, foto_guia_url, fotos_ensayo_urls, created_at')
+              .select('id, local_id, tipo_entidad, entidad_id, entidad_secundaria_tipo, entidad_secundaria_id, tipo_hormigon, volumen, numero_guia, planta, cono, temp_hormigon, temp_ambiente, hora_carga, hora_descarga, tiempo_traslado, peso_hoya_hormigon, pu_calculado, observaciones, usuario_nombre, fecha_recepcion, uso_hormigon, estado_calidad, foto_guia_url, fotos_ensayo_urls, tipo_especificacion, valor_total, created_at')
               .order('fecha_recepcion', { ascending: false });
             try {
               const { data, error: err } = await Promise.race([consulta, timeout]);
@@ -195,6 +197,8 @@ export default function HistorialCamiones() {
           pu_calculado: cambios.puCalculado || null,
           observaciones: cambios.observaciones || null,
           estado_calidad: cambios.estadoCalidad,
+          tipo_especificacion: cambios.tipoEspecificacion ?? null,
+          valor_total: cambios.valorTotal ? Number(cambios.valorTotal) : null,
         };
         const { error: err } = await supabase.from('camiones').update(payload).eq('id', camion.supabaseId);
         if (err) throw err;
@@ -484,7 +488,7 @@ function CamionCard({ camion: c, expandido, onToggle, onEditar, onEliminar }) {
 
       <div style={s.cardBody}>
         <p style={s.cardLinea}>
-          Tipo hormigón: <strong>{c.tipoHormigon}</strong>{c.volumen && ` — ${c.volumen} m³`}
+          Tipo hormigón: <strong>{c.tipoHormigon}{c.tipoEspecificacion ? ` — ${c.tipoEspecificacion}` : ''}</strong>{c.volumen && ` — ${c.volumen} m³`}
         </p>
         <p style={s.cardLinea}>
           Entidad: <strong>{NOMBRE_TIPO[c.tipoEntidad] ?? c.tipoEntidad} {c.entidadId}</strong>
@@ -496,6 +500,9 @@ function CamionCard({ camion: c, expandido, onToggle, onEditar, onEliminar }) {
         )}
         {c.puCalculado && (
           <p style={s.cardLinea}>PU: <strong>{Number(c.puCalculado).toLocaleString('es-CL')} kg/m³</strong></p>
+        )}
+        {c.valorTotal && (
+          <p style={s.cardLinea}>Valor: <strong>${Number(c.valorTotal).toLocaleString('es-CL')}</strong></p>
         )}
         {(c.horaCarga || c.horaDescarga) && (
           <p style={s.cardLinea}>Hora carga → descarga: {c.horaCarga || '—'} → {c.horaDescarga || '—'}</p>
@@ -582,6 +589,8 @@ function EditarCamionModal({ camion: c, guardando, onGuardar, onCancelar }) {
     pesoHoyaHormigon: c.pesoHoyaHormigon ?? '',
     estadoCalidad: c.estadoCalidad ?? '',
     observaciones: c.observaciones ?? '',
+    tipoEspecificacion: c.tipoEspecificacion ?? '',
+    valorTotal: c.valorTotal ?? '',
   }));
 
   function campo(nombre, valor) {
@@ -626,6 +635,8 @@ function EditarCamionModal({ camion: c, guardando, onGuardar, onCancelar }) {
       puCalculado: puPreview,
       estadoCalidad: form.estadoCalidad || null,
       observaciones: form.observaciones,
+      tipoEspecificacion: form.tipoEspecificacion || null,
+      valorTotal: form.valorTotal,
     });
   }
 
@@ -682,6 +693,22 @@ function EditarCamionModal({ camion: c, guardando, onGuardar, onCancelar }) {
             <div style={s.campo}>
               <label style={s.label}>Volumen (m³)</label>
               <input style={s.input} type="number" step="0.1" value={form.volumen} onChange={e => campo('volumen', e.target.value)} />
+            </div>
+            <div style={s.campo}>
+              <label style={s.label}>Especificación técnica</label>
+              <select style={s.input} value={form.tipoEspecificacion} onChange={e => campo('tipoEspecificacion', e.target.value)}>
+                <option value="">Sin especificación</option>
+                <option value="10-20-08">10-20-08</option>
+                <option value="10-40-06">10-40-06</option>
+                <option value="10-40-08">10-40-08</option>
+                <option value="80-40-08">80-40-08</option>
+                <option value="90-20-08">90-20-08</option>
+                <option value="90-40-08">90-40-08</option>
+              </select>
+            </div>
+            <div style={s.campo}>
+              <label style={s.label}>Valor ($)</label>
+              <input style={s.input} type="number" placeholder="Ej: 850000" value={form.valorTotal} onChange={e => campo('valorTotal', e.target.value)} />
             </div>
           </div>
 

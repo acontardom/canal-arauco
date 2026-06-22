@@ -313,6 +313,8 @@ async function sincronizarCamiones() {
         fotos_ensayo_urls:       camion.fotosEnsayoUrls ?? [],
         estado_calidad:          camion.estadoCalidad ?? null,
         lleva_ensayo:            camion.llevaEnsayo ?? false,
+        tipo_especificacion:     camion.tipoEspecificacion ?? null,
+        valor_total:             camion.valorTotal ? Number(camion.valorTotal) : null,
       };
 
       const { data, error } = await supabase
@@ -494,6 +496,8 @@ export async function descargarDesdeSupabase() {
           fotoGuiaUrl:            remoto.foto_guia_url ?? null,
           fotosEnsayoUrls:        remoto.fotos_ensayo_urls ?? [],
           estadoCalidad:          remoto.estado_calidad ?? null,
+          tipoEspecificacion:     remoto.tipo_especificacion ?? null,
+          valorTotal:             remoto.valor_total != null ? String(remoto.valor_total) : '',
           supabaseId:             remoto.id,
           sincronizado:           true,
         });
