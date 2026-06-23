@@ -343,6 +343,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [cotasNombrePR, setCotasNombrePR]         = useState('');
   const [cotasCotaPR, setCotasCotaPR]             = useState('');
   const [cotasObs, setCotasObs]                   = useState('');
+  const [fotoAutocad, setFotoAutocad]             = useState(null); // { dataUrl } | null
+  const [fotoTabla,   setFotoTabla]               = useState(null); // { dataUrl } | null
   const [fotosSugeridasExpanded, setFotosSugeridasExpanded] = useState(true);
   const [fotoNubeModal, setFotoNubeModal] = useState(null);
   const [descModalTexto, setDescModalTexto] = useState('');
@@ -360,8 +362,10 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   const cargadoRef = useRef(false);
   const toastTimerRef = useRef(null);
-  const inputCamaraRef = useRef(null);
-  const inputGaleriaRef = useRef(null);
+  const inputCamaraRef      = useRef(null);
+  const inputGaleriaRef     = useRef(null);
+  const inputCotasAutocadRef = useRef(null);
+  const inputCotasTablRef    = useRef(null);
   const imgCropRef = useRef(null); // modal cámara/galería
   const imgRef     = useRef(null); // modal nube (preview y crop)
 
@@ -521,6 +525,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             setCotasNombrePR(d.nombrePR ?? '');
             setCotasCotaPR(d.cotaPR ?? '');
             setCotasObs(d.observacionCotas ?? '');
+            setFotoAutocad(d.fotoAutocad ?? null);
+            setFotoTabla(d.fotoTabla ?? null);
           } else {
             setChecklist(normalizeChecklist(d.checklist, itemsChecklist));
             setObservaciones(d.observaciones ?? '');
@@ -584,7 +590,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     if (protocolo?.id) return protocolo.id;
     const hoy = fechaHoy();
     const datosIniciales = esCOTAS
-      ? { fechaControl: cotasFechaControl, nControl: cotasNControl, instrumentoNS: cotasInstrumento, nombrePR: cotasNombrePR, cotaPR: cotasCotaPR, observacionCotas: cotasObs, fotosNubeSeleccionadas }
+      ? { fechaControl: cotasFechaControl, nControl: cotasNControl, instrumentoNS: cotasInstrumento, nombrePR: cotasNombrePR, cotaPR: cotasCotaPR, observacionCotas: cotasObs, fotoAutocad, fotoTabla }
       : { checklist, observaciones, fotosNubeSeleccionadas };
     return db.protocolos.add({
       tipo, entidad: tipo, entidadId: entidadIdReal, protocoloId,
@@ -646,7 +652,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       const fotosSubidas = await subirFotosNubePendientes(fotosNubeSeleccionadas);
       if (fotosSubidas !== fotosNubeSeleccionadas) setFotosNubeSeleccionadas(fotosSubidas);
       const datos = esCOTAS
-        ? { fechaControl: cotasFechaControl, nControl: cotasNControl, instrumentoNS: cotasInstrumento, nombrePR: cotasNombrePR, cotaPR: cotasCotaPR, observacionCotas: cotasObs, fotosNubeSeleccionadas: fotosSubidas }
+        ? { fechaControl: cotasFechaControl, nControl: cotasNControl, instrumentoNS: cotasInstrumento, nombrePR: cotasNombrePR, cotaPR: cotasCotaPR, observacionCotas: cotasObs, fotoAutocad, fotoTabla }
         : { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas };
 
       const campos = {
@@ -685,8 +691,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   function onCropImageLoad(e) {
     const { width, height } = e.currentTarget;
-    const aspecto = esHA ? 4/3 : 3/4;
-    const dim     = esHA ? { unit: '%', width: 90 } : { unit: '%', height: 90 };
+    const aspecto = (esHA || esCOTAS) ? 4/3 : 3/4;
+    const dim     = (esHA || esCOTAS) ? { unit: '%', width: 90 } : { unit: '%', height: 90 };
     const pct = centerCrop(makeAspectCrop(dim, aspecto, width, height), width, height);
     setCrop(pct);
     setCompletedCrop({ unit: 'px', x: pct.x/100*width, y: pct.y/100*height, width: pct.width/100*width, height: pct.height/100*height });
@@ -749,8 +755,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   // Calcula crop centrado en % según el aspecto del protocolo
   function calcCentrado(imgEl) {
     const { width, height } = imgEl;
-    const aspecto = esHA ? 4/3 : 3/4;
-    const dim     = esHA ? { unit: '%', width: 90 } : { unit: '%', height: 90 };
+    const aspecto = (esHA || esCOTAS) ? 4/3 : 3/4;
+    const dim     = (esHA || esCOTAS) ? { unit: '%', width: 90 } : { unit: '%', height: 90 };
     return centerCrop(makeAspectCrop(dim, aspecto, width, height), width, height);
   }
 
@@ -846,6 +852,10 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       ));
     } else if (cropModal.tipo === 'editar-nueva') {
       await db.fotos.update(cropModal.meta.fotoId, { dataUrl: croppedUrl });
+    } else if (cropModal.tipo === 'cotas-autocad') {
+      setFotoAutocad({ dataUrl: croppedUrl });
+    } else if (cropModal.tipo === 'cotas-tabla') {
+      setFotoTabla({ dataUrl: croppedUrl });
     } else {
       const { foto } = cropModal.meta;
       setFotosNubeSeleccionadas(prev => [
@@ -1096,10 +1106,15 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     };
   });
 
-  const fotosCombinadas = [
-    ...fotos.map(f => ({ id: `nueva-${f.id}`, fotoId: f.id, dataUrl: f.dataUrl, storageUrl: f.storageUrl ?? null, descripcion: f.descripcion ?? '', origen: 'nueva' })),
-    ...fotosNubeData,
-  ];
+  const fotosCombinadas = esCOTAS
+    ? [
+        ...(tipo !== 'caida' && fotoAutocad?.dataUrl ? [{ id: 'cotas-autocad', dataUrl: fotoAutocad.dataUrl, descripcion: 'AutoCAD', origen: 'cotas' }] : []),
+        ...(fotoTabla?.dataUrl ? [{ id: 'cotas-tabla', dataUrl: fotoTabla.dataUrl, descripcion: 'Tabla de cotas', origen: 'cotas' }] : []),
+      ]
+    : [
+        ...fotos.map(f => ({ id: `nueva-${f.id}`, fotoId: f.id, dataUrl: f.dataUrl, storageUrl: f.storageUrl ?? null, descripcion: f.descripcion ?? '', origen: 'nueva' })),
+        ...fotosNubeData,
+      ];
 
   const fotosSugeridas = defaultsDef?.fotos_sugeridas ?? [];
 
@@ -1125,107 +1140,181 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         </div>
       )}
 
-      {/* Subsección 1: seleccionar desde nube */}
-      <p style={s.subSeccionTitulo}>Seleccionar desde nube 📷</p>
-      <div style={s.chipsRow}>
-        {['Todas', ...ETIQUETAS_FOTO].map(et => (
-          <button
-            key={et}
-            style={{ ...s.chip, ...(filtroEtiqueta === et ? s.chipActivo : {}) }}
-            onClick={() => setFiltroEtiqueta(et)}
-          >
-            {et}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Búsqueda en otra entidad ─────────────────────────────────────────── */}
-      {busquedaActiva ? (
-        <div style={s.busquedaActivaBanner}>
-          <span style={s.busquedaActivaLabel}>
-            📍 Fotos de <strong>{busquedaActiva.label}</strong>
-          </span>
-          <button style={s.btnResetBusqueda} onClick={resetearBusqueda}>
-            ✕ Volver a {nombreEntidad}
-          </button>
-        </div>
-      ) : (
-        <button
-          style={s.btnBuscarOtraEntidad}
-          onClick={() => setBusquedaPanel(v => !v)}
-        >
-          🔍 {busquedaPanel ? 'Cancelar búsqueda' : 'Buscar en otra entidad'}
-        </button>
-      )}
-
-      {busquedaPanel && !busquedaActiva && (
-        <div style={s.panelBusqueda}>
-          <select
-            style={s.inputEdit}
-            value={busquedaTipo}
-            onChange={e => {
-              setBusquedaTipo(e.target.value);
-              setBusquedaEntidadId(String(LISTAS_HA[e.target.value][0]));
-            }}
-          >
-            <option value="tramo">Tramo</option>
-            <option value="caida">Caída</option>
-            <option value="atravieso">Atravieso</option>
-          </select>
-          <select
-            style={s.inputEdit}
-            value={busquedaEntidadId}
-            onChange={e => setBusquedaEntidadId(e.target.value)}
-          >
-            {LISTAS_HA[busquedaTipo].map(id => (
-              <option key={id} value={String(id)}>
-                {NOMBRES_TIPO[busquedaTipo]} {id}
-              </option>
-            ))}
-          </select>
-          <button
-            style={{ ...s.btnFoto, opacity: cargandoBusqueda ? 0.6 : 1 }}
-            onClick={buscarFotosOtraEntidad}
-            disabled={cargandoBusqueda}
-          >
-            {cargandoBusqueda ? 'Buscando...' : '🔍 Buscar fotos'}
-          </button>
-        </div>
-      )}
-
-      {fotosTerrenoFiltradas.length > 0 ? (
-        <div style={s.fotosGrid}>
-          {fotosTerrenoFiltradas.map((foto, index) => {
-            const key = foto.storageUrl || foto.dataUrl;
-            const seleccionada = fotosNubeSeleccionadas.some(f => (f.storageUrl || f.dataUrl) === key);
-            return (
-              <div
-                key={foto.id}
-                style={{ ...s.fotoThumb, ...(seleccionada ? s.fotoThumbSeleccionada : {}), cursor: 'pointer' }}
-                onClick={() => abrirFotoNubeModal(index)}
+      {/* Subsección 1: seleccionar desde nube — oculto para COTAS */}
+      {!esCOTAS && (
+        <>
+          <p style={s.subSeccionTitulo}>Seleccionar desde nube 📷</p>
+          <div style={s.chipsRow}>
+            {['Todas', ...ETIQUETAS_FOTO].map(et => (
+              <button
+                key={et}
+                style={{ ...s.chip, ...(filtroEtiqueta === et ? s.chipActivo : {}) }}
+                onClick={() => setFiltroEtiqueta(et)}
               >
-                <img src={key} alt="" loading="lazy" style={{ ...s.fotoImg, backgroundColor: '#2a2a3e' }} onError={e => { e.target.style.opacity = '0.3'; }} />
-                <div
-                  style={{ ...s.checkOverlay, cursor: readOnly ? 'default' : 'pointer' }}
-                  onClick={(e) => { e.stopPropagation(); if (!readOnly) toggleFotoNube(foto, index); }}
-                >
-                  <input type="checkbox" checked={seleccionada} readOnly style={s.checkboxNube} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <p style={s.sinFotos}>
-          Sin fotos en la nube para {busquedaActiva ? busquedaActiva.label : 'esta entidad'}
-        </p>
-      )}
-      <div style={s.badgeSeleccion}>
-        {fotosNubeSeleccionadas.length} {fotosNubeSeleccionadas.length === 1 ? 'foto seleccionada' : 'fotos seleccionadas'}
-      </div>
+                {et}
+              </button>
+            ))}
+          </div>
 
-      {/* Subsección 2: agregar nueva foto */}
-      {!readOnly && (
+          {/* ── Búsqueda en otra entidad ─────────────────────────────────────────── */}
+          {busquedaActiva ? (
+            <div style={s.busquedaActivaBanner}>
+              <span style={s.busquedaActivaLabel}>
+                📍 Fotos de <strong>{busquedaActiva.label}</strong>
+              </span>
+              <button style={s.btnResetBusqueda} onClick={resetearBusqueda}>
+                ✕ Volver a {nombreEntidad}
+              </button>
+            </div>
+          ) : (
+            <button
+              style={s.btnBuscarOtraEntidad}
+              onClick={() => setBusquedaPanel(v => !v)}
+            >
+              🔍 {busquedaPanel ? 'Cancelar búsqueda' : 'Buscar en otra entidad'}
+            </button>
+          )}
+
+          {busquedaPanel && !busquedaActiva && (
+            <div style={s.panelBusqueda}>
+              <select
+                style={s.inputEdit}
+                value={busquedaTipo}
+                onChange={e => {
+                  setBusquedaTipo(e.target.value);
+                  setBusquedaEntidadId(String(LISTAS_HA[e.target.value][0]));
+                }}
+              >
+                <option value="tramo">Tramo</option>
+                <option value="caida">Caída</option>
+                <option value="atravieso">Atravieso</option>
+              </select>
+              <select
+                style={s.inputEdit}
+                value={busquedaEntidadId}
+                onChange={e => setBusquedaEntidadId(e.target.value)}
+              >
+                {LISTAS_HA[busquedaTipo].map(id => (
+                  <option key={id} value={String(id)}>
+                    {NOMBRES_TIPO[busquedaTipo]} {id}
+                  </option>
+                ))}
+              </select>
+              <button
+                style={{ ...s.btnFoto, opacity: cargandoBusqueda ? 0.6 : 1 }}
+                onClick={buscarFotosOtraEntidad}
+                disabled={cargandoBusqueda}
+              >
+                {cargandoBusqueda ? 'Buscando...' : '🔍 Buscar fotos'}
+              </button>
+            </div>
+          )}
+
+          {fotosTerrenoFiltradas.length > 0 ? (
+            <div style={s.fotosGrid}>
+              {fotosTerrenoFiltradas.map((foto, index) => {
+                const key = foto.storageUrl || foto.dataUrl;
+                const seleccionada = fotosNubeSeleccionadas.some(f => (f.storageUrl || f.dataUrl) === key);
+                return (
+                  <div
+                    key={foto.id}
+                    style={{ ...s.fotoThumb, ...(seleccionada ? s.fotoThumbSeleccionada : {}), cursor: 'pointer' }}
+                    onClick={() => abrirFotoNubeModal(index)}
+                  >
+                    <img src={key} alt="" loading="lazy" style={{ ...s.fotoImg, backgroundColor: '#2a2a3e' }} onError={e => { e.target.style.opacity = '0.3'; }} />
+                    <div
+                      style={{ ...s.checkOverlay, cursor: readOnly ? 'default' : 'pointer' }}
+                      onClick={(e) => { e.stopPropagation(); if (!readOnly) toggleFotoNube(foto, index); }}
+                    >
+                      <input type="checkbox" checked={seleccionada} readOnly style={s.checkboxNube} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p style={s.sinFotos}>
+              Sin fotos en la nube para {busquedaActiva ? busquedaActiva.label : 'esta entidad'}
+            </p>
+          )}
+          <div style={s.badgeSeleccion}>
+            {fotosNubeSeleccionadas.length} {fotosNubeSeleccionadas.length === 1 ? 'foto seleccionada' : 'fotos seleccionadas'}
+          </div>
+        </>
+      )}
+
+      {/* Subsección COTAS: recuadros fijos de fotos */}
+      {esCOTAS && !readOnly && (
+        <>
+          <input
+            ref={inputCotasAutocadRef}
+            type="file" accept="image/*"
+            style={{ display: 'none' }}
+            onChange={e => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = ev => abrirCropModal(ev.target.result, 'cotas-autocad', { file });
+              reader.readAsDataURL(file);
+              e.target.value = '';
+            }}
+          />
+          <input
+            ref={inputCotasTablRef}
+            type="file" accept="image/*"
+            style={{ display: 'none' }}
+            onChange={e => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = ev => abrirCropModal(ev.target.result, 'cotas-tabla', { file });
+              reader.readAsDataURL(file);
+              e.target.value = '';
+            }}
+          />
+          <div style={s.cotasSlotsGrid}>
+            {tipo !== 'caida' && (
+              <div style={s.cotasSlot}>
+                <span style={s.cotasSlotLabel}>Foto 1 — AutoCAD / Esquema del tramo</span>
+                {fotoAutocad?.dataUrl ? (
+                  <div style={s.cotasSlotPreview}>
+                    <img src={fotoAutocad.dataUrl} alt="AutoCAD" style={s.cotasSlotImg} />
+                    <div style={s.cotasSlotActions}>
+                      <button style={s.btnFoto} onClick={() => inputCotasAutocadRef.current?.click()}>🔄 Reemplazar</button>
+                      <button style={{ ...s.btnFoto, background: '#3d1414' }} onClick={() => setFotoAutocad(null)}>× Quitar</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={s.cotasSlotVacio} onClick={() => inputCotasAutocadRef.current?.click()}>
+                    <span style={{ fontSize: '28px' }}>📷</span>
+                    <span style={{ color: '#64748b', fontSize: '13px' }}>Toca para agregar</span>
+                  </div>
+                )}
+              </div>
+            )}
+            <div style={s.cotasSlot}>
+              <span style={s.cotasSlotLabel}>{tipo === 'caida' ? 'Foto 1' : 'Foto 2'} — Tabla de cotas</span>
+              {fotoTabla?.dataUrl ? (
+                <div style={s.cotasSlotPreview}>
+                  <img src={fotoTabla.dataUrl} alt="Tabla" style={s.cotasSlotImg} />
+                  <div style={s.cotasSlotActions}>
+                    <button style={s.btnFoto} onClick={() => inputCotasTablRef.current?.click()}>🔄 Reemplazar</button>
+                    <button style={{ ...s.btnFoto, background: '#3d1414' }} onClick={() => setFotoTabla(null)}>× Quitar</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={s.cotasSlotVacio} onClick={() => inputCotasTablRef.current?.click()}>
+                  <span style={{ fontSize: '28px' }}>📷</span>
+                  <span style={{ color: '#64748b', fontSize: '13px' }}>Toca para agregar</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Subsección 2: agregar nueva foto — oculto para COTAS */}
+      {!readOnly && !esCOTAS && (
         <>
           <p style={s.subSeccionTitulo}>Agregar nueva foto 📸</p>
           <input ref={inputCamaraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFotoSeleccionada} />
@@ -1237,45 +1326,50 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         </>
       )}
 
-      {/* Fotos seleccionadas (combinadas) */}
-      <p style={s.subSeccionTitulo}>Fotos seleccionadas{fotosCombinadas.length > 0 ? ` (${fotosCombinadas.length})` : ''}</p>
-      {fotosCombinadas.length > 0 ? (
-        <div style={s.fotosGrid}>
-          {fotosCombinadas.map(foto => (
-            <div key={foto.id} style={s.fotoCard}>
-              <div
-                style={{ ...s.fotoThumb, cursor: readOnly ? 'default' : 'pointer' }}
-                onClick={() => abrirEditarFoto(foto)}
-              >
-                <img src={foto.dataUrlRecortado || foto.storageUrlRecortado || foto.dataUrl || foto.storageUrl} alt="" style={s.fotoImg} />
-                {!readOnly && (
-                  <div style={s.fotoThumbOverlay}>✏️</div>
-                )}
-                {!readOnly && (
-                  <button
-                    style={s.btnEliminarFoto}
-                    onClick={e => { e.stopPropagation(); foto.origen === 'nueva' ? eliminarFoto(foto.fotoId) : quitarFotoNube(foto.key); }}
-                    title="Quitar de la selección"
+      {/* Fotos seleccionadas (combinadas) — oculto en COTAS editable, los slots ya muestran preview */}
+      {/* Fotos seleccionadas — oculto en COTAS editable (los slots muestran el preview) */}
+      {(!esCOTAS || readOnly) && (
+        <>
+          <p style={s.subSeccionTitulo}>Fotos seleccionadas{fotosCombinadas.length > 0 ? ` (${fotosCombinadas.length})` : ''}</p>
+          {fotosCombinadas.length > 0 ? (
+            <div style={s.fotosGrid}>
+              {fotosCombinadas.map(foto => (
+                <div key={foto.id} style={s.fotoCard}>
+                  <div
+                    style={{ ...s.fotoThumb, cursor: readOnly ? 'default' : 'pointer' }}
+                    onClick={() => abrirEditarFoto(foto)}
                   >
-                    ×
-                  </button>
-                )}
-              </div>
-              <input
-                type="text"
-                defaultValue={foto.descripcion}
-                placeholder="Descripción..."
-                style={s.fotoDescInput}
-                readOnly={readOnly}
-                onBlur={e => foto.origen === 'nueva'
-                  ? db.fotos.update(foto.fotoId, { descripcion: e.target.value })
-                  : setDescFotoNube(foto.key, e.target.value)}
-              />
+                    <img src={foto.dataUrlRecortado || foto.storageUrlRecortado || foto.dataUrl || foto.storageUrl} alt="" style={s.fotoImg} />
+                    {!readOnly && (
+                      <div style={s.fotoThumbOverlay}>✏️</div>
+                    )}
+                    {!readOnly && (
+                      <button
+                        style={s.btnEliminarFoto}
+                        onClick={e => { e.stopPropagation(); foto.origen === 'nueva' ? eliminarFoto(foto.fotoId) : quitarFotoNube(foto.key); }}
+                        title="Quitar de la selección"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    defaultValue={foto.descripcion}
+                    placeholder="Descripción..."
+                    style={s.fotoDescInput}
+                    readOnly={readOnly}
+                    onBlur={e => foto.origen === 'nueva'
+                      ? db.fotos.update(foto.fotoId, { descripcion: e.target.value })
+                      : setDescFotoNube(foto.key, e.target.value)}
+                  />
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      ) : (
-        <p style={s.sinFotos}>Sin fotos seleccionadas</p>
+          ) : (
+            <p style={s.sinFotos}>Sin fotos seleccionadas</p>
+          )}
+        </>
       )}
     </Seccion>
   );
@@ -1834,6 +1928,13 @@ const s = {
   cotasLabel: { color: '#94a3b8', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' },
   cotasInput: { ...obsInputBase, width: '100%' },
   cotasNote: { marginTop: '14px', padding: '8px 12px', background: 'rgba(100,255,218,0.06)', border: '1px solid rgba(100,255,218,0.18)', borderRadius: '8px', color: '#64ffda', fontSize: '12px', lineHeight: 1.5 },
+  cotasSlotsGrid: { display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '8px' },
+  cotasSlot: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  cotasSlotLabel: { color: '#8892b0', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' },
+  cotasSlotPreview: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  cotasSlotImg: { width: '100%', aspectRatio: '4/3', objectFit: 'cover', borderRadius: '8px', border: '1px solid #0f3460' },
+  cotasSlotActions: { display: 'flex', gap: '8px' },
+  cotasSlotVacio: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', aspectRatio: '4/3', background: 'rgba(15,52,96,0.3)', border: '2px dashed #0f3460', borderRadius: '8px', cursor: 'pointer' },
   textoTipoSelect: { ...obsInputBase, width: '100%', cursor: 'pointer', paddingRight: '6px' },
   fotosSugeridasBanner: { background: 'rgba(100,116,139,0.12)', border: '1px solid rgba(100,116,139,0.25)', borderRadius: '8px', marginBottom: '14px', overflow: 'hidden' },
   fotosSugeridasToggle: { width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', color: '#94a3b8', fontSize: '12px', fontWeight: 700, padding: '8px 12px', cursor: 'pointer', textAlign: 'left' },
