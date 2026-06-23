@@ -600,7 +600,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       } else {
         await db.protocolos.add({
           tipo, entidad: tipo, entidadId: entidadIdReal, protocoloId,
-          fechaCreacion: now, ...campos,
+          fechaCreacion: fechaHoy(), ...campos,
         });
       }
 
