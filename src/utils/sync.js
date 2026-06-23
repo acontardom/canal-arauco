@@ -2,6 +2,19 @@ import { db } from '../db/database';
 import { supabase } from '../config/supabase';
 import { uploadFoto } from './uploadFoto';
 
+async function conReintentos(fn, intentos = 3, espera = 1000) {
+  for (let i = 0; i < intentos; i++) {
+    try {
+      const resultado = await fn();
+      if (resultado) return resultado;
+    } catch (err) {
+      console.warn(`[Sync] Intento ${i + 1} fallido:`, err?.message ?? err);
+    }
+    if (i < intentos - 1) await new Promise(r => setTimeout(r, espera * (i + 1)));
+  }
+  return null;
+}
+
 function generateUUID() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -116,21 +129,19 @@ async function subirFotosPendientes() {
     .toArray();
 
   for (const foto of pendientes) {
-    try {
-      const protocoloLocal = await db.protocolos.get(foto.protocoloLocalId);
-      if (!protocoloLocal) continue;
+    const protocoloLocal = await db.protocolos.get(foto.protocoloLocalId);
+    if (!protocoloLocal) continue;
 
-      const storageUrl = await uploadFoto(foto.dataUrl, {
-        tipo:      protocoloLocal.tipo,
-        entidadId: protocoloLocal.entidadId,
-        nombre:    foto.nombre,
-      });
+    const storageUrl = await conReintentos(() => uploadFoto(foto.dataUrl, {
+      tipo:      protocoloLocal.tipo,
+      entidadId: protocoloLocal.entidadId,
+      nombre:    foto.nombre,
+    }));
 
-      if (storageUrl) {
-        await db.fotos.update(foto.id, { storageUrl, subidaStorage: true });
-      }
-    } catch (err) {
-      console.warn(`[Sync] Foto Storage ${foto.id}:`, err?.message ?? err);
+    if (storageUrl) {
+      await db.fotos.update(foto.id, { storageUrl, subidaStorage: true });
+    } else {
+      console.warn(`[Sync] Foto ${foto.id} no se pudo subir tras 3 intentos — se reintentará en el próximo ciclo`);
     }
   }
 }
@@ -143,18 +154,16 @@ async function subirFotosTerrenoPendientes() {
     .toArray();
 
   for (const foto of pendientes) {
-    try {
-      const storageUrl = await uploadFoto(foto.dataUrl, {
-        tipo:      foto.tipo,
-        entidadId: foto.entidadId,
-        carpeta:   'terreno',
-      });
+    const storageUrl = await conReintentos(() => uploadFoto(foto.dataUrl, {
+      tipo:      foto.tipo,
+      entidadId: foto.entidadId,
+      carpeta:   'terreno',
+    }));
 
-      if (storageUrl) {
-        await db.fotos_terreno.update(foto.id, { storageUrl, subidaStorage: true });
-      }
-    } catch (err) {
-      console.warn(`[Sync] FotoTerreno Storage ${foto.id}:`, err?.message ?? err);
+    if (storageUrl) {
+      await db.fotos_terreno.update(foto.id, { storageUrl, subidaStorage: true });
+    } else {
+      console.warn(`[Sync] FotoTerreno ${foto.id} no se pudo subir tras 3 intentos — se reintentará en el próximo ciclo`);
     }
   }
 }
@@ -271,17 +280,15 @@ async function subirFotosCamionesPendientes() {
     let fotosEnsayoUrls = camion.fotosEnsayoUrls ?? [];
 
     if (fotoGuia && !fotoGuiaUrl) {
-      try {
-        const storageUrl = await uploadFoto(fotoGuia.dataUrl, {
-          tipo: 'camiones', entidadId: entidadPath, archivo: `guia_${Date.now()}.jpg`,
-        });
-        if (storageUrl) {
-          fotoGuiaUrl = storageUrl;
-          fotoGuia = null;
-          cambiado = true;
-        }
-      } catch (err) {
-        console.warn(`[Sync] Camion ${camion.id} fotoGuia:`, err?.message ?? err);
+      const storageUrl = await conReintentos(() => uploadFoto(fotoGuia.dataUrl, {
+        tipo: 'camiones', entidadId: entidadPath, archivo: `guia_${Date.now()}.jpg`,
+      }));
+      if (storageUrl) {
+        fotoGuiaUrl = storageUrl;
+        fotoGuia = null;
+        cambiado = true;
+      } else {
+        console.warn(`[Sync] Camion ${camion.id} fotoGuia no se pudo subir tras 3 intentos — se reintentará en el próximo ciclo`);
       }
     }
 
@@ -289,18 +296,14 @@ async function subirFotosCamionesPendientes() {
       const restantes = [];
       for (let i = 0; i < fotosEnsayo.length; i++) {
         const foto = fotosEnsayo[i];
-        try {
-          const storageUrl = await uploadFoto(foto.dataUrl, {
-            tipo: 'camiones', entidadId: entidadPath, archivo: `ensayo_${Date.now()}_${i}.jpg`,
-          });
-          if (storageUrl) {
-            fotosEnsayoUrls = [...fotosEnsayoUrls, storageUrl];
-            cambiado = true;
-          } else {
-            restantes.push(foto);
-          }
-        } catch (err) {
-          console.warn(`[Sync] Camion ${camion.id} fotoEnsayo ${i}:`, err?.message ?? err);
+        const storageUrl = await conReintentos(() => uploadFoto(foto.dataUrl, {
+          tipo: 'camiones', entidadId: entidadPath, archivo: `ensayo_${Date.now()}_${i}.jpg`,
+        }));
+        if (storageUrl) {
+          fotosEnsayoUrls = [...fotosEnsayoUrls, storageUrl];
+          cambiado = true;
+        } else {
+          console.warn(`[Sync] Camion ${camion.id} fotoEnsayo ${i} no se pudo subir tras 3 intentos — se reintentará en el próximo ciclo`);
           restantes.push(foto);
         }
       }
