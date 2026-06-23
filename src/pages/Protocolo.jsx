@@ -1108,8 +1108,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   const fotosCombinadas = esCOTAS
     ? [
-        ...(tipo !== 'caida' && fotoAutocad?.dataUrl ? [{ id: 'cotas-autocad', dataUrl: fotoAutocad.dataUrl, descripcion: 'AutoCAD', origen: 'cotas' }] : []),
-        ...(fotoTabla?.dataUrl ? [{ id: 'cotas-tabla', dataUrl: fotoTabla.dataUrl, descripcion: 'Tabla de cotas', origen: 'cotas' }] : []),
+        ...(tipo !== 'caida' && (fotoAutocad?.dataUrl || fotoAutocad?.storageUrl) ? [{ id: 'cotas-autocad', dataUrl: fotoAutocad.dataUrl ?? null, storageUrl: fotoAutocad.storageUrl ?? null, descripcion: 'AutoCAD', origen: 'cotas' }] : []),
+        ...((fotoTabla?.dataUrl || fotoTabla?.storageUrl) ? [{ id: 'cotas-tabla', dataUrl: fotoTabla.dataUrl ?? null, storageUrl: fotoTabla.storageUrl ?? null, descripcion: 'Tabla de cotas', origen: 'cotas' }] : []),
       ]
     : [
         ...fotos.map(f => ({ id: `nueva-${f.id}`, fotoId: f.id, dataUrl: f.dataUrl, storageUrl: f.storageUrl ?? null, descripcion: f.descripcion ?? '', origen: 'nueva' })),
@@ -1276,9 +1276,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             {tipo !== 'caida' && (
               <div style={s.cotasSlot}>
                 <span style={s.cotasSlotLabel}>Foto 1 — AutoCAD / Esquema del tramo</span>
-                {fotoAutocad?.dataUrl ? (
+                {(fotoAutocad?.dataUrl || fotoAutocad?.storageUrl) ? (
                   <div style={s.cotasSlotPreview}>
-                    <img src={fotoAutocad.dataUrl} alt="AutoCAD" style={s.cotasSlotImg} />
+                    <img src={fotoAutocad.dataUrl || fotoAutocad.storageUrl} alt="AutoCAD" style={s.cotasSlotImg} />
                     <div style={s.cotasSlotActions}>
                       <button style={s.btnFoto} onClick={() => inputCotasAutocadRef.current?.click()}>🔄 Reemplazar</button>
                       <button style={{ ...s.btnFoto, background: '#3d1414' }} onClick={() => setFotoAutocad(null)}>× Quitar</button>
@@ -1294,9 +1294,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             )}
             <div style={s.cotasSlot}>
               <span style={s.cotasSlotLabel}>{tipo === 'caida' ? 'Foto 1' : 'Foto 2'} — Tabla de cotas</span>
-              {fotoTabla?.dataUrl ? (
+              {(fotoTabla?.dataUrl || fotoTabla?.storageUrl) ? (
                 <div style={s.cotasSlotPreview}>
-                  <img src={fotoTabla.dataUrl} alt="Tabla" style={s.cotasSlotImg} />
+                  <img src={fotoTabla.dataUrl || fotoTabla.storageUrl} alt="Tabla" style={s.cotasSlotImg} />
                   <div style={s.cotasSlotActions}>
                     <button style={s.btnFoto} onClick={() => inputCotasTablRef.current?.click()}>🔄 Reemplazar</button>
                     <button style={{ ...s.btnFoto, background: '#3d1414' }} onClick={() => setFotoTabla(null)}>× Quitar</button>

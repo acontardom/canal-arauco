@@ -85,6 +85,28 @@ async function sincronizarProtocolos() {
         }
       }
 
+      // Subir fotos COTAS (fotoAutocad / fotoTabla) pendientes antes del upsert
+      if (protocolo.protocoloId === 'COTAS') {
+        let changed = false;
+        if (datos.fotoAutocad?.dataUrl && !datos.fotoAutocad?.storageUrl) {
+          const url = await conReintentos(() => uploadFoto(datos.fotoAutocad.dataUrl, {
+            tipo: protocolo.tipo, entidadId: protocolo.entidadId,
+            carpeta: `protocolos/COTAS`, archivo: `autocad_${Date.now()}.jpg`,
+          }));
+          if (url) { datos = { ...datos, fotoAutocad: { storageUrl: url } }; changed = true; }
+          else { console.warn(`[Sync] COTAS ${protocolo.id} fotoAutocad no se pudo subir — se reintentará`); }
+        }
+        if (datos.fotoTabla?.dataUrl && !datos.fotoTabla?.storageUrl) {
+          const url = await conReintentos(() => uploadFoto(datos.fotoTabla.dataUrl, {
+            tipo: protocolo.tipo, entidadId: protocolo.entidadId,
+            carpeta: `protocolos/COTAS`, archivo: `tabla_${Date.now()}.jpg`,
+          }));
+          if (url) { datos = { ...datos, fotoTabla: { storageUrl: url } }; changed = true; }
+          else { console.warn(`[Sync] COTAS ${protocolo.id} fotoTabla no se pudo subir — se reintentará`); }
+        }
+        if (changed) await db.protocolos.update(protocolo.id, { datos });
+      }
+
       const payload = {
         device_protocolo_id: protocolo.deviceProtocoloId,
         local_id:           protocolo.id,
