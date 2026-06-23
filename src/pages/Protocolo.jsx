@@ -612,8 +612,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         setSincronizando(true);
         sincronizar().finally(() => setSincronizando(false));
       }
-    } catch {
-      mostrarToast('Error al guardar', 'error');
+    } catch (err) {
+      console.error('Error completo:', err);
+      mostrarToast(`Error al guardar: ${err?.message ?? String(err)}`, 'error');
     } finally {
       setGuardando(false);
     }
