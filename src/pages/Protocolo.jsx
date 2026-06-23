@@ -497,14 +497,35 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     if (!cargando && !cargadoRef.current) {
       cargadoRef.current = true;
       if (protocolo) {
-        setChecklist(normalizeChecklist(protocolo.datos?.checklist, itemsChecklist));
-        setObservaciones(protocolo.datos?.observaciones ?? '');
-        const fotosGuardadas = protocolo.datos?.fotosNubeSeleccionadas ?? [];
-        setFotosNubeSeleccionadas(fotosGuardadas);
         setEstado(protocolo.estado);
         setFechaEnvio(protocolo.fechaEnvio ?? null);
         setEdp(protocolo.edp ?? '');
-        if (fotosGuardadas.length > 0) setFotosSugeridasExpanded(false);
+
+        const datosVacios = !protocolo.datos || Object.keys(protocolo.datos).length === 0;
+        if (datosVacios && protocolo.supabaseId && supabase && navigator.onLine) {
+          // datos no disponibles localmente (sync sin campo datos) — cargar bajo demanda
+          supabase
+            .from('protocolos')
+            .select('datos')
+            .eq('id', protocolo.supabaseId)
+            .single()
+            .then(({ data }) => {
+              const d = data?.datos ?? {};
+              setChecklist(normalizeChecklist(d.checklist, itemsChecklist));
+              setObservaciones(d.observaciones ?? '');
+              const fotosGuardadas = d.fotosNubeSeleccionadas ?? [];
+              setFotosNubeSeleccionadas(fotosGuardadas);
+              if (fotosGuardadas.length > 0) setFotosSugeridasExpanded(false);
+              if (data?.datos) db.protocolos.update(protocolo.id, { datos: data.datos });
+            })
+            .catch(() => {});
+        } else {
+          setChecklist(normalizeChecklist(protocolo.datos?.checklist, itemsChecklist));
+          setObservaciones(protocolo.datos?.observaciones ?? '');
+          const fotosGuardadas = protocolo.datos?.fotosNubeSeleccionadas ?? [];
+          setFotosNubeSeleccionadas(fotosGuardadas);
+          if (fotosGuardadas.length > 0) setFotosSugeridasExpanded(false);
+        }
       }
     }
   }, [cargando, protocolo]);

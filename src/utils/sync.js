@@ -346,7 +346,7 @@ export async function descargarDesdeSupabase() {
     // ── Protocolos ────────────────────────────────────────────────────────────
     const { data: remotos, error: errProt } = await supabase
       .from('protocolos')
-      .select('*');
+      .select('id, local_id, device_protocolo_id, tipo, entidad, entidad_id, protocolo_id, estado, edp, usuario_nombre, fecha_creacion, fecha_modificacion, fecha_envio');
 
     if (errProt) throw errProt;
 
@@ -360,6 +360,8 @@ export async function descargarDesdeSupabase() {
         local = await db.protocolos.where('supabaseId').equals(remoto.id).first();
       }
 
+      // No se descarga el campo 'datos' (jsonb con fotos base64 ~4.7MB/registro)
+      // Se carga bajo demanda al abrir un protocolo específico (Protocolo.jsx)
       const dexieData = {
         deviceProtocoloId: remoto.device_protocolo_id ?? null,
         tipo:              remoto.tipo,
@@ -370,17 +372,17 @@ export async function descargarDesdeSupabase() {
                              : remoto.entidad_id,
         protocoloId:       remoto.protocolo_id,
         estado:            remoto.estado,
+        edp:               remoto.edp ?? null,
         fechaEnvio:        remoto.fecha_envio ?? null,
         usuarioNombre:     remoto.usuario_nombre ?? null,
         fechaCreacion:     remoto.fecha_creacion ?? null,
         fechaModificacion: remoto.fecha_modificacion ?? null,
-        datos:             remoto.datos ?? {},
         supabaseId:        remoto.id,
         sincronizada:      true,
       };
 
       if (!local) {
-        await db.protocolos.add(dexieData);
+        await db.protocolos.add({ ...dexieData, datos: {} });
       } else {
         // Actualizar solo si el remoto es más reciente (comparación lexicográfica de ISO)
         const fechaRemota = remoto.fecha_modificacion ?? '';
