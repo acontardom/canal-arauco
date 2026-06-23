@@ -12,7 +12,7 @@ import { sincronizar } from '../utils/sync';
 import { supabase } from '../config/supabase';
 import { fechaHoy, formatearFecha } from '../utils/fecha';
 import { comprimirFoto } from '../utils/comprimirFoto';
-import { uploadFoto } from '../utils/uploadFoto';
+import { uploadFoto, eliminarFotoStorage } from '../utils/uploadFoto';
 
 const OPCION_COLOR = { si: '#10b981', no: '#ef4444', na: '#f59e0b' };
 const PROTOCOLO_A_PARTIDA = {
@@ -333,6 +333,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [cargandoBusqueda, setCargandoBusqueda]   = useState(false);
   const [busquedaActiva, setBusquedaActiva]       = useState(null); // { tipo, entidadId, label }
   const [fotosNubeSeleccionadas, setFotosNubeSeleccionadas] = useState([]);
+  const [fotosParaEliminar, setFotosParaEliminar]         = useState([]);
   const [fotosSugeridasExpanded, setFotosSugeridasExpanded] = useState(true);
   const [fotoNubeModal, setFotoNubeModal] = useState(null);
   const [descModalTexto, setDescModalTexto] = useState('');
@@ -620,6 +621,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     if (guardando) return;
     setGuardando(true);
     try {
+      await procesarEliminacionesFotos();
       const fotosSubidas = await subirFotosNubePendientes(fotosNubeSeleccionadas);
       if (fotosSubidas !== fotosNubeSeleccionadas) setFotosNubeSeleccionadas(fotosSubidas);
       const datos = { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas };
@@ -887,7 +889,28 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   }
 
   async function eliminarFoto(fotoId) {
+    const foto = await db.fotos.get(fotoId);
     await db.fotos.delete(fotoId);
+    if (foto && (foto.deviceFotoId || foto.storageUrl)) {
+      setFotosParaEliminar(prev => [...prev, { deviceFotoId: foto.deviceFotoId ?? null, storageUrl: foto.storageUrl ?? null }]);
+    }
+  }
+
+  async function procesarEliminacionesFotos() {
+    if (!fotosParaEliminar.length || !supabase || !navigator.onLine) return;
+    for (const { deviceFotoId, storageUrl } of fotosParaEliminar) {
+      try {
+        if (deviceFotoId) {
+          await supabase.from('fotos').delete().eq('device_foto_id', deviceFotoId);
+        }
+        if (storageUrl) {
+          await eliminarFotoStorage(storageUrl);
+        }
+      } catch (err) {
+        console.warn('[Foto] Error al eliminar de Supabase:', err?.message ?? err);
+      }
+    }
+    setFotosParaEliminar([]);
   }
 
   function toggleFotoNube(foto, index) {
