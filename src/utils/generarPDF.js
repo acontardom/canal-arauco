@@ -223,9 +223,11 @@ async function obtenerImagenBase64(foto) {
   if (foto.dataUrl?.startsWith('data:')) {
     return { dataUrl: foto.dataUrl, formato: detectFormat(foto.dataUrl) };
   }
-  if (foto.storageUrl) {
+  // Priorizar versión recortada en Storage antes que el original
+  const urlToFetch = foto.storageUrlRecortado || foto.storageUrl;
+  if (urlToFetch) {
     try {
-      const resp = await fetch(foto.storageUrl);
+      const resp = await fetch(urlToFetch);
       const blob = await resp.blob();
       const dataUrl = await blobToDataUrl(blob);
       return { dataUrl, formato: detectFormat(dataUrl) };

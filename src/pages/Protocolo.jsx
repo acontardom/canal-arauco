@@ -582,11 +582,47 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     }
   }
 
+  async function subirFotosNubePendientes(fotos) {
+    if (!supabase || !navigator.onLine || fotos.length === 0) return fotos;
+    let changed = false;
+    const updated = await Promise.all(fotos.map(async (foto, i) => {
+      let f = { ...foto };
+      if (foto.dataUrl?.startsWith('data:') && !foto.storageUrl) {
+        try {
+          const url = await uploadFoto(foto.dataUrl, {
+            tipo, entidadId: entidadIdReal,
+            carpeta: `protocolos/${protocoloId}`,
+            archivo: `${Date.now()}_${i}_orig.jpg`,
+          });
+          if (url) { f.storageUrl = url; delete f.dataUrl; changed = true; }
+        } catch (err) {
+          console.warn('[FotoNube] Error subida original:', err?.message ?? err);
+        }
+      }
+      if (foto.dataUrlRecortado?.startsWith('data:') && !foto.storageUrlRecortado) {
+        try {
+          const url = await uploadFoto(foto.dataUrlRecortado, {
+            tipo, entidadId: entidadIdReal,
+            carpeta: `protocolos/${protocoloId}`,
+            archivo: `${Date.now()}_${i}_crop.jpg`,
+          });
+          if (url) { f.storageUrlRecortado = url; delete f.dataUrlRecortado; changed = true; }
+        } catch (err) {
+          console.warn('[FotoNube] Error subida recortada:', err?.message ?? err);
+        }
+      }
+      return f;
+    }));
+    return changed ? updated : fotos;
+  }
+
   async function guardar(nuevoEstado, extra = {}, mensaje = null) {
     if (guardando) return;
     setGuardando(true);
     try {
-      const datos = { checklist, observaciones, fotosNubeSeleccionadas };
+      const fotosSubidas = await subirFotosNubePendientes(fotosNubeSeleccionadas);
+      if (fotosSubidas !== fotosNubeSeleccionadas) setFotosNubeSeleccionadas(fotosSubidas);
+      const datos = { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas };
 
       const campos = {
         estado: nuevoEstado, usuarioNombre: usuario,
@@ -1006,6 +1042,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       id: `nube-${key}`,
       key,
       dataUrlRecortado: recortado?.startsWith('data:') ? recortado : null,
+      storageUrlRecortado: sel.storageUrlRecortado ?? null,
       dataUrl: sel.dataUrl ?? null,
       storageUrl: sel.storageUrl ?? null,
       descripcion: sel.descripcion ?? '',
@@ -1164,7 +1201,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                 style={{ ...s.fotoThumb, cursor: readOnly ? 'default' : 'pointer' }}
                 onClick={() => abrirEditarFoto(foto)}
               >
-                <img src={foto.dataUrlRecortado || foto.dataUrl || foto.storageUrl} alt="" style={s.fotoImg} />
+                <img src={foto.dataUrlRecortado || foto.storageUrlRecortado || foto.dataUrl || foto.storageUrl} alt="" style={s.fotoImg} />
                 {!readOnly && (
                   <div style={s.fotoThumbOverlay}>✏️</div>
                 )}

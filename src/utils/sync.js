@@ -10,6 +10,41 @@ function generateUUID() {
   });
 }
 
+// ─── Upload fotos nube pendientes (base64 → Storage) ─────────────────────────
+
+async function subirFotosNubeEnSync(fotos, protocolo) {
+  let changed = false;
+  const updated = await Promise.all(fotos.map(async (foto, i) => {
+    let f = { ...foto };
+    if (foto.dataUrl?.startsWith('data:') && !foto.storageUrl) {
+      try {
+        const url = await uploadFoto(foto.dataUrl, {
+          tipo: protocolo.tipo, entidadId: protocolo.entidadId,
+          carpeta: `protocolos/${protocolo.protocoloId}`,
+          archivo: `${Date.now()}_${i}_orig.jpg`,
+        });
+        if (url) { f.storageUrl = url; delete f.dataUrl; changed = true; }
+      } catch (err) {
+        console.warn('[Sync] Error subida original nube:', err?.message ?? err);
+      }
+    }
+    if (foto.dataUrlRecortado?.startsWith('data:') && !foto.storageUrlRecortado) {
+      try {
+        const url = await uploadFoto(foto.dataUrlRecortado, {
+          tipo: protocolo.tipo, entidadId: protocolo.entidadId,
+          carpeta: `protocolos/${protocolo.protocoloId}`,
+          archivo: `${Date.now()}_${i}_crop.jpg`,
+        });
+        if (url) { f.storageUrlRecortado = url; delete f.dataUrlRecortado; changed = true; }
+      } catch (err) {
+        console.warn('[Sync] Error subida recortada nube:', err?.message ?? err);
+      }
+    }
+    return f;
+  }));
+  return changed ? updated : fotos;
+}
+
 // ─── Sincronización de protocolos ─────────────────────────────────────────────
 
 async function sincronizarProtocolos() {
@@ -26,6 +61,17 @@ async function sincronizarProtocolos() {
         protocolo.deviceProtocoloId = deviceProtocoloId;
       }
 
+      // Subir fotos nube pendientes (base64) antes del upsert
+      let datos = protocolo.datos ?? {};
+      const fotosNube = datos.fotosNubeSeleccionadas ?? [];
+      if (fotosNube.length > 0) {
+        const fotosActualizadas = await subirFotosNubeEnSync(fotosNube, protocolo);
+        if (fotosActualizadas !== fotosNube) {
+          datos = { ...datos, fotosNubeSeleccionadas: fotosActualizadas };
+          await db.protocolos.update(protocolo.id, { datos });
+        }
+      }
+
       const payload = {
         device_protocolo_id: protocolo.deviceProtocoloId,
         local_id:           protocolo.id,
@@ -39,7 +85,7 @@ async function sincronizarProtocolos() {
         usuario_nombre:     protocolo.usuarioNombre ?? null,
         fecha_creacion:     protocolo.fechaCreacion ?? null,
         fecha_modificacion: protocolo.fechaModificacion ?? null,
-        datos:              protocolo.datos ?? {},
+        datos,
       };
 
       const { data, error } = await supabase
