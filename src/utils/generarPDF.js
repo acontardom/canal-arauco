@@ -931,6 +931,33 @@ async function loadEsquemaCaidaB64() {
   }
 }
 
+// ─── Dibuja imagen centrada con relleno blanco (solo COTAS) ─────────────────
+function dibujarFotoConRelleno(doc, imgData, formato, x, y, containerW, containerH) {
+  doc.setFillColor(255, 255, 255);
+  doc.rect(x, y, containerW, containerH, 'F');
+
+  try {
+    const imgProps = doc.getImageProperties(imgData);
+    const imgRatio = imgProps.width / imgProps.height;
+    const containerRatio = containerW / containerH;
+    let drawW, drawH, drawX, drawY;
+    if (imgRatio > containerRatio) {
+      drawW = containerW; drawH = containerW / imgRatio;
+      drawX = x; drawY = y + (containerH - drawH) / 2;
+    } else {
+      drawH = containerH; drawW = containerH * imgRatio;
+      drawX = x + (containerW - drawW) / 2; drawY = y;
+    }
+    doc.addImage(imgData, formato, drawX, drawY, drawW, drawH);
+  } catch (err) {
+    console.warn('[PDF] Error foto COTAS:', err?.message ?? err);
+  }
+
+  doc.setDrawColor(120, 120, 120);
+  doc.setLineWidth(0.2);
+  doc.rect(x, y, containerW, containerH);
+}
+
 // ─── PDF Cotas Topográficas (2 páginas) ──────────────────────────────────────
 
 async function construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64) {
@@ -987,35 +1014,37 @@ async function construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64) {
   doc.addPage();
   y = agregarEncabezado(doc, protocolo, 2, 2, kmInicio, kmFin, logoB64);
 
-  const disponible = PH - y - PIE_FIRMA_H - 20;
-  const fotoH = Math.floor(disponible / 2) - 4;
+  // Contenedores con proporciones fijas: esquema/autocad = 16:5, tabla = 16:9
+  const H_AUTOCAD = CW * 5 / 16;
+  const H_TABLA   = CW * 9 / 16;
 
   const fotosParaPagina = [];
 
   if (esCaida) {
     const esquemaB64 = await loadEsquemaCaidaB64();
     if (esquemaB64) {
-      fotosParaPagina.push({ dataUrl: esquemaB64, formato: 'JPEG', descripcion: 'Esquema Tipo Caída' });
+      fotosParaPagina.push({ dataUrl: esquemaB64, formato: 'JPEG', descripcion: 'Esquema Tipo Caída', containerH: H_AUTOCAD });
     }
-    const fotoTabla = fotos[0] ? await obtenerImagenBase64(fotos[0]) : null;
-    if (fotoTabla) fotosParaPagina.push({ ...fotoTabla, descripcion: fotos[0].descripcion || 'Tabla de Datos' });
+    const imgTabla = fotos[0] ? await obtenerImagenBase64(fotos[0]) : null;
+    if (imgTabla) fotosParaPagina.push({ ...imgTabla, descripcion: fotos[0].descripcion || 'Tabla de Datos', containerH: H_TABLA });
   } else {
-    for (let i = 0; i < Math.min(2, fotos.length); i++) {
-      const img = await obtenerImagenBase64(fotos[i]);
-      if (img) fotosParaPagina.push({ ...img, descripcion: fotos[i].descripcion || (i === 0 ? 'AutoCAD' : 'Tabla de Datos') });
+    if (fotos[0]) {
+      const img = await obtenerImagenBase64(fotos[0]);
+      if (img) fotosParaPagina.push({ ...img, descripcion: fotos[0].descripcion || 'AutoCAD', containerH: H_AUTOCAD });
+    }
+    if (fotos[1]) {
+      const img = await obtenerImagenBase64(fotos[1]);
+      if (img) fotosParaPagina.push({ ...img, descripcion: fotos[1].descripcion || 'Tabla de Datos', containerH: H_TABLA });
     }
   }
 
   for (const foto of fotosParaPagina) {
-    doc.setDrawColor(120, 120, 120); doc.setLineWidth(0.2);
-    doc.rect(ML, y, CW, fotoH);
-    try { doc.addImage(foto.dataUrl, foto.formato, ML + 1, y + 1, CW - 2, fotoH - 2); }
-    catch (err) { console.warn('[PDF] Error foto COTAS:', err?.message ?? err); }
+    dibujarFotoConRelleno(doc, foto.dataUrl, foto.formato, ML, y, CW, foto.containerH);
     if (foto.descripcion) {
       doc.setFontSize(7); doc.setFont(undefined, 'italic'); doc.setTextColor(80, 80, 80);
-      doc.text(foto.descripcion, ML + 2, y + fotoH - 2);
+      doc.text(foto.descripcion, ML + 2, y + foto.containerH - 2);
     }
-    y += fotoH + 5;
+    y += foto.containerH + 5;
   }
 
   agregarPieFirma(doc, pieFirmaY(y), 'Álvaro Muñoz');

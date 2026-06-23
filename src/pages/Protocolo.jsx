@@ -691,8 +691,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   function onCropImageLoad(e) {
     const { width, height } = e.currentTarget;
-    const aspecto = (esHA || esCOTAS) ? 4/3 : 3/4;
-    const dim     = (esHA || esCOTAS) ? { unit: '%', width: 90 } : { unit: '%', height: 90 };
+    const ct = cropModal?.tipo;
+    const aspecto = ct === 'cotas-autocad' ? 16/5 : ct === 'cotas-tabla' ? 16/9 : esHA ? 4/3 : 3/4;
+    const dim     = aspecto >= 1 ? { unit: '%', width: 90 } : { unit: '%', height: 90 };
     const pct = centerCrop(makeAspectCrop(dim, aspecto, width, height), width, height);
     setCrop(pct);
     setCompletedCrop({ unit: 'px', x: pct.x/100*width, y: pct.y/100*height, width: pct.width/100*width, height: pct.height/100*height });
@@ -1826,7 +1827,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             <div style={s.cropModalTitulo}>
               {cropModal.tipo?.startsWith('editar') ? '✏️ Editar foto' : '✂️ Recortar foto'}
               <span style={{ fontSize: '12px', color: '#8892b0', fontWeight: 400, marginLeft: '8px' }}>
-                {esHA ? 'Proporción fija 4:3' : 'Proporción fija 3:4'}
+                {cropModal.tipo === 'cotas-autocad' ? 'Guía 16:5 (libre)' : cropModal.tipo === 'cotas-tabla' ? 'Guía 16:9 (libre)' : esHA ? 'Proporción fija 4:3' : 'Proporción fija 3:4'}
               </span>
             </div>
             <div style={s.rotacionRow}>
@@ -1838,7 +1839,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                 crop={crop}
                 onChange={c => setCrop(c)}
                 onComplete={c => setCompletedCrop(c)}
-                aspect={esHA ? 4/3 : 3/4}
+                aspect={cropModal.tipo === 'cotas-autocad' || cropModal.tipo === 'cotas-tabla' ? undefined : esHA ? 4/3 : 3/4}
                 keepSelection
               >
                 <img
