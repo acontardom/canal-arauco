@@ -1355,54 +1355,59 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                   const textosTipo = itemDef?.textos ?? [];
                   const textoSelected = textosTipo.find(t => t === entry.obs) ?? '';
                   return (
-                    <div key={item.id} style={isMobile ? s.checkItemMobile : s.checkItemDesktop}>
-                      <span style={isMobile ? s.checkLabelMobile : s.checkLabelDesktop}>
-                        {item.label}
-                      </span>
-                      <div style={s.checkBtns}>
-                        {['si', 'no', 'na'].map(opcion => {
-                          const active = entry.valor === opcion;
-                          return (
-                            <button
-                              key={opcion}
-                              style={{
-                                ...s.checkBtn,
-                                background: active ? OPCION_COLOR[opcion] : 'transparent',
-                                borderColor: active ? OPCION_COLOR[opcion] : '#0f3460',
-                                color: active ? '#fff' : '#8892b0',
-                                cursor: readOnly ? 'default' : 'pointer',
-                                opacity: readOnly && !active ? 0.5 : 1,
-                              }}
-                              onClick={() => setCheckValue(item.id, opcion)}
-                              disabled={readOnly}
+                    <div key={item.id}>
+                      {/* Línea 1: label izquierda + botones derecha */}
+                      <div style={s.checkRow}>
+                        <span style={s.checkLabel}>{item.label}</span>
+                        <div style={s.checkBtns}>
+                          {['si', 'no', 'na'].map(opcion => {
+                            const active = entry.valor === opcion;
+                            return (
+                              <button
+                                key={opcion}
+                                style={{
+                                  ...s.checkBtn,
+                                  background: active ? OPCION_COLOR[opcion] : 'transparent',
+                                  borderColor: active ? OPCION_COLOR[opcion] : '#0f3460',
+                                  color: active ? '#fff' : '#8892b0',
+                                  cursor: readOnly ? 'default' : 'pointer',
+                                  opacity: readOnly && !active ? 0.5 : 1,
+                                }}
+                                onClick={() => setCheckValue(item.id, opcion)}
+                                disabled={readOnly}
+                              >
+                                {opcion === 'si' ? 'SÍ' : opcion === 'no' ? 'NO' : 'N/A'}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      {/* Línea 2: select + textarea — solo si hay valor marcado */}
+                      {entry.valor && (
+                        <div style={s.checkBody}>
+                          {entry.valor === 'si' && textosTipo.length > 0 && !readOnly && (
+                            <select
+                              style={s.textoTipoSelect}
+                              value={textoSelected}
+                              onChange={e => { if (e.target.value) setCheckObs(item.id, e.target.value); }}
                             >
-                              {opcion === 'si' ? 'SÍ' : opcion === 'no' ? 'NO' : 'N/A'}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <div style={isMobile ? s.checkObsColMobile : s.checkObsColDesktop}>
-                        {entry.valor === 'si' && textosTipo.length > 0 && !readOnly && (
-                          <select
-                            style={s.textoTipoSelect}
-                            value={textoSelected}
-                            onChange={e => { if (e.target.value) setCheckObs(item.id, e.target.value); }}
-                          >
-                            <option value="">Seleccionar texto tipo o escribir observación...</option>
-                            {textosTipo.map((t, i) => (
-                              <option key={i} value={t}>{t.length > 80 ? t.substring(0, 80) + '…' : t}</option>
-                            ))}
-                          </select>
-                        )}
-                        <textarea
-                          style={isMobile ? s.checkObsMobile : s.checkObsDesktop}
-                          value={entry.obs}
-                          onChange={e => setCheckObs(item.id, e.target.value)}
-                          placeholder="Observación..."
-                          rows={2}
-                          readOnly={readOnly}
-                        />
-                      </div>
+                              <option value="">Seleccionar texto tipo o escribir observación...</option>
+                              {textosTipo.map((t, i) => (
+                                <option key={i} value={t}>{t.length > 80 ? t.substring(0, 80) + '…' : t}</option>
+                              ))}
+                            </select>
+                          )}
+                          <textarea
+                            style={s.checkObs}
+                            value={entry.obs}
+                            onChange={e => setCheckObs(item.id, e.target.value)}
+                            placeholder="Observación..."
+                            rows={2}
+                            readOnly={readOnly}
+                          />
+                        </div>
+                      )}
+                      <div style={s.checkSep} />
                     </div>
                   );
                 })}
@@ -1751,16 +1756,13 @@ const s = {
   seccionTitulo: { color: '#8892b0', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '16px' },
 
   checklist: { display: 'flex', flexDirection: 'column' },
-  checkItemDesktop: { display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '10px 0', borderBottom: '1px solid #0f3460' },
-  checkLabelDesktop: { color: '#ccd6f6', fontSize: '13px', flex: 1, lineHeight: 1.4, paddingTop: '6px' },
-  checkObsDesktop: { ...obsInputBase, width: '100%' },
-  checkItemMobile: { display: 'flex', flexDirection: 'column', gap: '7px', padding: '10px 0', borderBottom: '1px solid #0f3460' },
-  checkLabelMobile: { color: '#ccd6f6', fontSize: '13px', lineHeight: 1.4 },
-  checkObsMobile: { ...obsInputBase, width: '100%' },
+  checkRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' },
+  checkLabel: { color: '#ccd6f6', fontSize: '14px', fontWeight: 500, lineHeight: 1.4, flex: 1, paddingRight: '12px' },
+  checkBody: { display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' },
+  checkObs: { ...obsInputBase, width: '100%', minHeight: '60px', resize: 'vertical' },
+  checkSep: { borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: '12px' },
   checkBtns: { display: 'flex', gap: '4px', flexShrink: 0 },
   checkBtn: { padding: '5px 9px', border: '1.5px solid', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.12s', minWidth: '36px', textAlign: 'center' },
-  checkObsColDesktop: { display: 'flex', flexDirection: 'column', gap: '4px', width: '190px', flexShrink: 0 },
-  checkObsColMobile:  { display: 'flex', flexDirection: 'column', gap: '4px', width: '100%' },
   textoTipoSelect: { ...obsInputBase, width: '100%', cursor: 'pointer', paddingRight: '6px' },
   fotosSugeridasBanner: { background: 'rgba(100,116,139,0.12)', border: '1px solid rgba(100,116,139,0.25)', borderRadius: '8px', marginBottom: '14px', overflow: 'hidden' },
   fotosSugeridasToggle: { width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', color: '#94a3b8', fontSize: '12px', fontWeight: 700, padding: '8px 12px', cursor: 'pointer', textAlign: 'left' },
