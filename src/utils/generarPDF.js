@@ -958,7 +958,7 @@ function dibujarFotoConRelleno(doc, imgData, formato, x, y, containerW, containe
   doc.rect(x, y, containerW, containerH);
 }
 
-// ─── PDF Cotas Topográficas (2 páginas) ──────────────────────────────────────
+// ─── PDF Cotas Topográficas (1 página, 2 si overflow) ────────────────────────
 
 async function construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -966,29 +966,51 @@ async function construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64) {
   const esCaida = protocolo.tipo === 'caida';
   const entidad = `${NOMBRES_TIPO[protocolo.tipo] ?? protocolo.tipo} ${protocolo.entidadId}`;
 
-  // ── Página 1: encabezado + tabla info + observación + pie ────────────────────
-  let y = agregarEncabezado(doc, protocolo, 1, 2, kmInicio, kmFin, logoB64);
+  const H_AUTOCAD = CW * 4 / 16;  // ~45mm
+  const H_TABLA   = CW * 6 / 16;  // ~68mm
+  const GAP = 4;
+
+  // Precargar fotos antes de dibujar (para poder estimar la altura total)
+  const fotosParaPagina = [];
+  if (esCaida) {
+    const esquemaB64 = await loadEsquemaCaidaB64();
+    if (esquemaB64) fotosParaPagina.push({ dataUrl: esquemaB64, formato: 'JPEG', descripcion: 'Esquema Tipo Caída', containerH: H_AUTOCAD });
+    const imgTabla = fotos[0] ? await obtenerImagenBase64(fotos[0]) : null;
+    if (imgTabla) fotosParaPagina.push({ ...imgTabla, descripcion: fotos[0].descripcion || 'Tabla de Datos', containerH: H_TABLA });
+  } else {
+    if (fotos[0]) { const img = await obtenerImagenBase64(fotos[0]); if (img) fotosParaPagina.push({ ...img, descripcion: fotos[0].descripcion || 'AutoCAD', containerH: H_AUTOCAD }); }
+    if (fotos[1]) { const img = await obtenerImagenBase64(fotos[1]); if (img) fotosParaPagina.push({ ...img, descripcion: fotos[1].descripcion || 'Tabla de Datos', containerH: H_TABLA }); }
+  }
+
+  const fotosTotalH = fotosParaPagina.reduce((sum, f) => sum + f.containerH + GAP, 0);
+  // Si tabla info (~26mm) + observación opcional (~12mm) + fotos + pie caben en ~PH → 1 página
+  const totalPaginas = (90 + fotosTotalH + PIE_FIRMA_H < PH) ? 1 : 2;
+
+  // ── Tabla info compacta en 2 columnas ────────────────────────────────────────
+  const cotaPRStr = datos.cotaPR != null && datos.cotaPR !== '' ? `${datos.cotaPR} m` : '';
+  const LW = 35; // ancho columna label
+  const VW = CW / 2 - LW; // ancho columna valor
+
+  let y = agregarEncabezado(doc, protocolo, 1, totalPaginas, kmInicio, kmFin, logoB64);
 
   autoTable(doc, {
     startY: y,
     margin: { left: ML, right: MR, ...CONTENT_MARGIN },
     tableWidth: CW,
     body: [
-      ['Ítem',            entidad],
-      ['Fecha Control',   datos.fechaControl || ''],
-      ['N° Control',      String(datos.nControl ?? '')],
-      ['Instrumento N/S', datos.instrumentoNS || ''],
-      ['Nombre PR',       datos.nombrePR || ''],
-      ['Cota PR',         datos.cotaPR != null && datos.cotaPR !== '' ? `${datos.cotaPR} m` : ''],
-      ['Comuna',          'Yungay'],
-      ['Responsable',     'Álvaro Muñoz'],
+      ['Ítem',         entidad,                    'Fecha Control',   datos.fechaControl || ''],
+      ['N° Control',   String(datos.nControl ?? ''),'Instrumento N/S', datos.instrumentoNS || ''],
+      ['Nombre PR',    datos.nombrePR || '',        'Cota PR',         cotaPRStr],
+      ['Comuna',       'Yungay',                   'Responsable',     'Álvaro Muñoz'],
     ],
     columnStyles: {
-      0: { cellWidth: 45, fontStyle: 'bold', fillColor: [240, 240, 240], fontSize: 9 },
-      1: { cellWidth: CW - 45 },
+      0: { cellWidth: LW, fontStyle: 'bold', fillColor: [240, 240, 240] },
+      1: { cellWidth: VW },
+      2: { cellWidth: LW, fontStyle: 'bold', fillColor: [240, 240, 240] },
+      3: { cellWidth: VW },
     },
     styles: {
-      fontSize: 8, cellPadding: 2,
+      fontSize: 7.5, cellPadding: 1,
       lineColor: [120, 120, 120], lineWidth: 0.2,
       textColor: [30, 30, 30],
     },
@@ -998,44 +1020,23 @@ async function construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64) {
   y = doc.lastAutoTable.finalY;
 
   if (datos.observacionCotas) {
-    y += 5;
-    doc.setFont(undefined, 'bold'); doc.setFontSize(9); doc.setTextColor(30, 30, 30);
+    y += 3;
+    doc.setFont(undefined, 'bold'); doc.setFontSize(8); doc.setTextColor(30, 30, 30);
     doc.text('Observación:', ML, y);
-    y += 5;
-    doc.setFont(undefined, 'normal'); doc.setFontSize(8);
+    y += 4;
+    doc.setFont(undefined, 'normal'); doc.setFontSize(7.5);
     const lines = doc.splitTextToSize(datos.observacionCotas, CW);
     doc.text(lines, ML, y);
-    y += lines.length * 4.5 + 4;
+    y += lines.length * 4 + 2;
   }
 
-  agregarPieFirma(doc, pieFirmaY(y), 'Álvaro Muñoz');
-
-  // ── Página 2: encabezado + foto 1 full-width + foto 2 full-width + pie ───────
-  doc.addPage();
-  y = agregarEncabezado(doc, protocolo, 2, 2, kmInicio, kmFin, logoB64);
-
-  // Contenedores con proporciones fijas: esquema/autocad = 16:5, tabla = 16:9
-  const H_AUTOCAD = CW * 5 / 16;
-  const H_TABLA   = CW * 9 / 16;
-
-  const fotosParaPagina = [];
-
-  if (esCaida) {
-    const esquemaB64 = await loadEsquemaCaidaB64();
-    if (esquemaB64) {
-      fotosParaPagina.push({ dataUrl: esquemaB64, formato: 'JPEG', descripcion: 'Esquema Tipo Caída', containerH: H_AUTOCAD });
-    }
-    const imgTabla = fotos[0] ? await obtenerImagenBase64(fotos[0]) : null;
-    if (imgTabla) fotosParaPagina.push({ ...imgTabla, descripcion: fotos[0].descripcion || 'Tabla de Datos', containerH: H_TABLA });
+  // ── Fotos: misma página si caben, página nueva si no ─────────────────────────
+  const fotosFitEnPag1 = fotosParaPagina.length === 0 || (y + fotosTotalH + PIE_FIRMA_H + GAP < PH - 10);
+  if (!fotosFitEnPag1) {
+    doc.addPage();
+    y = agregarEncabezado(doc, protocolo, 2, totalPaginas, kmInicio, kmFin, logoB64);
   } else {
-    if (fotos[0]) {
-      const img = await obtenerImagenBase64(fotos[0]);
-      if (img) fotosParaPagina.push({ ...img, descripcion: fotos[0].descripcion || 'AutoCAD', containerH: H_AUTOCAD });
-    }
-    if (fotos[1]) {
-      const img = await obtenerImagenBase64(fotos[1]);
-      if (img) fotosParaPagina.push({ ...img, descripcion: fotos[1].descripcion || 'Tabla de Datos', containerH: H_TABLA });
-    }
+    y += GAP;
   }
 
   for (const foto of fotosParaPagina) {
@@ -1044,7 +1045,7 @@ async function construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64) {
       doc.setFontSize(7); doc.setFont(undefined, 'italic'); doc.setTextColor(80, 80, 80);
       doc.text(foto.descripcion, ML + 2, y + foto.containerH - 2);
     }
-    y += foto.containerH + 5;
+    y += foto.containerH + GAP;
   }
 
   agregarPieFirma(doc, pieFirmaY(y), 'Álvaro Muñoz');
