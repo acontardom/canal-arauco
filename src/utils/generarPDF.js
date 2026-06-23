@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import logoUrl from '../assets/Logo_ExMaq.jpg';
+import esquemaCaidaUrl from '../assets/esquema_tipo_caida.jpg';
 import { PROTOCOLOS, CHECKLISTS, KM_DATA } from '../constants/estructura';
 
 // ─── Nombres de protocolo para el encabezado PICE ─────────────────────────────
@@ -14,6 +15,7 @@ const NOMBRE_PICE = {
   G5: 'Hormigones G-5',
   HA_RADIER: 'Control H.A.',
   HA_MURO: 'Control H.A.',
+  COTAS: 'Cotas Topográficas',
 };
 
 const NOMBRES_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
@@ -143,6 +145,14 @@ const TEXTOS_PROTOCOLO = {
       'Registrar descarga y evidencia fotográfica del camión.',
     ],
     selector: 'muro',
+  },
+  COTAS: {
+    nombreProtocolo: 'Cotas Topográficas',
+    objetivo:  'Verificar que las cotas ejecutadas se encuentren dentro de la tolerancia proyectada.',
+    alcance:   'Aplica al control topográfico de tramos y caídas del canal.',
+    normativa: 'Planos del proyecto, Especificaciones Técnicas, tolerancia +/- 2 cm.',
+    procedimiento: [],
+    selector: null,
   },
 };
 
@@ -527,7 +537,7 @@ function pieFirmaY(finalY) {
 
 // Tabla de pie de firma — unificada (4 filas), pageBreak:'avoid' evita que se
 // divida entre páginas.
-function agregarPieFirma(doc, startY) {
+function agregarPieFirma(doc, startY, pac = 'Diego Oñate Jorquera') {
   const colW = CW / 3;
 
   autoTable(doc, {
@@ -536,7 +546,7 @@ function agregarPieFirma(doc, startY) {
     tableWidth: CW,
     body: [
       ['PAC', 'ITO', 'ADMINISTRADOR'],
-      ['Diego Oñate Jorquera', 'Gonzalo Chavarría Sepúlveda', 'Marcelo Contardo Correa'],
+      [pac, 'Gonzalo Chavarría Sepúlveda', 'Marcelo Contardo Correa'],
       ['firma: _______________', 'firma: _______________', 'firma: _______________'],
       ['fecha: _______________', 'fecha: _______________', 'fecha: _______________'],
     ],
@@ -907,6 +917,112 @@ async function generarPDFControlHA(protocolo, camiones, kmInicio, kmFin, logoB64
 
 // Orden estricto: encabezado → tabla info → procedimiento → protocolo de
 // control. Devuelve la posición Y final del contenido (doc.lastAutoTable.finalY)
+async function loadEsquemaCaidaB64() {
+  try {
+    const resp = await fetch(esquemaCaidaUrl);
+    const blob = await resp.blob();
+    return new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+// ─── PDF Cotas Topográficas (2 páginas) ──────────────────────────────────────
+
+async function construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const datos = protocolo.datos ?? {};
+  const esCaida = protocolo.tipo === 'caida';
+  const entidad = `${NOMBRES_TIPO[protocolo.tipo] ?? protocolo.tipo} ${protocolo.entidadId}`;
+
+  // ── Página 1: encabezado + tabla info + observación + pie ────────────────────
+  let y = agregarEncabezado(doc, protocolo, 1, 2, kmInicio, kmFin, logoB64);
+
+  autoTable(doc, {
+    startY: y,
+    margin: { left: ML, right: MR, ...CONTENT_MARGIN },
+    tableWidth: CW,
+    body: [
+      ['Ítem',            entidad],
+      ['Fecha Control',   datos.fechaControl || ''],
+      ['N° Control',      String(datos.nControl ?? '')],
+      ['Instrumento N/S', datos.instrumentoNS || ''],
+      ['Nombre PR',       datos.nombrePR || ''],
+      ['Cota PR',         datos.cotaPR != null && datos.cotaPR !== '' ? `${datos.cotaPR} m` : ''],
+      ['Comuna',          'Yungay'],
+      ['Responsable',     'Álvaro Muñoz'],
+    ],
+    columnStyles: {
+      0: { cellWidth: 45, fontStyle: 'bold', fillColor: [240, 240, 240], fontSize: 9 },
+      1: { cellWidth: CW - 45 },
+    },
+    styles: {
+      fontSize: 8, cellPadding: 2,
+      lineColor: [120, 120, 120], lineWidth: 0.2,
+      textColor: [30, 30, 30],
+    },
+    theme: 'grid',
+  });
+
+  y = doc.lastAutoTable.finalY;
+
+  if (datos.observacionCotas) {
+    y += 5;
+    doc.setFont(undefined, 'bold'); doc.setFontSize(9); doc.setTextColor(30, 30, 30);
+    doc.text('Observación:', ML, y);
+    y += 5;
+    doc.setFont(undefined, 'normal'); doc.setFontSize(8);
+    const lines = doc.splitTextToSize(datos.observacionCotas, CW);
+    doc.text(lines, ML, y);
+    y += lines.length * 4.5 + 4;
+  }
+
+  agregarPieFirma(doc, pieFirmaY(y), 'Álvaro Muñoz');
+
+  // ── Página 2: encabezado + foto 1 full-width + foto 2 full-width + pie ───────
+  doc.addPage();
+  y = agregarEncabezado(doc, protocolo, 2, 2, kmInicio, kmFin, logoB64);
+
+  const disponible = PH - y - PIE_FIRMA_H - 20;
+  const fotoH = Math.floor(disponible / 2) - 4;
+
+  const fotosParaPagina = [];
+
+  if (esCaida) {
+    const esquemaB64 = await loadEsquemaCaidaB64();
+    if (esquemaB64) {
+      fotosParaPagina.push({ dataUrl: esquemaB64, formato: 'JPEG', descripcion: 'Esquema Tipo Caída' });
+    }
+    const fotoTabla = fotos[0] ? await obtenerImagenBase64(fotos[0]) : null;
+    if (fotoTabla) fotosParaPagina.push({ ...fotoTabla, descripcion: fotos[0].descripcion || 'Tabla de Datos' });
+  } else {
+    for (let i = 0; i < Math.min(2, fotos.length); i++) {
+      const img = await obtenerImagenBase64(fotos[i]);
+      if (img) fotosParaPagina.push({ ...img, descripcion: fotos[i].descripcion || (i === 0 ? 'AutoCAD' : 'Tabla de Datos') });
+    }
+  }
+
+  for (const foto of fotosParaPagina) {
+    doc.setDrawColor(120, 120, 120); doc.setLineWidth(0.2);
+    doc.rect(ML, y, CW, fotoH);
+    try { doc.addImage(foto.dataUrl, foto.formato, ML + 1, y + 1, CW - 2, fotoH - 2); }
+    catch (err) { console.warn('[PDF] Error foto COTAS:', err?.message ?? err); }
+    if (foto.descripcion) {
+      doc.setFontSize(7); doc.setFont(undefined, 'italic'); doc.setTextColor(80, 80, 80);
+      doc.text(foto.descripcion, ML + 2, y + fotoH - 2);
+    }
+    y += fotoH + 5;
+  }
+
+  agregarPieFirma(doc, pieFirmaY(y), 'Álvaro Muñoz');
+
+  return doc;
+}
+
 // para que el pie de firma se dibuje pegado debajo, sin saltos de página.
 function construirPagina1(doc, protocolo, kmInicio, kmFin, totalPaginas, logoB64, escala = ESCALA_NORMAL) {
   let y = agregarEncabezado(doc, protocolo, 1, totalPaginas, kmInicio, kmFin, logoB64);
@@ -930,7 +1046,12 @@ export async function construirDocumentoPDF(protocolo, fotos = [], kmInicio = ''
 
   let doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-  if (esHA) {
+  if (protocolo.protocoloId === 'COTAS') {
+    const cotasDoc = await construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64);
+    const entidadStr = String(protocolo.entidadId).replace(/\s+/g, '');
+    const fechaStr = fmtArchivo(protocolo.fechaModificacion);
+    return { doc: cotasDoc, filename: `COTAS_${entidadStr}_${fechaStr}.pdf` };
+  } else if (esHA) {
     doc = await generarPDFControlHA(protocolo, camiones, kmInicio, kmFin, logoB64);
   } else if (soloFotos) {
     if (fotos.length === 0) {

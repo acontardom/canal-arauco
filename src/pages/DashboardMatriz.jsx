@@ -6,7 +6,7 @@ import { supabase } from '../config/supabase';
 // ─── Orden y etiquetas de columnas ────────────────────────────────────────────
 
 const ORDEN_MATRIZ = [
-  'PICE1', 'G5', 'PICE4_RADIER', 'PICE4_MURO', 'PICE3', 'PICE2_RADIER', 'PICE2_MURO', 'HA_RADIER', 'HA_MURO',
+  'PICE1', 'G5', 'PICE4_RADIER', 'PICE4_MURO', 'PICE3', 'PICE2_RADIER', 'PICE2_MURO', 'HA_RADIER', 'HA_MURO', 'COTAS',
 ];
 
 const PROTOCOLOS_MATRIZ = ORDEN_MATRIZ.map(id => PROTOCOLOS.find(p => p.id === id));
@@ -21,6 +21,7 @@ const COL_LABEL = {
   PICE2_MURO:   'Horm. Muro',
   HA_RADIER:    'H.A. Radier',
   HA_MURO:      'H.A. Muro',
+  COTAS:        'Cotas Topog.',
 };
 
 // ─── Mapeo protocolo → partida de avance ──────────────────────────────────────

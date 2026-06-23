@@ -19,6 +19,7 @@ export const PROTOCOLOS = [
   { id: 'G5',          codigo: 'G-05',    nombre: 'Emplantillado',         subtipo: null, soloFotos: true },
   { id: 'HA_RADIER',  codigo: 'H.A.',    nombre: 'Control H.A. Radier',   subtipo: 'radier' },
   { id: 'HA_MURO',    codigo: 'H.A.',    nombre: 'Control H.A. Muro',     subtipo: 'muro' },
+  { id: 'COTAS',      codigo: 'PICE-COTAS', nombre: 'Cotas Topográficas', subtipo: null, soloFotos: false },
 ];
 
 export const CHECKLISTS = {

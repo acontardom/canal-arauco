@@ -300,6 +300,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     : `${VOLVER_BASE[tipo] ?? '/'}/${entidadId}`;
   // Protocolos de Control H.A. — solo muestran la vista de camiones
   const esHA = protocoloId === 'HA_RADIER' || protocoloId === 'HA_MURO';
+  // Protocolo de Cotas Topográficas — formulario propio, sin checklist
+  const esCOTAS = protocoloId === 'COTAS';
   // Protocolos solo-fotos (ej. G5 Emplantillado) — sin checklist ni observaciones
   const soloFotos = protocoloInfo?.soloFotos === true;
   // Evaluado una sola vez al montar — suficiente para PWA móvil
@@ -334,6 +336,13 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [busquedaActiva, setBusquedaActiva]       = useState(null); // { tipo, entidadId, label }
   const [fotosNubeSeleccionadas, setFotosNubeSeleccionadas] = useState([]);
   const [fotosParaEliminar, setFotosParaEliminar]         = useState([]);
+  // ── Estado COTAS Topográficas ────────────────────────────────────────────────
+  const [cotasFechaControl, setCotasFechaControl] = useState(fechaHoy());
+  const [cotasNControl, setCotasNControl]         = useState('');
+  const [cotasInstrumento, setCotasInstrumento]   = useState('WP209485');
+  const [cotasNombrePR, setCotasNombrePR]         = useState('');
+  const [cotasCotaPR, setCotasCotaPR]             = useState('');
+  const [cotasObs, setCotasObs]                   = useState('');
   const [fotosSugeridasExpanded, setFotosSugeridasExpanded] = useState(true);
   const [fotoNubeModal, setFotoNubeModal] = useState(null);
   const [descModalTexto, setDescModalTexto] = useState('');
@@ -503,6 +512,24 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         setEdp(protocolo.edp ?? '');
 
         const datosVacios = !protocolo.datos || Object.keys(protocolo.datos).length === 0;
+
+        function aplicarDatos(d) {
+          if (esCOTAS) {
+            setCotasFechaControl(d.fechaControl ?? fechaHoy());
+            setCotasNControl(d.nControl ?? '');
+            setCotasInstrumento(d.instrumentoNS ?? 'WP209485');
+            setCotasNombrePR(d.nombrePR ?? '');
+            setCotasCotaPR(d.cotaPR ?? '');
+            setCotasObs(d.observacionCotas ?? '');
+          } else {
+            setChecklist(normalizeChecklist(d.checklist, itemsChecklist));
+            setObservaciones(d.observaciones ?? '');
+          }
+          const fotosGuardadas = d.fotosNubeSeleccionadas ?? [];
+          setFotosNubeSeleccionadas(fotosGuardadas);
+          if (fotosGuardadas.length > 0) setFotosSugeridasExpanded(false);
+        }
+
         if (datosVacios && protocolo.supabaseId && supabase && navigator.onLine) {
           // datos no disponibles localmente (sync sin campo datos) — cargar bajo demanda
           supabase
@@ -511,21 +538,12 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             .eq('id', protocolo.supabaseId)
             .single()
             .then(({ data }) => {
-              const d = data?.datos ?? {};
-              setChecklist(normalizeChecklist(d.checklist, itemsChecklist));
-              setObservaciones(d.observaciones ?? '');
-              const fotosGuardadas = d.fotosNubeSeleccionadas ?? [];
-              setFotosNubeSeleccionadas(fotosGuardadas);
-              if (fotosGuardadas.length > 0) setFotosSugeridasExpanded(false);
+              aplicarDatos(data?.datos ?? {});
               if (data?.datos) db.protocolos.update(protocolo.id, { datos: data.datos });
             })
             .catch(() => {});
         } else {
-          setChecklist(normalizeChecklist(protocolo.datos?.checklist, itemsChecklist));
-          setObservaciones(protocolo.datos?.observaciones ?? '');
-          const fotosGuardadas = protocolo.datos?.fotosNubeSeleccionadas ?? [];
-          setFotosNubeSeleccionadas(fotosGuardadas);
-          if (fotosGuardadas.length > 0) setFotosSugeridasExpanded(false);
+          aplicarDatos(protocolo.datos ?? {});
         }
       }
     }
@@ -565,11 +583,14 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   async function obtenerOCrearId() {
     if (protocolo?.id) return protocolo.id;
     const hoy = fechaHoy();
+    const datosIniciales = esCOTAS
+      ? { fechaControl: cotasFechaControl, nControl: cotasNControl, instrumentoNS: cotasInstrumento, nombrePR: cotasNombrePR, cotaPR: cotasCotaPR, observacionCotas: cotasObs, fotosNubeSeleccionadas }
+      : { checklist, observaciones, fotosNubeSeleccionadas };
     return db.protocolos.add({
       tipo, entidad: tipo, entidadId: entidadIdReal, protocoloId,
       estado: 'borrador', usuarioNombre: usuario,
       fechaCreacion: hoy, fechaModificacion: hoy,
-      datos: { checklist, observaciones, fotosNubeSeleccionadas },
+      datos: datosIniciales,
       sincronizada: false,
     });
   }
@@ -624,7 +645,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       await procesarEliminacionesFotos();
       const fotosSubidas = await subirFotosNubePendientes(fotosNubeSeleccionadas);
       if (fotosSubidas !== fotosNubeSeleccionadas) setFotosNubeSeleccionadas(fotosSubidas);
-      const datos = { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas };
+      const datos = esCOTAS
+        ? { fechaControl: cotasFechaControl, nControl: cotasNControl, instrumentoNS: cotasInstrumento, nombrePR: cotasNombrePR, cotaPR: cotasCotaPR, observacionCotas: cotasObs, fotosNubeSeleccionadas: fotosSubidas }
+        : { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas };
 
       const campos = {
         estado: nuevoEstado, usuarioNombre: usuario,
@@ -1343,6 +1366,49 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       {soloFotos ? (
         /* ── Vista solo-fotos (ej. G5 Emplantillado) ─────────────────────────── */
         seccionFotos
+      ) : esCOTAS ? (
+        /* ── Formulario Cotas Topográficas ───────────────────────────────────── */
+        <>
+          <Seccion titulo="Datos Topográficos">
+            <div style={s.cotasGrid}>
+              <div style={s.cotasCampo}>
+                <label style={s.cotasLabel}>Fecha control</label>
+                <input type="date" style={s.cotasInput} value={cotasFechaControl} onChange={e => setCotasFechaControl(e.target.value)} readOnly={readOnly} />
+              </div>
+              <div style={s.cotasCampo}>
+                <label style={s.cotasLabel}>N° de control</label>
+                <input type="number" style={s.cotasInput} value={cotasNControl} onChange={e => setCotasNControl(e.target.value)} readOnly={readOnly} placeholder="1" min="1" />
+              </div>
+              <div style={s.cotasCampo}>
+                <label style={s.cotasLabel}>Instrumento N/S</label>
+                <input type="text" style={s.cotasInput} value={cotasInstrumento} onChange={e => setCotasInstrumento(e.target.value)} readOnly={readOnly} />
+              </div>
+              <div style={s.cotasCampo}>
+                <label style={s.cotasLabel}>Nombre PR</label>
+                <input type="text" style={s.cotasInput} value={cotasNombrePR} onChange={e => setCotasNombrePR(e.target.value)} readOnly={readOnly} placeholder="Ej: PR-15" />
+              </div>
+              <div style={s.cotasCampo}>
+                <label style={s.cotasLabel}>Cota PR (m)</label>
+                <input type="number" step="0.001" style={s.cotasInput} value={cotasCotaPR} onChange={e => setCotasCotaPR(e.target.value)} readOnly={readOnly} placeholder="0.000" />
+              </div>
+            </div>
+            <div style={s.cotasCampo}>
+              <label style={{ ...s.cotasLabel, marginTop: '12px' }}>Observación (opcional)</label>
+              <textarea style={{ ...s.cotasInput, minHeight: '70px', resize: 'vertical', marginTop: '4px' }} value={cotasObs} onChange={e => setCotasObs(e.target.value)} readOnly={readOnly} placeholder="Condiciones del terreno, desviaciones, etc." />
+            </div>
+            {tipo === 'caida' && (
+              <div style={s.cotasNote}>
+                📐 El PDF incluye automáticamente el esquema tipo caída como foto 1. Agrega aquí la foto de la tabla de datos.
+              </div>
+            )}
+            {(tipo === 'tramo' || tipo === 'atravieso') && (
+              <div style={s.cotasNote}>
+                📐 Agrega las fotos en orden: 1) AutoCAD, 2) Tabla de datos.
+              </div>
+            )}
+          </Seccion>
+          {seccionFotos}
+        </>
       ) : (
         /* ── Checklist (si aplica) + observaciones + fotos ───────────────────── */
         <>
@@ -1763,6 +1829,11 @@ const s = {
   checkSep: { borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: '12px' },
   checkBtns: { display: 'flex', gap: '4px', flexShrink: 0 },
   checkBtn: { padding: '5px 9px', border: '1.5px solid', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.12s', minWidth: '36px', textAlign: 'center' },
+  cotasGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px 20px', marginBottom: '4px' },
+  cotasCampo: { display: 'flex', flexDirection: 'column', gap: '4px' },
+  cotasLabel: { color: '#94a3b8', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' },
+  cotasInput: { ...obsInputBase, width: '100%' },
+  cotasNote: { marginTop: '14px', padding: '8px 12px', background: 'rgba(100,255,218,0.06)', border: '1px solid rgba(100,255,218,0.18)', borderRadius: '8px', color: '#64ffda', fontSize: '12px', lineHeight: 1.5 },
   textoTipoSelect: { ...obsInputBase, width: '100%', cursor: 'pointer', paddingRight: '6px' },
   fotosSugeridasBanner: { background: 'rgba(100,116,139,0.12)', border: '1px solid rgba(100,116,139,0.25)', borderRadius: '8px', marginBottom: '14px', overflow: 'hidden' },
   fotosSugeridasToggle: { width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', color: '#94a3b8', fontSize: '12px', fontWeight: 700, padding: '8px 12px', cursor: 'pointer', textAlign: 'left' },
