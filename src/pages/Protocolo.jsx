@@ -5,7 +5,7 @@ import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
-import { PROTOCOLOS, CHECKLISTS, TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
+import { PROTOCOLOS, CHECKLISTS, CHECKLIST_DEFAULTS, TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
 import { generarPDF, construirDocumentoPDF } from '../utils/generarPDF';
 import { useKm } from '../hooks/useKm';
 import { sincronizar } from '../utils/sync';
@@ -288,7 +288,11 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const entidadIdReal = tipo === 'caida' ? Number(entidadId) : entidadId;
   const protocoloInfo = PROTOCOLOS.find(p => p.id === protocoloId);
   const itemsChecklist = CHECKLISTS[protocoloId] ?? [];
-  const emptyChecklist = Object.fromEntries(itemsChecklist.map(i => [i.id, { valor: null, obs: '' }]));
+  const defaultsDef    = CHECKLIST_DEFAULTS[protocoloId] ?? null;
+  const emptyChecklist = Object.fromEntries(itemsChecklist.map(i => {
+    const hasDefault = defaultsDef?.items.some(d => d.id === i.id);
+    return [i.id, { valor: hasDefault ? 'si' : null, obs: '' }];
+  }));
   const nombreEntidad = `${NOMBRES_TIPO[tipo] ?? tipo} ${entidadId}`;
   const titulo = `${nombreEntidad} — ${protocoloInfo?.nombre ?? protocoloId}`;
   const volverUrl = searchParams.get('from') === 'matriz'
@@ -329,6 +333,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [cargandoBusqueda, setCargandoBusqueda]   = useState(false);
   const [busquedaActiva, setBusquedaActiva]       = useState(null); // { tipo, entidadId, label }
   const [fotosNubeSeleccionadas, setFotosNubeSeleccionadas] = useState([]);
+  const [fotosSugeridasExpanded, setFotosSugeridasExpanded] = useState(true);
   const [fotoNubeModal, setFotoNubeModal] = useState(null);
   const [descModalTexto, setDescModalTexto] = useState('');
   // ── Modal cámara/galería (fotos nuevas) ──────────────────────────────────────
@@ -494,10 +499,12 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       if (protocolo) {
         setChecklist(normalizeChecklist(protocolo.datos?.checklist, itemsChecklist));
         setObservaciones(protocolo.datos?.observaciones ?? '');
-        setFotosNubeSeleccionadas(protocolo.datos?.fotosNubeSeleccionadas ?? []);
+        const fotosGuardadas = protocolo.datos?.fotosNubeSeleccionadas ?? [];
+        setFotosNubeSeleccionadas(fotosGuardadas);
         setEstado(protocolo.estado);
         setFechaEnvio(protocolo.fechaEnvio ?? null);
         setEdp(protocolo.edp ?? '');
+        if (fotosGuardadas.length > 0) setFotosSugeridasExpanded(false);
       }
     }
   }, [cargando, protocolo]);
@@ -989,8 +996,30 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     ...fotosNubeData,
   ];
 
+  const fotosSugeridas = defaultsDef?.fotos_sugeridas ?? [];
+
   const seccionFotos = (
     <Seccion titulo="Fotos del Protocolo">
+      {/* Banner fotos sugeridas */}
+      {fotosSugeridas.length > 0 && (
+        <div style={s.fotosSugeridasBanner}>
+          <button
+            style={s.fotosSugeridasToggle}
+            onClick={() => setFotosSugeridasExpanded(v => !v)}
+          >
+            <span>📸 Fotos sugeridas</span>
+            <span style={{ fontSize: '10px' }}>{fotosSugeridasExpanded ? '▲' : '▼'}</span>
+          </button>
+          {fotosSugeridasExpanded && (
+            <ul style={s.fotosSugeridasLista}>
+              {fotosSugeridas.map((f, i) => (
+                <li key={i} style={s.fotosSugeridasItem}>• {f}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       {/* Subsección 1: seleccionar desde nube */}
       <p style={s.subSeccionTitulo}>Seleccionar desde nube 📷</p>
       <div style={s.chipsRow}>
@@ -1240,6 +1269,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
               <div style={s.checklist}>
                 {itemsChecklist.map(item => {
                   const entry = checklist[item.id] ?? { valor: null, obs: '' };
+                  const itemDef = defaultsDef?.items.find(d => d.id === item.id);
+                  const textosTipo = itemDef?.textos ?? [];
+                  const textoSelected = textosTipo.find(t => t === entry.obs) ?? '';
                   return (
                     <div key={item.id} style={isMobile ? s.checkItemMobile : s.checkItemDesktop}>
                       <span style={isMobile ? s.checkLabelMobile : s.checkLabelDesktop}>
@@ -1267,14 +1299,28 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                           );
                         })}
                       </div>
-                      <textarea
-                        style={isMobile ? s.checkObsMobile : s.checkObsDesktop}
-                        value={entry.obs}
-                        onChange={e => setCheckObs(item.id, e.target.value)}
-                        placeholder="Observación..."
-                        rows={2}
-                        readOnly={readOnly}
-                      />
+                      <div style={isMobile ? s.checkObsColMobile : s.checkObsColDesktop}>
+                        {entry.valor === 'si' && textosTipo.length > 0 && !readOnly && (
+                          <select
+                            style={s.textoTipoSelect}
+                            value={textoSelected}
+                            onChange={e => { if (e.target.value) setCheckObs(item.id, e.target.value); }}
+                          >
+                            <option value="">Seleccionar texto tipo o escribir observación...</option>
+                            {textosTipo.map((t, i) => (
+                              <option key={i} value={t}>{t.length > 80 ? t.substring(0, 80) + '…' : t}</option>
+                            ))}
+                          </select>
+                        )}
+                        <textarea
+                          style={isMobile ? s.checkObsMobile : s.checkObsDesktop}
+                          value={entry.obs}
+                          onChange={e => setCheckObs(item.id, e.target.value)}
+                          placeholder="Observación..."
+                          rows={2}
+                          readOnly={readOnly}
+                        />
+                      </div>
                     </div>
                   );
                 })}
@@ -1625,12 +1671,19 @@ const s = {
   checklist: { display: 'flex', flexDirection: 'column' },
   checkItemDesktop: { display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '10px 0', borderBottom: '1px solid #0f3460' },
   checkLabelDesktop: { color: '#ccd6f6', fontSize: '13px', flex: 1, lineHeight: 1.4, paddingTop: '6px' },
-  checkObsDesktop: { ...obsInputBase, width: '190px', flexShrink: 0 },
+  checkObsDesktop: { ...obsInputBase, width: '100%' },
   checkItemMobile: { display: 'flex', flexDirection: 'column', gap: '7px', padding: '10px 0', borderBottom: '1px solid #0f3460' },
   checkLabelMobile: { color: '#ccd6f6', fontSize: '13px', lineHeight: 1.4 },
   checkObsMobile: { ...obsInputBase, width: '100%' },
   checkBtns: { display: 'flex', gap: '4px', flexShrink: 0 },
   checkBtn: { padding: '5px 9px', border: '1.5px solid', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.12s', minWidth: '36px', textAlign: 'center' },
+  checkObsColDesktop: { display: 'flex', flexDirection: 'column', gap: '4px', width: '190px', flexShrink: 0 },
+  checkObsColMobile:  { display: 'flex', flexDirection: 'column', gap: '4px', width: '100%' },
+  textoTipoSelect: { ...obsInputBase, width: '100%', cursor: 'pointer', paddingRight: '6px' },
+  fotosSugeridasBanner: { background: 'rgba(100,116,139,0.12)', border: '1px solid rgba(100,116,139,0.25)', borderRadius: '8px', marginBottom: '14px', overflow: 'hidden' },
+  fotosSugeridasToggle: { width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', color: '#94a3b8', fontSize: '12px', fontWeight: 700, padding: '8px 12px', cursor: 'pointer', textAlign: 'left' },
+  fotosSugeridasLista: { listStyle: 'none', margin: 0, padding: '0 12px 10px', display: 'flex', flexDirection: 'column', gap: '4px' },
+  fotosSugeridasItem: { color: '#64748b', fontSize: '12px', lineHeight: 1.4 },
 
   badgeCamiones: { background: '#0a2040', border: '1px solid #64ffda', borderRadius: '8px', padding: '8px 14px', color: '#ccd6f6', fontSize: '13px', fontWeight: 700, marginBottom: '12px', textAlign: 'center' },
   camionesList: { display: 'flex', flexDirection: 'column', gap: '8px' },

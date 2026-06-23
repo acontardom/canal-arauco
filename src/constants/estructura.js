@@ -103,6 +103,248 @@ export const USUARIOS = [
   'Otro',
 ];
 
+export const CHECKLIST_DEFAULTS = {
+  PICE1: {
+    items: [
+      { id: 'replanteo_conforme', textos: [
+        'Verificación de cotas de excavación perfil a perfil, realizada en conjunto con el topógrafo de obra',
+        'Se continúa trabajando con PR Aux como referencia para control topográfico y verificación de la excavación',
+      ]},
+      { id: 'cotas_excavacion', textos: [
+        'Verificación topográfica de cota de fondo (cota [X] y sello de excavación cota [X])',
+        'Verificación topográfica perfil a perfil. (informe topográfico N°[X])',
+      ]},
+      { id: 'espesor_capas_relleno', textos: [
+        'Compactación ejecutada para asegurar condiciones óptimas previas al emplantillado',
+        'Espesor de capas de relleno controlado conforme a especificaciones técnicas',
+      ]},
+      { id: 'ancho_excavacion', textos: [
+        'Ancho de excavación de canal proyectada de 2,26 mt, más excavación de seguridad variable según profundidad',
+        'Ancho de excavación ejecutado conforme a medidas de seguridad, considerando sección de canal proyectada',
+      ]},
+      { id: 'aprobacion_hormigonado', textos: [
+        'Se considera un ancho de [X] m para el emplantillado, con un espesor de 0,10 m',
+        'Sección aprobada para hormigonado de emplantillado',
+      ]},
+    ],
+    fotos_sugeridas: [
+      'Vista general de la excavación',
+      'Perfil transversal de la sección',
+      'Fondo de excavación limpio',
+      'Medición de ancho de excavación',
+      'Compactación terminada',
+    ],
+  },
+  PICE2_RADIER: {
+    items: [
+      { id: 'tratamiento_junta', textos: [
+        'Se realiza tratamiento de junta de construcción en la sección entrada y salida, se incorpora promotor de adherencia',
+        'Junta de construcción tratada con promotor de adherencia en toda la sección',
+      ]},
+      { id: 'limpieza_seccion', textos: [
+        'Se realiza la limpieza del lugar previo al hormigonado de la sección de radier de la caída vertical',
+        'Sección limpia y libre de residuos previo al hormigonado',
+      ]},
+      { id: 'herramientas_adecuadas', textos: [
+        'Uso de sonda vibradora eléctrica para hormigón, en correcto estado operativo',
+        'Equipos y herramientas de hormigonado en correcto estado operativo',
+      ]},
+      { id: 'cono_conforme', textos: [
+        'Toma de asentamiento de cono como control de calidad, con el fin de verificar la trabajabilidad y consistencia del hormigón previo a su colocación. Se registra resultado de cono de [X] cm, correspondiente a la guía N°[X], para hormigón G20(10)40/08',
+        'Control de docilidad conforme. Resultado de cono [X] cm, guía N°[X]',
+      ]},
+      { id: 'vibrado_adecuado', textos: [
+        'Vibrado de hormigón en radier mediante sonda autónoma, asegurando correcta compactación y eliminación de vacíos',
+        'Vibrado mecánico ejecutado correctamente en toda la sección del radier',
+      ]},
+      { id: 'platachado_afinado', textos: [
+        'Se utilizan guías de apoyo a cota de nivel de piso terminado para el esparcimiento y nivelación del hormigón. Afinado de superficie mediante platacho tipo bullfloat',
+        'Afinado de superficie ejecutado con bullfloat a nivel de cota de piso terminado',
+      ]},
+      { id: 'curado', textos: [
+        'Sika Cure-11 como membrana de curado y recubrimiento superficial con nylon para protección y conservación de humedad',
+        'Curado con membrana Sika Cure-11 y nylon de protección aplicados correctamente',
+      ]},
+    ],
+    fotos_sugeridas: [
+      'Limpieza previa de la sección',
+      'Toma de cono (foto del resultado)',
+      'Hormigonado en progreso con vibrado',
+      'Superficie afinada terminada',
+      'Membrana de curado aplicada',
+    ],
+  },
+  PICE2_MURO: {
+    items: [
+      { id: 'tratamiento_junta', textos: [
+        'Se realiza tratamiento de junta de construcción en la sección entrada y salida, se incorpora promotor de adherencia',
+        'Junta de construcción tratada con promotor de adherencia en toda la sección',
+      ]},
+      { id: 'limpieza_seccion', textos: [
+        'Se realiza la limpieza del lugar previo al hormigonado de muros',
+        'Sección limpia y libre de residuos previo al hormigonado de muros',
+      ]},
+      { id: 'herramientas_adecuadas', textos: [
+        'Uso de sonda vibradora para hormigón, en correcto estado operativo',
+        'Equipos y herramientas de hormigonado en correcto estado operativo',
+      ]},
+      { id: 'cono_conforme', textos: [
+        'Toma de asentamiento de cono como control de calidad, con el fin de verificar la trabajabilidad y consistencia del hormigón previo a su colocación. Se registra resultado de cono de [X] cm, correspondiente a la guía N°[X], para hormigón G20(10)40/08',
+        'Control de docilidad conforme. Resultado de cono [X] cm, guía N°[X]',
+      ]},
+      { id: 'vibrado_adecuado', textos: [
+        'El hormigonado de muros se realiza mediante la colocación del material en capas sucesivas, incorporando vibrado mecánico para asegurar la adecuada compactación y eliminar vacíos en el interior del elemento',
+        'Vibrado mecánico en capas sucesivas asegurando compactación y eliminación de vacíos en el muro',
+      ]},
+      { id: 'platachado_afinado', textos: [
+        'Ejecución de afinado en la coronación del muro',
+        'Coronación del muro afinada correctamente',
+      ]},
+      { id: 'curado', textos: [
+        'Sika Cure-11 como membrana de curado y recubrimiento superficial con nylon para protección y conservación de humedad',
+        'Curado con membrana Sika Cure-11 y nylon de protección aplicados correctamente',
+      ]},
+    ],
+    fotos_sugeridas: [
+      'Limpieza previa de la sección',
+      'Toma de cono (foto del resultado)',
+      'Hormigonado de muros en progreso',
+      'Vibrado en capas sucesivas',
+      'Coronación del muro afinada',
+      'Membrana de curado aplicada',
+    ],
+  },
+  PICE3: {
+    items: [
+      { id: 'desmoldante', textos: [
+        'Aplicación de desmoldante en moldajes previo al hormigonado',
+        'Desmoldante aplicado en toda la superficie de contacto del moldaje',
+      ]},
+      { id: 'fijacion_moldajes', textos: [
+        'Moldajes instalados y fijados correctamente conforme a planos',
+        'Sistema de moldaje fijado y verificado previo al hormigonado',
+      ]},
+      { id: 'fijacion_puntales', textos: [
+        'Se utilizan puntales de madera anclados a piso',
+        'Puntales de madera instalados y anclados correctamente a piso',
+      ]},
+      { id: 'herramientas_adecuadas', textos: [
+        'Herramientas y equipos de montaje en correcto estado operativo',
+        'Equipos necesarios para instalación de moldajes en correcto estado',
+      ]},
+      { id: 'estanquidad', textos: [
+        'Verificación de estanqueidad del sistema de moldaje previo al hormigonado',
+        'Sellado de juntas y verificación de estanqueidad conforme',
+      ]},
+      { id: 'limpieza', textos: [
+        'Limpieza interior de moldajes previo al hormigonado',
+        'Moldajes limpios y libres de residuos antes del hormigonado',
+      ]},
+      { id: 'junta_dilatacion', textos: [
+        'Se instala Aislapol de alta densidad, de espesor 10 mm. Se incorporan placas de fibrocemento en ambas caras del Aislapol, adheridas mediante adhesivo de montaje, asegurando su correcta fijación y estabilidad al momento del hormigonado',
+        'Junta de dilatación instalada con Aislapol 10mm y placas de fibrocemento adheridas con adhesivo de montaje',
+      ]},
+      { id: 'junta_contraccion', textos: [
+        'Junta de contracción instalada conforme a especificaciones técnicas',
+        'Disposición de juntas de contracción según planos de proyecto',
+      ]},
+      { id: 'water_stop', textos: [
+        'Instalación de wáter stop en juntas según especificaciones técnicas',
+        'Wáter stop instalado y fijado correctamente en juntas de construcción',
+      ]},
+      { id: 'aprobacion_hormigonado', textos: [
+        'Moldajes inspeccionados y aprobados para inicio de hormigonado',
+        'Sistema de moldaje verificado y aprobado previo al hormigonado',
+      ]},
+    ],
+    fotos_sugeridas: [
+      'Vista general de moldajes instalados',
+      'Detalle de puntales y fijación',
+      'Detalle de junta de dilatación (Aislapol + fibrocemento)',
+      'Verificación de aplome y nivel',
+      'Vista interior del canal con moldajes listos',
+    ],
+  },
+  PICE4_RADIER: {
+    items: [
+      { id: 'diametros_conforme', textos: [
+        'Diámetro conforme a planimetría, Plano N°16 EDICIÓN D',
+        'Diámetro de la malla conforme a planimetría, Plano N°3 y 4 EDICIÓN D',
+      ]},
+      { id: 'separacion_conforme', textos: [
+        'Separadores dispuestos en toda la sección del radier',
+        'Separadores dispuestos cada [0,70] mt uno del otro aprox.',
+      ]},
+      { id: 'recubrimiento_conforme', textos: [
+        'Recubrimiento conforme a malla posicionada en el centro del espesor de radier de [0,17] mt',
+        'Recubrimiento verificado conforme a especificaciones técnicas',
+      ]},
+      { id: 'armadura_fija', textos: [
+        'Amarradura con alambre recocido negro N°18',
+        'Se realiza la amarra de la malla mediante alambre recocido negro N°18, incorporando doseles para la fijación y correcta alineación de la armadura',
+      ]},
+      { id: 'traslapes', textos: [
+        'Traslapes acorde a especificaciones técnicas, 40 veces el diámetro (barra de acero de 8mm y 10mm)',
+        'Traslapes de 2 recuadros para la malla ACMA C139 conforme a especificaciones',
+      ]},
+      { id: 'limpieza', textos: [
+        'Área despejada y limpia previo al hormigonado',
+        'Sección libre de residuos y materiales ajenos a la armadura',
+      ]},
+      { id: 'aprobacion', textos: [
+        'Armadura inspeccionada y aprobada para inicio de hormigonado',
+        'Enfierradura verificada y aprobada conforme a planos',
+      ]},
+    ],
+    fotos_sugeridas: [
+      'Vista general de la malla instalada en radier',
+      'Detalle de separadores',
+      'Medición de recubrimiento',
+      'Detalle de traslapes',
+      'Vista general área limpia lista para hormigonar',
+    ],
+  },
+  PICE4_MURO: {
+    items: [
+      { id: 'diametros_conforme', textos: [
+        'Diámetro conforme a planimetría, Plano N°16 EDICIÓN D',
+        'Diámetro de la malla de muro conforme a planimetría, Plano N°3 y 4 EDICIÓN D',
+      ]},
+      { id: 'separacion_conforme', textos: [
+        'Separadores dispuestos en toda la sección del muro',
+        'Separadores dispuestos cada [0,70] mt uno del otro aprox.',
+      ]},
+      { id: 'recubrimiento_conforme', textos: [
+        'Recubrimiento conforme a malla posicionada en el centro del espesor de muro de [0,13] mt',
+        'Recubrimiento verificado conforme a especificaciones técnicas de muro',
+      ]},
+      { id: 'armadura_fija', textos: [
+        'Amarradura con alambre recocido negro N°18',
+        'Se realiza la amarra de la malla mediante alambre recocido negro N°18, incorporando doseles para la fijación y correcta alineación de la armadura de muro',
+      ]},
+      { id: 'traslapes', textos: [
+        'Traslapes acorde a especificaciones técnicas, 40 veces el diámetro (barra de acero de 8mm y 10mm)',
+        'Traslapes de 2 recuadros para la malla ACMA C139 conforme a especificaciones',
+      ]},
+      { id: 'limpieza', textos: [
+        'Área despejada y limpia previo al hormigonado de muros',
+        'Sección libre de residuos y materiales ajenos a la armadura de muro',
+      ]},
+      { id: 'aprobacion', textos: [
+        'Armadura de muro inspeccionada y aprobada para inicio de hormigonado',
+        'Enfierradura de muro verificada y aprobada conforme a planos',
+      ]},
+    ],
+    fotos_sugeridas: [
+      'Vista general de la armadura de muro instalada',
+      'Detalle de separadores en muro',
+      'Medición de recubrimiento en muro',
+      'Detalle de traslapes en muro',
+      'Vista general área limpia lista para hormigonar',
+    ],
+  },
+};
+
 export const KM_DATA = {
   tramo: {
     'A':  { inicio: '10,3',     fin: '237,7' },
