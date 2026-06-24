@@ -476,7 +476,7 @@ export async function descargarDesdeSupabase() {
     // ── Fotos ─────────────────────────────────────────────────────────────────
     const { data: fotosRemoto, error: errFotos } = await supabase
       .from('fotos')
-      .select('*');
+      .select('id, device_foto_id, local_id, protocolo_id, protocolo_local_id, nombre, tipo_mime, descripcion, storage_url, subida_storage');
 
     if (errFotos) throw errFotos;
 
@@ -505,7 +505,7 @@ export async function descargarDesdeSupabase() {
     // ── Fotos de terreno ─────────────────────────────────────────────────────
     const { data: fotosTerrenoRemoto, error: errFotosTerreno } = await supabase
       .from('fotos_terreno')
-      .select('*');
+      .select('id, device_foto_terreno_id, local_id, tipo, entidad_id, etiquetas, descripcion, storage_url, subida_storage, usuario_nombre, fecha_captura');
 
     if (errFotosTerreno) throw errFotosTerreno;
 
