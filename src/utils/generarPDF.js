@@ -679,35 +679,6 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
 
 // ─── Control H.A. (Radier / Muro) — 2 páginas por camión ─────────────────────
 
-async function resolverFotoHA(fotoHA, imagenesCache) {
-  if (fotoHA.dataUrlRecortado?.startsWith('data:')) {
-    return { dataUrl: fotoHA.dataUrlRecortado, formato: detectFormat(fotoHA.dataUrlRecortado) };
-  }
-  if (imagenesCache.has(fotoHA.url)) return imagenesCache.get(fotoHA.url);
-  const img = await obtenerImagenBase64({ storageUrl: fotoHA.url });
-  if (img) imagenesCache.set(fotoHA.url, img);
-  return img;
-}
-
-async function precargarImagenesCamiones(camiones, fotosHA = []) {
-  const cache = new Map();
-  for (const f of fotosHA.filter(f => f.incluida && f.url && !f.dataUrlRecortado)) {
-    if (!cache.has(f.url)) cache.set(f.url, await obtenerImagenBase64({ storageUrl: f.url }));
-  }
-  for (const camion of camiones) {
-    const urls = [camion.fotoGuiaUrl, ...(camion.fotosEnsayoUrls ?? [])].filter(Boolean);
-    for (const url of urls) {
-      if (cache.has(url)) continue;
-      cache.set(url, await obtenerImagenBase64({ storageUrl: url }));
-    }
-  }
-  return cache;
-}
-
-function hasPhotosHA(camion) {
-  return !!camion.fotoGuiaUrl || (camion.fotosEnsayoUrls?.length ?? 0) > 0;
-}
-
 function agregarEnsayoPesoUnitario(doc, camion, y, escala) {
   const GRIS = [220, 220, 220];
 
@@ -797,9 +768,11 @@ function agregarEnsayoPesoUnitario(doc, camion, y, escala) {
   return doc.lastAutoTable.finalY + 3;
 }
 
-async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPaginas, logoB64, imagenesCache) {
+async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPaginas, logoB64) {
   const escala = ESCALA_NORMAL;
-  const datos = protocolo.datos ?? {};
+  const datosProtocolo = protocolo.datos ?? {};
+  const fotosExcluidas = datosProtocolo.fotosExcluidas ?? [];
+  const fotosRecortadas = datosProtocolo.fotosRecortadas ?? {};
   let pagina = 1;
 
   if (camiones.length === 0) {
@@ -816,7 +789,6 @@ async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, tot
   const LW2 = 38;
   const VW2 = CW / 2 - LW2;
   const labelStyle = { fontStyle: 'bold', fillColor: [240, 240, 240] };
-  const GAP = 4;
 
   for (let i = 0; i < camiones.length; i++) {
     const camion = camiones[i];
@@ -855,91 +827,31 @@ async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, tot
 
     agregarPieFirma(doc, pieFirmaY(y), 'Álvaro Muñoz');
 
-    // ── Página B: fotos 3:4 (usa fotosHA del protocolo si existen, sino urls del camion) ──
-    const fotosHAIncluidas = (datos.fotosHA ?? []).filter(f => f.incluida);
-    const usarFotosHA = fotosHAIncluidas.length > 0;
-    const fotoGuiaHA = usarFotosHA ? fotosHAIncluidas.find(f => f.tipo === 'guia') : null;
-    const fotosEnsayoHA = usarFotosHA ? fotosHAIncluidas.filter(f => f.tipo === 'ensayo') : [];
+    // ── Página B: fotos (usa agregarPaginaFotos con exclusiones/recortes del protocolo) ──
+    const fotosParaPDF = [];
 
-    const tieneFotos = usarFotosHA
-      ? fotosHAIncluidas.length > 0
-      : hasPhotosHA(camion);
+    if (camion.fotoGuiaUrl && !fotosExcluidas.includes(camion.fotoGuiaUrl)) {
+      fotosParaPDF.push({
+        storageUrl: camion.fotoGuiaUrl,
+        dataUrlRecortado: fotosRecortadas[camion.fotoGuiaUrl] ?? null,
+        descripcion: 'Guia de despacho',
+      });
+    }
 
-    if (tieneFotos) {
+    for (const url of (camion.fotosEnsayoUrls ?? [])) {
+      if (!fotosExcluidas.includes(url)) {
+        fotosParaPDF.push({
+          storageUrl: url,
+          dataUrlRecortado: fotosRecortadas[url] ?? null,
+          descripcion: 'Foto del ensayo',
+        });
+      }
+    }
+
+    if (fotosParaPDF.length > 0) {
       doc.addPage();
       pagina++;
-      y = agregarEncabezado(doc, protocolo, pagina, totalPaginas, kmInicio, kmFin, logoB64);
-
-      const FOTO_W = CW / 2;
-      const FOTO_H = FOTO_W * (4 / 3);
-      const fotosEnsayoLegacy = usarFotosHA ? [] : (camion.fotosEnsayoUrls ?? []);
-      const numFilasEnsayo = usarFotosHA
-        ? Math.ceil(fotosEnsayoHA.length / 2)
-        : Math.ceil(fotosEnsayoLegacy.length / 2);
-      const alturaTotal = FOTO_H + GAP + numFilasEnsayo * (FOTO_H + GAP) + PIE_FIRMA_H + PIE_FIRMA_GAP;
-
-      if (y + alturaTotal > PH) {
-        doc.addPage();
-        pagina++;
-        y = agregarEncabezado(doc, protocolo, pagina, totalPaginas, kmInicio, kmFin, logoB64);
-      }
-
-      // Fila 1: foto guía en columna izquierda
-      if (usarFotosHA) {
-        if (fotoGuiaHA) {
-          const img = await resolverFotoHA(fotoGuiaHA, imagenesCache);
-          if (img) {
-            try {
-              doc.addImage(img.dataUrl, img.formato, ML, y, FOTO_W, FOTO_H);
-              doc.setDrawColor(120, 120, 120); doc.setLineWidth(0.2);
-              doc.rect(ML, y, FOTO_W, FOTO_H);
-            } catch (err) { console.warn('[PDF] Error foto guia HA:', err?.message ?? err); }
-          }
-        }
-      } else if (camion.fotoGuiaUrl) {
-        const img = imagenesCache.get(camion.fotoGuiaUrl);
-        if (img) {
-          try {
-            doc.addImage(img.dataUrl, img.formato, ML, y, FOTO_W, FOTO_H);
-            doc.setDrawColor(120, 120, 120); doc.setLineWidth(0.2);
-            doc.rect(ML, y, FOTO_W, FOTO_H);
-          } catch (err) { console.warn('[PDF] Error foto guia HA:', err?.message ?? err); }
-        }
-      }
-      y += FOTO_H + GAP;
-
-      // Filas siguientes: ensayo en grid 2 columnas
-      if (usarFotosHA) {
-        for (let ei = 0; ei < fotosEnsayoHA.length; ei++) {
-          if (ei > 0 && ei % 2 === 0) y += FOTO_H + GAP;
-          const col = ei % 2;
-          const x = ML + col * FOTO_W;
-          const img = await resolverFotoHA(fotosEnsayoHA[ei], imagenesCache);
-          if (img) {
-            try {
-              doc.addImage(img.dataUrl, img.formato, x, y, FOTO_W, FOTO_H);
-              doc.setDrawColor(120, 120, 120); doc.setLineWidth(0.2);
-              doc.rect(x, y, FOTO_W, FOTO_H);
-            } catch (err) { console.warn('[PDF] Error foto ensayo HA:', err?.message ?? err); }
-          }
-        }
-      } else {
-        for (let ei = 0; ei < fotosEnsayoLegacy.length; ei++) {
-          if (ei > 0 && ei % 2 === 0) y += FOTO_H + GAP;
-          const col = ei % 2;
-          const x = ML + col * FOTO_W;
-          const img = imagenesCache.get(fotosEnsayoLegacy[ei]);
-          if (img) {
-            try {
-              doc.addImage(img.dataUrl, img.formato, x, y, FOTO_W, FOTO_H);
-              doc.setDrawColor(120, 120, 120); doc.setLineWidth(0.2);
-              doc.rect(x, y, FOTO_W, FOTO_H);
-            } catch (err) { console.warn('[PDF] Error foto ensayo HA:', err?.message ?? err); }
-          }
-        }
-      }
-
-      agregarPieFirma(doc, PH - 42, 'Álvaro Muñoz');
+      await agregarPaginaFotos(doc, protocolo, fotosParaPDF, pagina, totalPaginas, kmInicio, kmFin, logoB64);
     }
   }
 
@@ -947,16 +859,13 @@ async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, tot
 }
 
 async function generarPDFControlHA(protocolo, camiones, kmInicio, kmFin, logoB64) {
-  const fotosHA = protocolo.datos?.fotosHA ?? [];
-  const imagenesCache = await precargarImagenesCamiones(camiones, fotosHA);
-
   // Primera pasada: contar páginas para "X de Y"
   let doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const totalPaginas = await construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, 1, logoB64, imagenesCache);
+  const totalPaginas = await construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, 1, logoB64);
 
   // Segunda pasada: dibujar con totalPaginas correcto
   doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  await construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPaginas, logoB64, imagenesCache);
+  await construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPaginas, logoB64);
 
   return doc;
 }

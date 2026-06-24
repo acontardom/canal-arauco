@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
@@ -316,7 +316,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [expandidoCamion, setExpandidoCamion] = useState(null);
   const [editandoCamion, setEditandoCamion] = useState(null);
   const [camionSeleccionado, setCamionSeleccionado] = useState('todos');
-  const [fotosHA, setFotosHA] = useState([]);  // { url, dataUrlRecortado, incluida, tipo, label }
+  const [fotosExcluidas, setFotosExcluidas] = useState([]);  // array de URLs excluidas del PDF
+  const [fotosRecortadas, setFotosRecortadas] = useState({});  // { [url]: dataUrlRecortado }
   const [estado, setEstado] = useState('pendiente');
   const [fechaEnvio, setFechaEnvio] = useState(null);
   const [guardando, setGuardando] = useState(false);
@@ -509,16 +510,20 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     return () => { cancelado = true; };
   }, [esHA, tipo, entidadIdReal, protocoloId]);
 
-  // Reconstruir fotosHA cuando cambia el camión seleccionado
-  useEffect(() => {
-    if (!esHA || camionSeleccionado === 'todos') { setFotosHA([]); return; }
+  // Fotos del camión seleccionado, enriquecidas con estado de exclusión y recorte
+  const fotosHA = useMemo(() => {
+    if (!esHA || camionSeleccionado === 'todos') return [];
     const c = camionesRegistrados.find(x => x.key === camionSeleccionado);
-    if (!c) { setFotosHA([]); return; }
-    setFotosHA([
-      ...(c.fotoGuiaUrl ? [{ url: c.fotoGuiaUrl, dataUrlRecortado: null, incluida: true, tipo: 'guia', label: 'Guía de despacho' }] : []),
-      ...(c.fotosEnsayoUrls ?? []).map((url, i) => ({ url, dataUrlRecortado: null, incluida: true, tipo: 'ensayo', label: `Foto ensayo ${i + 1}` })),
-    ]);
-  }, [camionSeleccionado, camionesRegistrados]);
+    if (!c) return [];
+    return [
+      ...(c.fotoGuiaUrl ? [{ url: c.fotoGuiaUrl, tipo: 'guia', label: 'Guía de despacho' }] : []),
+      ...(c.fotosEnsayoUrls ?? []).map((url, i) => ({ url, tipo: 'ensayo', label: `Foto ensayo ${i + 1}` })),
+    ].map(f => ({
+      ...f,
+      incluida: !fotosExcluidas.includes(f.url),
+      dataUrlRecortado: fotosRecortadas[f.url] ?? null,
+    }));
+  }, [esHA, camionSeleccionado, camionesRegistrados, fotosExcluidas, fotosRecortadas]);
 
   useEffect(() => {
     if (!cargando && !cargadoRef.current) {
@@ -540,6 +545,11 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             setCotasObs(d.observacionCotas ?? '');
             setFotoAutocad(d.fotoAutocad ?? null);
             setFotoTabla(d.fotoTabla ?? null);
+          } else if (esHA) {
+            setCamionSeleccionado(d.camionId ?? 'todos');
+            setFotosExcluidas(d.fotosExcluidas ?? []);
+            setFotosRecortadas(d.fotosRecortadas ?? {});
+            setObservaciones(d.observaciones ?? '');
           } else {
             setChecklist(normalizeChecklist(d.checklist, itemsChecklist));
             setObservaciones(d.observaciones ?? '');
@@ -567,6 +577,15 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       }
     }
   }, [cargando, protocolo]);
+
+  // Persistir estado HA en Dexie automáticamente al cambiar
+  useEffect(() => {
+    if (!esHA || !protocolo?.id || !cargadoRef.current) return;
+    db.protocolos.update(protocolo.id, {
+      datos: { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadas, observaciones },
+      sincronizada: false,
+    });
+  }, [camionSeleccionado, fotosExcluidas, fotosRecortadas, observaciones]);
 
   // Si la imagen ya estaba cacheada con CORS, onLoad no re-dispara; inicializar crop manualmente
   useEffect(() => {
@@ -604,6 +623,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     const hoy = fechaHoy();
     const datosIniciales = esCOTAS
       ? { fechaControl: cotasFechaControl, nControl: cotasNControl, instrumentoNS: cotasInstrumento, nombrePR: cotasNombrePR, cotaPR: cotasCotaPR, observacionCotas: cotasObs, fotoAutocad, fotoTabla }
+      : esHA
+      ? { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadas, observaciones }
       : { checklist, observaciones, fotosNubeSeleccionadas };
     return db.protocolos.add({
       tipo, entidad: tipo, entidadId: entidadIdReal, protocoloId,
@@ -872,7 +893,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       setFotoTabla({ dataUrl: croppedUrl });
     } else if (cropModal.tipo?.startsWith('ha-foto-')) {
       const idx = parseInt(cropModal.tipo.replace('ha-foto-', ''), 10);
-      setFotosHA(prev => prev.map((f, i) => i === idx ? { ...f, dataUrlRecortado: croppedUrl } : f));
+      const url = fotosHA[idx]?.url;
+      if (url) setFotosRecortadas(prev => ({ ...prev, [url]: croppedUrl }));
     } else {
       const { foto } = cropModal.meta;
       setFotosNubeSeleccionadas(prev => [
@@ -894,14 +916,14 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     }
   }
 
-  function toggleIncluirFotoHA(idx) {
-    setFotosHA(prev => prev.map((f, i) => i === idx ? { ...f, incluida: !f.incluida } : f));
+  function toggleIncluirFotoHA(url) {
+    setFotosExcluidas(prev => prev.includes(url) ? prev.filter(u => u !== url) : [...prev, url]);
   }
 
   function abrirCropHA(idx) {
     const foto = fotosHA[idx];
     if (!foto) return;
-    const src = foto.dataUrlRecortado || foto.url;
+    const src = fotosRecortadas[foto.url] ?? foto.url;
     abrirCropModal(src, `ha-foto-${idx}`, {});
   }
 
@@ -1083,8 +1105,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       const camionesParaPDF = camionSeleccionado === 'todos'
         ? camionesRegistrados
         : camionesRegistrados.filter(c => c.key === camionSeleccionado);
-      const protocoloParaPDF = (esHA && camionSeleccionado !== 'todos' && fotosHA.length > 0)
-        ? { ...protocolo, datos: { ...(protocolo.datos ?? {}), fotosHA } }
+      const protocoloParaPDF = esHA
+        ? { ...protocolo, datos: { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadas, observaciones } }
         : protocolo;
       const { doc, filename } = await construirDocumentoPDF(protocoloParaPDF, fotosCombinadas, kmInicio, kmFin, camionesParaPDF);
       const url = doc.output('bloburl');
@@ -1358,7 +1380,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
                     <span style={s.cotasSlotLabel}>{foto.label}</span>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: foto.incluida ? '#10b981' : '#8892b0', fontSize: '12px', fontWeight: 600 }}>
-                      <input type="checkbox" checked={foto.incluida} onChange={() => toggleIncluirFotoHA(idx)} style={{ accentColor: '#10b981' }} />
+                      <input type="checkbox" checked={foto.incluida} onChange={() => toggleIncluirFotoHA(foto.url)} style={{ accentColor: '#10b981' }} />
                       Incluir en protocolo
                     </label>
                   </div>
@@ -1370,7 +1392,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                       <div style={s.cotasSlotActions}>
                         <button style={s.btnFoto} onClick={() => abrirCropHA(idx)}>✂️ Recortar</button>
                         {foto.dataUrlRecortado && (
-                          <button style={{ ...s.btnFoto, background: '#1a3a1a' }} onClick={() => setFotosHA(prev => prev.map((f, i) => i === idx ? { ...f, dataUrlRecortado: null } : f))}>↩ Original</button>
+                          <button style={{ ...s.btnFoto, background: '#1a3a1a' }} onClick={() => setFotosRecortadas(prev => { const n = { ...prev }; delete n[foto.url]; return n; })}>↩ Original</button>
                         )}
                       </div>
                     )}
