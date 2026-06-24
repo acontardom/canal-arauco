@@ -5,6 +5,7 @@ import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
 import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
 import { comprimirFoto } from '../utils/comprimirFoto';
+import { leerFechaExif } from '../utils/leerFechaExif';
 import { sincronizar } from '../utils/sync';
 import { supabase } from '../config/supabase';
 import { fechaHoy } from '../utils/fecha';
@@ -71,9 +72,13 @@ export default function SubirFotos() {
     ]);
 
     for (let i = 0; i < files.length; i++) {
+      const fechaExif = await leerFechaExif(files[i]);
+      console.log('[EXIF] Usando fechaCaptura:', fechaExif ?? 'fecha actual (sin EXIF)');
       const dataUrl = await comprimirFoto(files[i]);
       const id = ids[i];
-      setPendientes(prev => prev.map(p => p.id === id ? { ...p, dataUrl, cargando: false } : p));
+      setPendientes(prev => prev.map(p => p.id === id
+        ? { ...p, dataUrl, fechaCaptura: fechaExif ?? new Date().toISOString(), cargando: false }
+        : p));
     }
     e.target.value = '';
   }
@@ -107,7 +112,7 @@ export default function SubirFotos() {
           tipo, entidadId: entidadIdReal,
           etiquetas: foto.etiquetas, descripcion: foto.descripcion,
           dataUrl: foto.dataUrl, storageUrl: null, subidaStorage: false,
-          usuarioNombre: usuario, fechaCaptura: fechaHoy(),
+          usuarioNombre: usuario, fechaCaptura: foto.fechaCaptura ?? new Date().toISOString(),
           sincronizada: false,
         });
       }

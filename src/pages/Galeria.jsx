@@ -378,7 +378,7 @@ export default function Galeria() {
                 />
                 <div className="galeria-overlay">
                   <span>{f.usuarioNombre || 'Sin usuario'}</span>
-                  <span>{formatFechaCorta(f.fechaCaptura)}</span>
+                  <span>{formatFechaCorta(f.fechaCaptura) || 'Sin fecha'}</span>
                   {f.etiquetas.length > 0 && <span>{f.etiquetas.join(', ')}</span>}
                 </div>
               </div>

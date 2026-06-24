@@ -12,6 +12,7 @@ import { sincronizar } from '../utils/sync';
 import { supabase } from '../config/supabase';
 import { fechaHoy, formatearFecha } from '../utils/fecha';
 import { comprimirFoto } from '../utils/comprimirFoto';
+import { leerFechaExif } from '../utils/leerFechaExif';
 import { uploadFoto, eliminarFotoStorage } from '../utils/uploadFoto';
 
 const OPCION_COLOR = { si: '#10b981', no: '#ef4444', na: '#f59e0b' };
@@ -996,6 +997,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     if (files.length === 0) return;
     const [first, ...rest] = files;
     setPendingFiles(rest);
+    const fechaExif = await leerFechaExif(first);
+    console.log('[EXIF] Usando fechaCaptura:', fechaExif ?? 'fecha actual (sin EXIF)');
     const dataUrl = await comprimirFoto(first);
     abrirCropModal(dataUrl, 'nueva', { file: first });
   }

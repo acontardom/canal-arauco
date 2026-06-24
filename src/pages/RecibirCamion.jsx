@@ -4,6 +4,7 @@ import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
 import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
 import { comprimirFoto } from '../utils/comprimirFoto';
+import { leerFechaExif } from '../utils/leerFechaExif';
 import { uploadFoto } from '../utils/uploadFoto';
 import { sincronizar } from '../utils/sync';
 import { supabase } from '../config/supabase';
@@ -194,6 +195,8 @@ export default function RecibirCamion() {
     const file = e.target.files?.[0];
     if (!file) return;
     setForm(prev => ({ ...prev, fotoGuia: { cargando: true, dataUrl: null, url: null } }));
+    const fechaExif = await leerFechaExif(file);
+    console.log('[EXIF] Usando fechaCaptura:', fechaExif ?? 'fecha actual (sin EXIF)');
     const dataUrl = await comprimirFoto(file);
     let url = null;
     if (supabase && navigator.onLine) {
@@ -227,6 +230,8 @@ export default function RecibirCamion() {
     }));
 
     for (let i = 0; i < files.length; i++) {
+      const fechaExif = await leerFechaExif(files[i]);
+      console.log('[EXIF] Usando fechaCaptura:', fechaExif ?? 'fecha actual (sin EXIF)');
       const dataUrl = await comprimirFoto(files[i]);
       let url = null;
       if (supabase && navigator.onLine) {
