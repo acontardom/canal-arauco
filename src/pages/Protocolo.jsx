@@ -1318,6 +1318,28 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         </>
       )}
 
+      {/* Subsección HA: fotos del camión seleccionado (solo lectura) */}
+      {esHA && camionSeleccionado !== 'todos' && (() => {
+        const c = camionesRegistrados.find(x => x.key === camionSeleccionado);
+        const fotosHA = [
+          ...(c?.fotoGuiaUrl ? [{ id: 'ha-guia', storageUrl: c.fotoGuiaUrl, descripcion: 'Guía de despacho' }] : []),
+          ...(c?.fotosEnsayoUrls ?? []).map((url, i) => ({ id: `ha-ensayo-${i}`, storageUrl: url, descripcion: `Ensayo ${i + 1}` })),
+        ];
+        if (fotosHA.length === 0) return <p key="ha-sin-fotos" style={s.sinFotos}>Sin fotos registradas para este camión.</p>;
+        return (
+          <div key="ha-fotos" style={s.fotosGrid}>
+            {fotosHA.map(foto => (
+              <div key={foto.id} style={s.fotoCard}>
+                <div style={{ ...s.fotoThumb, aspectRatio: '3/4' }}>
+                  <img src={foto.storageUrl} alt={foto.descripcion} style={s.fotoImg} />
+                </div>
+                <input readOnly style={s.fotoDescInput} value={foto.descripcion} onChange={() => {}} />
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       {/* Subsección 2: agregar nueva foto — oculto para COTAS y HA */}
       {!readOnly && !esCOTAS && !esHA && (
         <>

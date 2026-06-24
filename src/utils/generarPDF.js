@@ -735,7 +735,7 @@ function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPagi
   const LW2 = 38;
   const VW2 = CW / 2 - LW2;
   const labelStyle = { fontStyle: 'bold', fillColor: [240, 240, 240] };
-  const GAP = 3;
+  const GAP = 4;
 
   for (let i = 0; i < camiones.length; i++) {
     const camion = camiones[i];
@@ -809,112 +809,57 @@ function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPagi
       }
     }
 
-    // Tabla ensayo peso unitario
-    const bodyEnsayo = [
-      filaLabelValor('Peso hoya (kg)', '6,9'),
-      filaLabelValor('Peso hoya + hormigón (kg)', camion.pesoHoyaHormigon),
-      filaLabelValor('PU calculado (kg/m³)', camion.puCalculado ? `${camion.puCalculado} kg/m³` : '—', { fontStyle: 'bold', fontSize: escala.fontSize + 1.5 }),
-    ];
-    if (camion.observaciones) {
-      bodyEnsayo.push([
-        { content: 'Observaciones', styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
-        { content: camion.observaciones },
-      ]);
-    }
-
-    autoTable(doc, {
-      startY: y,
-      margin: { left: ML, right: MR, ...CONTENT_MARGIN },
-      tableWidth: CW,
-      head: [[{ content: 'ENSAYO DE PESO UNITARIO', colSpan: 2, styles: { fillColor: [189, 195, 199], textColor: [30, 30, 30], fontStyle: 'bold', halign: 'center', fontSize: escala.headFontSize } }]],
-      body: bodyEnsayo,
-      columnStyles: { 0: { cellWidth: ANCHO_LABEL_HA }, 1: { cellWidth: CW - ANCHO_LABEL_HA } },
-      styles: { fontSize: escala.fontSize, cellPadding: escala.cellPadding, lineColor: [120, 120, 120], lineWidth: 0.2, textColor: [30, 30, 30] },
-      theme: 'grid',
-      pageBreak: 'avoid',
-    });
-
-    y = doc.lastAutoTable.finalY;
     agregarPieFirma(doc, pieFirmaY(y), 'Álvaro Muñoz');
 
-    // ── Página B: fotos (solo si existen) ───────────────────────────────────
+    // ── Página B: fotos 3:4 (solo si existen) ───────────────────────────────
     if (hasPhotosHA(camion)) {
       doc.addPage();
       pagina++;
       y = agregarEncabezado(doc, protocolo, pagina, totalPaginas, kmInicio, kmFin, logoB64);
 
-      const MAX_GUIA_H = 80;
-      const MAX_ENSAYO_H = 65;
-      const ENSAYO_W = (CW - GAP) / 2;
+      const FOTO_W = CW / 2;
+      const FOTO_H = FOTO_W * (4 / 3);
+      const fotosEnsayo = camion.fotosEnsayoUrls ?? [];
+      const numFilasEnsayo = Math.ceil(fotosEnsayo.length / 2);
+      const alturaTotal = FOTO_H + GAP + numFilasEnsayo * (FOTO_H + GAP) + PIE_FIRMA_H + PIE_FIRMA_GAP;
 
-      // Foto guía — ancho completo, altura proporcional
+      if (y + alturaTotal > PH) {
+        doc.addPage();
+        pagina++;
+        y = agregarEncabezado(doc, protocolo, pagina, totalPaginas, kmInicio, kmFin, logoB64);
+      }
+
+      // Fila 1: guía en columna izquierda, columna derecha vacía
       if (camion.fotoGuiaUrl) {
-        doc.setFont(undefined, 'bold');
-        doc.setFontSize(9);
-        doc.setTextColor(30, 30, 30);
-        doc.text('Guía de despacho', ML, y + 4);
-        y += 7;
         const img = imagenesCache.get(camion.fotoGuiaUrl);
         if (img) {
           try {
-            const props = doc.getImageProperties(img.dataUrl);
-            const h = Math.min(MAX_GUIA_H, CW / (props.width / props.height));
-            doc.addImage(img.dataUrl, img.formato, ML, y, CW, h);
+            doc.addImage(img.dataUrl, img.formato, ML, y, FOTO_W, FOTO_H);
             doc.setDrawColor(120, 120, 120);
             doc.setLineWidth(0.2);
-            doc.rect(ML, y, CW, h);
-            y += h + GAP;
+            doc.rect(ML, y, FOTO_W, FOTO_H);
           } catch (err) { console.warn('[PDF] Error foto guía HA:', err?.message ?? err); }
         }
       }
+      y += FOTO_H + GAP;
 
-      // Fotos ensayo — grilla 2 columnas, proporciones naturales
-      const fotosEnsayo = camion.fotosEnsayoUrls ?? [];
-      if (fotosEnsayo.length > 0) {
-        doc.setFont(undefined, 'bold');
-        doc.setFontSize(9);
-        doc.setTextColor(30, 30, 30);
-        doc.text('Fotos del ensayo', ML, y + 4);
-        y += 7;
-
-        // Pre-calcular altura máxima de cada fila para dibujo correcto
-        const rowMaxH = [];
-        for (let ri = 0; ri < fotosEnsayo.length; ri += 2) {
-          let rh = 0;
-          for (let rj = ri; rj < Math.min(ri + 2, fotosEnsayo.length); rj++) {
-            const img = imagenesCache.get(fotosEnsayo[rj]);
-            if (img) {
-              try {
-                const props = doc.getImageProperties(img.dataUrl);
-                rh = Math.max(rh, Math.min(MAX_ENSAYO_H, ENSAYO_W / (props.width / props.height)));
-              } catch { rh = Math.max(rh, MAX_ENSAYO_H); }
-            }
-          }
-          rowMaxH.push(rh || MAX_ENSAYO_H);
-        }
-
-        let rowIdx = 0;
-        for (let ei = 0; ei < fotosEnsayo.length; ei++) {
-          const col = ei % 2;
-          if (col === 0 && ei > 0) { y += rowMaxH[rowIdx++] + GAP; }
-          const img = imagenesCache.get(fotosEnsayo[ei]);
-          if (img) {
-            try {
-              const props = doc.getImageProperties(img.dataUrl);
-              const h = Math.min(MAX_ENSAYO_H, ENSAYO_W / (props.width / props.height));
-              const x = ML + col * (ENSAYO_W + GAP);
-              doc.addImage(img.dataUrl, img.formato, x, y, ENSAYO_W, h);
-              doc.setDrawColor(120, 120, 120);
-              doc.setLineWidth(0.2);
-              doc.rect(x, y, ENSAYO_W, h);
-            } catch (err) { console.warn('[PDF] Error foto ensayo HA:', err?.message ?? err); }
-          }
-          if (ei === fotosEnsayo.length - 1) { y += rowMaxH[rowIdx]; }
+      // Filas siguientes: ensayo en grid 2 columnas, FOTO_W × FOTO_H
+      for (let ei = 0; ei < fotosEnsayo.length; ei++) {
+        if (ei > 0 && ei % 2 === 0) y += FOTO_H + GAP;
+        const col = ei % 2;
+        const x = ML + col * FOTO_W;
+        const img = imagenesCache.get(fotosEnsayo[ei]);
+        if (img) {
+          try {
+            doc.addImage(img.dataUrl, img.formato, x, y, FOTO_W, FOTO_H);
+            doc.setDrawColor(120, 120, 120);
+            doc.setLineWidth(0.2);
+            doc.rect(x, y, FOTO_W, FOTO_H);
+          } catch (err) { console.warn('[PDF] Error foto ensayo HA:', err?.message ?? err); }
         }
       }
 
-      doc.setFont(undefined, 'normal');
-      agregarPieFirma(doc, pieFirmaY(y + GAP), 'Álvaro Muñoz');
+      agregarPieFirma(doc, PH - 42, 'Álvaro Muñoz');
     }
   }
 
