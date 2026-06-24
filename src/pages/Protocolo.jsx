@@ -710,15 +710,17 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   async function marcarListoParaRevision() {
     if (!protocolo?.id) return;
     const nuevoToken = crypto.randomUUID();
-    await db.protocolos.update(protocolo.id, { estado: 'listo', firmaToken: nuevoToken, sincronizada: false });
-    setEstado('listo');
+    await db.protocolos.update(protocolo.id, { estado: 'enviado_ito', firmaToken: nuevoToken, sincronizada: false });
+    setEstado('enviado_ito');
     if (supabase && protocolo.supabaseId) {
       await supabase
         .from('protocolos')
-        .update({ estado: 'listo', firma_token: nuevoToken, observacion_ito: null })
+        .update({ estado: 'enviado_ito', firma_token: nuevoToken, observacion_ito: null })
         .eq('id', protocolo.supabaseId);
     }
-    mostrarToast('✓ Listo para revisión');
+    const link = `${window.location.origin}/firma/${nuevoToken}`;
+    await navigator.clipboard.writeText(link).catch(() => {});
+    alert(`Protocolo reenviado al ITO.\nNuevo link copiado al portapapeles:\n${link}`);
   }
 
   async function guardarEdp(valor) {
