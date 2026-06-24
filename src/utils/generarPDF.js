@@ -848,10 +848,12 @@ async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, tot
       }
     }
 
-    if (fotosParaPDF.length > 0) {
+    const FOTOS_POR_PAGINA_HA = 2;
+    for (let fi = 0; fi < fotosParaPDF.length; fi += FOTOS_POR_PAGINA_HA) {
+      const batch = fotosParaPDF.slice(fi, fi + FOTOS_POR_PAGINA_HA);
       doc.addPage();
       pagina++;
-      await agregarPaginaFotos(doc, protocolo, fotosParaPDF, pagina, totalPaginas, kmInicio, kmFin, logoB64);
+      await agregarPaginaFotos(doc, protocolo, batch, pagina, totalPaginas, kmInicio, kmFin, logoB64);
     }
   }
 
