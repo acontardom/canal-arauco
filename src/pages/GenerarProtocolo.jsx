@@ -29,27 +29,30 @@ export default function GenerarProtocolo() {
   useEffect(() => {
     if (!protocoloLocal?.supabaseId || !supabase) return;
 
-    supabase
-      .from('protocolos')
-      .select('estado, observacion_ito, firma_token, firma_imagen_url, firma_fecha, pdf_firmado_url')
-      .eq('id', protocoloLocal.supabaseId)
-      .single()
-      .then(async ({ data }) => {
-        if (!data) return;
-        if (data.estado === protocoloLocal.estado) return;
+    const sincronizarEstado = async () => {
+      const { data } = await supabase
+        .from('protocolos')
+        .select('estado, observacion_ito, firma_token, firma_imagen_url, firma_fecha, pdf_firmado_url')
+        .eq('id', protocoloLocal.supabaseId)
+        .single();
 
-        await db.protocolos.update(protocoloLocal.id, {
-          estado:         data.estado,
-          observacionIto: data.observacion_ito   ?? null,
-          firmaToken:     data.firma_token        ?? null,
-          firmaImagenUrl: data.firma_imagen_url   ?? null,
-          firmaFecha:     data.firma_fecha         ?? null,
-          pdfFirmadoUrl:  data.pdf_firmado_url    ?? null,
-          sincronizada:   true,
-        });
+      if (!data) return;
+      if (data.estado === protocoloLocal.estado) return;
 
-        window.location.reload();
+      await db.protocolos.update(protocoloLocal.id, {
+        estado:         data.estado,
+        observacionIto: data.observacion_ito  ?? null,
+        firmaToken:     data.firma_token       ?? null,
+        firmaImagenUrl: data.firma_imagen_url  ?? null,
+        firmaFecha:     data.firma_fecha        ?? null,
+        pdfFirmadoUrl:  data.pdf_firmado_url   ?? null,
+        sincronizada:   true,
       });
+
+      window.location.reload();
+    };
+
+    sincronizarEstado();
   }, [protocoloLocal?.supabaseId]);
 
   function handleTipoChange(nuevoTipo) {
