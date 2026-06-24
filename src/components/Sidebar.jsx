@@ -1,6 +1,8 @@
-import { NavLink } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import UsuarioSelector from './UsuarioSelector';
 import SyncBadge from './SyncBadge';
+import { useAuth } from '../hooks/useAuth';
 
 const SECCIONES = [
   {
@@ -56,6 +58,22 @@ function Item({ to, label, icono, end }) {
 }
 
 export default function Sidebar() {
+  const { session, usuario, signOut, cambiarContrasena } = useAuth();
+  const navigate = useNavigate();
+  const [cambioPass, setCambioPass]   = useState(false);
+  const [nuevaClave, setNuevaClave]   = useState('');
+  const [passMsg, setPassMsg]         = useState('');
+  const [guardandoPass, setGuardandoPass] = useState(false);
+
+  async function handleCambiarPass() {
+    if (!nuevaClave || nuevaClave.length < 6) { setPassMsg('Mínimo 6 caracteres'); return; }
+    setGuardandoPass(true);
+    const err = await cambiarContrasena(nuevaClave);
+    setGuardandoPass(false);
+    if (err) { setPassMsg('Error al cambiar contraseña'); }
+    else { setPassMsg('Contraseña actualizada'); setNuevaClave(''); setTimeout(() => { setCambioPass(false); setPassMsg(''); }, 1500); }
+  }
+
   return (
     <nav className="sidebar" style={s.nav}>
       <NavLink to="/" style={s.titulo}>Canal Arauco</NavLink>
@@ -74,6 +92,38 @@ export default function Sidebar() {
       <div style={s.footer}>
         <UsuarioSelector nombreStyle={s.usuarioNombre} />
         <SyncBadge />
+
+        <div style={s.authSep} />
+
+        {session ? (
+          <div style={s.authSection}>
+            <div style={s.authEmail}>{usuario?.nombre ?? session.user.email}</div>
+            <button style={s.btnAuthSm} onClick={() => { setCambioPass(v => !v); setPassMsg(''); setNuevaClave(''); }}>
+              {cambioPass ? 'Cancelar' : 'Cambiar contraseña'}
+            </button>
+            {cambioPass && (
+              <div style={s.passForm}>
+                <input
+                  type="password"
+                  placeholder="Nueva contraseña"
+                  style={s.passInput}
+                  value={nuevaClave}
+                  onChange={e => setNuevaClave(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleCambiarPass()}
+                />
+                {passMsg && <span style={passMsg.includes('Error') ? s.passError : s.passOk}>{passMsg}</span>}
+                <button style={s.btnGuardarPass} onClick={handleCambiarPass} disabled={guardandoPass}>
+                  {guardandoPass ? 'Guardando...' : 'Guardar'}
+                </button>
+              </div>
+            )}
+            <button style={s.btnCerrarSesion} onClick={signOut}>Cerrar sesión</button>
+          </div>
+        ) : (
+          <button style={s.btnIniciarSesion} onClick={() => navigate('/login')}>
+            Iniciar sesión
+          </button>
+        )}
       </div>
     </nav>
   );
@@ -149,5 +199,42 @@ const s = {
   },
   usuarioNombre: {
     maxWidth: 'none',
+  },
+
+  authSep: { height: '1px', background: '#0f3460', margin: '4px 0' },
+
+  authSection: { display: 'flex', flexDirection: 'column', gap: '6px' },
+  authEmail: { color: '#64ffda', fontSize: '11px', fontWeight: 700, padding: '0 2px', wordBreak: 'break-all' },
+
+  btnAuthSm: {
+    background: 'transparent', border: '1px solid #1e3a5f', borderRadius: '6px',
+    color: '#8892b0', fontSize: '11px', fontWeight: 600, padding: '5px 10px',
+    cursor: 'pointer', textAlign: 'left',
+  },
+
+  passForm: { display: 'flex', flexDirection: 'column', gap: '5px' },
+  passInput: {
+    background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '6px',
+    color: '#ccd6f6', fontSize: '12px', padding: '7px 10px',
+    fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box',
+  },
+  passOk:    { color: '#10b981', fontSize: '11px', fontWeight: 600 },
+  passError: { color: '#f87171', fontSize: '11px', fontWeight: 600 },
+  btnGuardarPass: {
+    background: 'rgba(100,255,218,0.1)', border: '1px solid #64ffda',
+    borderRadius: '6px', color: '#64ffda', fontSize: '11px', fontWeight: 700,
+    padding: '6px', cursor: 'pointer',
+  },
+
+  btnCerrarSesion: {
+    background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+    borderRadius: '6px', color: '#f87171', fontSize: '11px', fontWeight: 700,
+    padding: '7px 10px', cursor: 'pointer',
+  },
+
+  btnIniciarSesion: {
+    background: 'rgba(100,255,218,0.08)', border: '1px solid rgba(100,255,218,0.3)',
+    borderRadius: '8px', color: '#64ffda', fontSize: '12px', fontWeight: 700,
+    padding: '9px 14px', cursor: 'pointer', width: '100%',
   },
 };

@@ -25,6 +25,8 @@ import CaidaDetalle from './pages/CaidaDetalle';
 import Atraviesos from './pages/Atraviesos';
 import AtraviesoDetalle from './pages/AtraviesoDetalle';
 import Cubicaciones from './pages/Cubicaciones';
+import Login from './pages/Login';
+import PortalITO from './pages/PortalITO';
 import Protocolo from './pages/Protocolo';
 import GenerarProtocolo from './pages/GenerarProtocolo';
 import Configuracion from './pages/Configuracion';
@@ -135,6 +137,8 @@ export default function App() {
             <Route path="/configuracion" element={<Configuracion />} />
             <Route path="/vista-canal" element={<VistaCanal />} />
             <Route path="/cubicaciones" element={<Cubicaciones />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/ito" element={<PortalITO />} />
           </Routes>
         </Layout>
       </UserProvider>
