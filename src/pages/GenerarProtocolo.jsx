@@ -15,9 +15,11 @@ export default function GenerarProtocolo() {
   const [entidadId, setEntidadId] = useState(String(TRAMOS[0]));
   const [protocoloId, setProtocoloId] = useState('');
   const [protocoloLocal, setProtocoloLocal] = useState(null);
+  const [estadoReal, setEstadoReal]         = useState(null);
+  const [observacionReal, setObservacionReal] = useState(null);
 
   useEffect(() => {
-    if (!protocoloId) { setProtocoloLocal(null); return; }
+    if (!protocoloId) { setProtocoloLocal(null); setEstadoReal(null); setObservacionReal(null); return; }
     const entidadIdReal = tipo === 'caida' ? Number(entidadId) : entidadId;
     db.protocolos
       .where('entidadId').equals(entidadIdReal)
@@ -29,31 +31,33 @@ export default function GenerarProtocolo() {
   useEffect(() => {
     if (!protocoloLocal?.supabaseId || !supabase) return;
 
-    const sincronizarEstado = async () => {
-      const { data } = await supabase
-        .from('protocolos')
-        .select('estado, observacion_ito, firma_token, firma_imagen_url, firma_fecha, pdf_firmado_url')
-        .eq('id', protocoloLocal.supabaseId)
-        .single();
+    supabase
+      .from('protocolos')
+      .select('estado, observacion_ito, firma_token, firma_imagen_url, firma_fecha, pdf_firmado_url')
+      .eq('id', protocoloLocal.supabaseId)
+      .single()
+      .then(async ({ data }) => {
+        if (!data) return;
 
-      if (!data) return;
-      if (data.estado === protocoloLocal.estado) return;
+        setEstadoReal(data.estado);
+        setObservacionReal(data.observacion_ito ?? null);
 
-      await db.protocolos.update(protocoloLocal.id, {
-        estado:         data.estado,
-        observacionIto: data.observacion_ito  ?? null,
-        firmaToken:     data.firma_token       ?? null,
-        firmaImagenUrl: data.firma_imagen_url  ?? null,
-        firmaFecha:     data.firma_fecha        ?? null,
-        pdfFirmadoUrl:  data.pdf_firmado_url   ?? null,
-        sincronizada:   true,
+        if (data.estado !== protocoloLocal.estado) {
+          await db.protocolos.update(protocoloLocal.id, {
+            estado:         data.estado,
+            observacionIto: data.observacion_ito  ?? null,
+            firmaToken:     data.firma_token       ?? null,
+            firmaImagenUrl: data.firma_imagen_url  ?? null,
+            firmaFecha:     data.firma_fecha        ?? null,
+            pdfFirmadoUrl:  data.pdf_firmado_url   ?? null,
+            sincronizada:   true,
+          });
+        }
       });
-
-      window.location.reload();
-    };
-
-    sincronizarEstado();
   }, [protocoloLocal?.supabaseId]);
+
+  const estadoActual     = estadoReal     ?? protocoloLocal?.estado;
+  const observacionActual = observacionReal ?? protocoloLocal?.observacionIto;
 
   function handleTipoChange(nuevoTipo) {
     setTipo(nuevoTipo);
