@@ -24,6 +24,7 @@ import Caidas from './pages/Caidas';
 import CaidaDetalle from './pages/CaidaDetalle';
 import Atraviesos from './pages/Atraviesos';
 import AtraviesoDetalle from './pages/AtraviesoDetalle';
+import Cubicaciones from './pages/Cubicaciones';
 import Protocolo from './pages/Protocolo';
 import GenerarProtocolo from './pages/GenerarProtocolo';
 import Configuracion from './pages/Configuracion';
@@ -133,6 +134,7 @@ export default function App() {
             <Route path="/generar-protocolo" element={<GenerarProtocolo />} />
             <Route path="/configuracion" element={<Configuracion />} />
             <Route path="/vista-canal" element={<VistaCanal />} />
+            <Route path="/cubicaciones" element={<Cubicaciones />} />
           </Routes>
         </Layout>
       </UserProvider>

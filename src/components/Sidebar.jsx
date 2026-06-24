@@ -29,6 +29,12 @@ const SECCIONES = [
     ],
   },
   {
+    titulo: 'Herramientas',
+    items: [
+      { to: '/cubicaciones', label: 'Cubicaciones', icono: '🧮' },
+    ],
+  },
+  {
     titulo: 'Acciones',
     items: [
       { to: '/generar-protocolo', label: 'Generar Protocolo', icono: '📋' },
