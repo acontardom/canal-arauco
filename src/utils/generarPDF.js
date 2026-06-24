@@ -679,8 +679,21 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
 
 // ─── Control H.A. (Radier / Muro) — 2 páginas por camión ─────────────────────
 
-async function precargarImagenesCamiones(camiones) {
+async function resolverFotoHA(fotoHA, imagenesCache) {
+  if (fotoHA.dataUrlRecortado?.startsWith('data:')) {
+    return { dataUrl: fotoHA.dataUrlRecortado, formato: detectFormat(fotoHA.dataUrlRecortado) };
+  }
+  if (imagenesCache.has(fotoHA.url)) return imagenesCache.get(fotoHA.url);
+  const img = await obtenerImagenBase64({ storageUrl: fotoHA.url });
+  if (img) imagenesCache.set(fotoHA.url, img);
+  return img;
+}
+
+async function precargarImagenesCamiones(camiones, fotosHA = []) {
   const cache = new Map();
+  for (const f of fotosHA.filter(f => f.incluida && f.url && !f.dataUrlRecortado)) {
+    if (!cache.has(f.url)) cache.set(f.url, await obtenerImagenBase64({ storageUrl: f.url }));
+  }
   for (const camion of camiones) {
     const urls = [camion.fotoGuiaUrl, ...(camion.fotosEnsayoUrls ?? [])].filter(Boolean);
     for (const url of urls) {
@@ -708,9 +721,9 @@ function agregarEnsayoPesoUnitario(doc, camion, y, escala) {
       styles: { fillColor: GRIS, fontStyle: 'bold', halign: 'center', textColor: [30, 30, 30] },
     }]],
     body: [[
-      'Probeta 10 lt\nDiámetro = 26,4 cm\nAltura = 18,5 cm\nV = π(13,2)²(18,5) = 0,0101 m³\nPeso probeta vacía = 6,9 kg',
-      'Fórmula – Ensayo de Peso Unitario\n1.- Peso del hormigón\nW = W₂ – W₁\nDonde:\n• W = peso del hormigón\n• W₁ = peso recipiente vacío\n• W₂ = peso recipiente lleno',
-      '2.- Peso unitario del hormigón\nPU = W / V\nDonde:\n• PU = peso unitario (kg/m³)\n• W = peso neto hormigón (kg)\n• V = volumen recipiente (m³)',
+      'Probeta 10 lt\nDiametro = 26,4 cm\nAltura = 18,5 cm\nV = pi(13,2)2(18,5) = 0,0101 m3\nPeso probeta vacia = 6,9 kg',
+      'Formula - Ensayo de Peso Unitario\n1.- Peso del hormigon\nW = W2 - W1\nDonde:\n- W = peso del hormigon\n- W1 = peso recipiente vacio\n- W2 = peso recipiente lleno',
+      '2.- Peso unitario del hormigon\nPU = W / V\nDonde:\n- PU = peso unitario (kg/m3)\n- W = peso neto hormigon (kg)\n- V = volumen recipiente (m3)',
     ]],
     columnStyles: {
       0: { cellWidth: CW * 0.33 },
@@ -741,12 +754,12 @@ function agregarEnsayoPesoUnitario(doc, camion, y, escala) {
     }]],
     body: [
       [
-        { content: `W :   ${pesoHoyaHormigon || '—'}  –  ${pesoHoya}  =`, styles: { halign: 'right' } },
+        { content: `W :   ${pesoHoyaHormigon || '-'}  -  ${pesoHoya}  =`, styles: { halign: 'right' } },
         { content: `${W} kg`, styles: { fontStyle: 'bold', halign: 'left' } },
       ],
       [
-        { content: `PU :   ${W}  ÷  0,01010  =`, styles: { halign: 'right' } },
-        { content: `${PU} kg/m³`, styles: { fontStyle: 'bold', halign: 'left' } },
+        { content: `PU :   ${W}  /  0,01010  =`, styles: { halign: 'right' } },
+        { content: `${PU} kg/m3`, styles: { fontStyle: 'bold', halign: 'left' } },
       ],
     ],
     columnStyles: {
@@ -767,9 +780,9 @@ function agregarEnsayoPesoUnitario(doc, camion, y, escala) {
     margin: { left: ML, right: MR },
     tableWidth: CW,
     body: [[
-      '• < 2200 kg/m³: Posible exceso de agua o aire incorporado; puede afectar resistencia.\n' +
-      '• 2200 – 2400 kg/m³: Rango normal para hormigón convencional.\n' +
-      '• > 2400 kg/m³: Posible exceso de árido grueso y menor trabajabilidad.',
+      '- < 2200 kg/m3: Posible exceso de agua o aire incorporado; puede afectar resistencia.\n' +
+      '- 2200 - 2400 kg/m3: Rango normal para hormigon convencional.\n' +
+      '- > 2400 kg/m3: Posible exceso de arido grueso y menor trabajabilidad.',
     ]],
     columnStyles: { 0: { cellWidth: CW } },
     styles: {
@@ -784,8 +797,9 @@ function agregarEnsayoPesoUnitario(doc, camion, y, escala) {
   return doc.lastAutoTable.finalY + 3;
 }
 
-function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPaginas, logoB64, imagenesCache) {
+async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPaginas, logoB64, imagenesCache) {
   const escala = ESCALA_NORMAL;
+  const datos = protocolo.datos ?? {};
   let pagina = 1;
 
   if (camiones.length === 0) {
@@ -841,16 +855,27 @@ function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPagi
 
     agregarPieFirma(doc, pieFirmaY(y), 'Álvaro Muñoz');
 
-    // ── Página B: fotos 3:4 (solo si existen) ───────────────────────────────
-    if (hasPhotosHA(camion)) {
+    // ── Página B: fotos 3:4 (usa fotosHA del protocolo si existen, sino urls del camion) ──
+    const fotosHAIncluidas = (datos.fotosHA ?? []).filter(f => f.incluida);
+    const usarFotosHA = fotosHAIncluidas.length > 0;
+    const fotoGuiaHA = usarFotosHA ? fotosHAIncluidas.find(f => f.tipo === 'guia') : null;
+    const fotosEnsayoHA = usarFotosHA ? fotosHAIncluidas.filter(f => f.tipo === 'ensayo') : [];
+
+    const tieneFotos = usarFotosHA
+      ? fotosHAIncluidas.length > 0
+      : hasPhotosHA(camion);
+
+    if (tieneFotos) {
       doc.addPage();
       pagina++;
       y = agregarEncabezado(doc, protocolo, pagina, totalPaginas, kmInicio, kmFin, logoB64);
 
       const FOTO_W = CW / 2;
       const FOTO_H = FOTO_W * (4 / 3);
-      const fotosEnsayo = camion.fotosEnsayoUrls ?? [];
-      const numFilasEnsayo = Math.ceil(fotosEnsayo.length / 2);
+      const fotosEnsayoLegacy = usarFotosHA ? [] : (camion.fotosEnsayoUrls ?? []);
+      const numFilasEnsayo = usarFotosHA
+        ? Math.ceil(fotosEnsayoHA.length / 2)
+        : Math.ceil(fotosEnsayoLegacy.length / 2);
       const alturaTotal = FOTO_H + GAP + numFilasEnsayo * (FOTO_H + GAP) + PIE_FIRMA_H + PIE_FIRMA_GAP;
 
       if (y + alturaTotal > PH) {
@@ -859,33 +884,58 @@ function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPagi
         y = agregarEncabezado(doc, protocolo, pagina, totalPaginas, kmInicio, kmFin, logoB64);
       }
 
-      // Fila 1: guía en columna izquierda, columna derecha vacía
-      if (camion.fotoGuiaUrl) {
+      // Fila 1: foto guía en columna izquierda
+      if (usarFotosHA) {
+        if (fotoGuiaHA) {
+          const img = await resolverFotoHA(fotoGuiaHA, imagenesCache);
+          if (img) {
+            try {
+              doc.addImage(img.dataUrl, img.formato, ML, y, FOTO_W, FOTO_H);
+              doc.setDrawColor(120, 120, 120); doc.setLineWidth(0.2);
+              doc.rect(ML, y, FOTO_W, FOTO_H);
+            } catch (err) { console.warn('[PDF] Error foto guia HA:', err?.message ?? err); }
+          }
+        }
+      } else if (camion.fotoGuiaUrl) {
         const img = imagenesCache.get(camion.fotoGuiaUrl);
         if (img) {
           try {
             doc.addImage(img.dataUrl, img.formato, ML, y, FOTO_W, FOTO_H);
-            doc.setDrawColor(120, 120, 120);
-            doc.setLineWidth(0.2);
+            doc.setDrawColor(120, 120, 120); doc.setLineWidth(0.2);
             doc.rect(ML, y, FOTO_W, FOTO_H);
-          } catch (err) { console.warn('[PDF] Error foto guía HA:', err?.message ?? err); }
+          } catch (err) { console.warn('[PDF] Error foto guia HA:', err?.message ?? err); }
         }
       }
       y += FOTO_H + GAP;
 
-      // Filas siguientes: ensayo en grid 2 columnas, FOTO_W × FOTO_H
-      for (let ei = 0; ei < fotosEnsayo.length; ei++) {
-        if (ei > 0 && ei % 2 === 0) y += FOTO_H + GAP;
-        const col = ei % 2;
-        const x = ML + col * FOTO_W;
-        const img = imagenesCache.get(fotosEnsayo[ei]);
-        if (img) {
-          try {
-            doc.addImage(img.dataUrl, img.formato, x, y, FOTO_W, FOTO_H);
-            doc.setDrawColor(120, 120, 120);
-            doc.setLineWidth(0.2);
-            doc.rect(x, y, FOTO_W, FOTO_H);
-          } catch (err) { console.warn('[PDF] Error foto ensayo HA:', err?.message ?? err); }
+      // Filas siguientes: ensayo en grid 2 columnas
+      if (usarFotosHA) {
+        for (let ei = 0; ei < fotosEnsayoHA.length; ei++) {
+          if (ei > 0 && ei % 2 === 0) y += FOTO_H + GAP;
+          const col = ei % 2;
+          const x = ML + col * FOTO_W;
+          const img = await resolverFotoHA(fotosEnsayoHA[ei], imagenesCache);
+          if (img) {
+            try {
+              doc.addImage(img.dataUrl, img.formato, x, y, FOTO_W, FOTO_H);
+              doc.setDrawColor(120, 120, 120); doc.setLineWidth(0.2);
+              doc.rect(x, y, FOTO_W, FOTO_H);
+            } catch (err) { console.warn('[PDF] Error foto ensayo HA:', err?.message ?? err); }
+          }
+        }
+      } else {
+        for (let ei = 0; ei < fotosEnsayoLegacy.length; ei++) {
+          if (ei > 0 && ei % 2 === 0) y += FOTO_H + GAP;
+          const col = ei % 2;
+          const x = ML + col * FOTO_W;
+          const img = imagenesCache.get(fotosEnsayoLegacy[ei]);
+          if (img) {
+            try {
+              doc.addImage(img.dataUrl, img.formato, x, y, FOTO_W, FOTO_H);
+              doc.setDrawColor(120, 120, 120); doc.setLineWidth(0.2);
+              doc.rect(x, y, FOTO_W, FOTO_H);
+            } catch (err) { console.warn('[PDF] Error foto ensayo HA:', err?.message ?? err); }
+          }
         }
       }
 
@@ -897,15 +947,16 @@ function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPagi
 }
 
 async function generarPDFControlHA(protocolo, camiones, kmInicio, kmFin, logoB64) {
-  const imagenesCache = await precargarImagenesCamiones(camiones);
+  const fotosHA = protocolo.datos?.fotosHA ?? [];
+  const imagenesCache = await precargarImagenesCamiones(camiones, fotosHA);
 
   // Primera pasada: contar páginas para "X de Y"
   let doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const totalPaginas = construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, 1, logoB64, imagenesCache);
+  const totalPaginas = await construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, 1, logoB64, imagenesCache);
 
   // Segunda pasada: dibujar con totalPaginas correcto
   doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPaginas, logoB64, imagenesCache);
+  await construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPaginas, logoB64, imagenesCache);
 
   return doc;
 }

@@ -316,6 +316,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [expandidoCamion, setExpandidoCamion] = useState(null);
   const [editandoCamion, setEditandoCamion] = useState(null);
   const [camionSeleccionado, setCamionSeleccionado] = useState('todos');
+  const [fotosHA, setFotosHA] = useState([]);  // { url, dataUrlRecortado, incluida, tipo, label }
   const [estado, setEstado] = useState('pendiente');
   const [fechaEnvio, setFechaEnvio] = useState(null);
   const [guardando, setGuardando] = useState(false);
@@ -508,6 +509,17 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     return () => { cancelado = true; };
   }, [esHA, tipo, entidadIdReal, protocoloId]);
 
+  // Reconstruir fotosHA cuando cambia el camión seleccionado
+  useEffect(() => {
+    if (!esHA || camionSeleccionado === 'todos') { setFotosHA([]); return; }
+    const c = camionesRegistrados.find(x => x.key === camionSeleccionado);
+    if (!c) { setFotosHA([]); return; }
+    setFotosHA([
+      ...(c.fotoGuiaUrl ? [{ url: c.fotoGuiaUrl, dataUrlRecortado: null, incluida: true, tipo: 'guia', label: 'Guía de despacho' }] : []),
+      ...(c.fotosEnsayoUrls ?? []).map((url, i) => ({ url, dataUrlRecortado: null, incluida: true, tipo: 'ensayo', label: `Foto ensayo ${i + 1}` })),
+    ]);
+  }, [camionSeleccionado, camionesRegistrados]);
+
   useEffect(() => {
     if (!cargando && !cargadoRef.current) {
       cargadoRef.current = true;
@@ -693,7 +705,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   function onCropImageLoad(e) {
     const { width, height } = e.currentTarget;
     const ct = cropModal?.tipo;
-    const aspecto = ct === 'cotas-autocad' ? 16/5 : ct === 'cotas-tabla' ? 16/9 : esHA ? 4/3 : 3/4;
+    const aspecto = ct === 'cotas-autocad' ? 16/5 : ct === 'cotas-tabla' ? 16/9 : 3/4;
     const dim     = aspecto >= 1 ? { unit: '%', width: 90 } : { unit: '%', height: 90 };
     const pct = centerCrop(makeAspectCrop(dim, aspecto, width, height), width, height);
     setCrop(pct);
@@ -757,8 +769,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   // Calcula crop centrado en % según el aspecto del protocolo
   function calcCentrado(imgEl) {
     const { width, height } = imgEl;
-    const aspecto = (esHA || esCOTAS) ? 4/3 : 3/4;
-    const dim     = (esHA || esCOTAS) ? { unit: '%', width: 90 } : { unit: '%', height: 90 };
+    const aspecto = esCOTAS ? 4/3 : 3/4;
+    const dim     = esCOTAS ? { unit: '%', width: 90 } : { unit: '%', height: 90 };
     return centerCrop(makeAspectCrop(dim, aspecto, width, height), width, height);
   }
 
@@ -858,6 +870,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       setFotoAutocad({ dataUrl: croppedUrl });
     } else if (cropModal.tipo === 'cotas-tabla') {
       setFotoTabla({ dataUrl: croppedUrl });
+    } else if (cropModal.tipo?.startsWith('ha-foto-')) {
+      const idx = parseInt(cropModal.tipo.replace('ha-foto-', ''), 10);
+      setFotosHA(prev => prev.map((f, i) => i === idx ? { ...f, dataUrlRecortado: croppedUrl } : f));
     } else {
       const { foto } = cropModal.meta;
       setFotosNubeSeleccionadas(prev => [
@@ -877,6 +892,17 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       const dataUrl = await comprimirFoto(next);
       abrirCropModal(dataUrl, 'nueva', { file: next });
     }
+  }
+
+  function toggleIncluirFotoHA(idx) {
+    setFotosHA(prev => prev.map((f, i) => i === idx ? { ...f, incluida: !f.incluida } : f));
+  }
+
+  function abrirCropHA(idx) {
+    const foto = fotosHA[idx];
+    if (!foto) return;
+    const src = foto.dataUrlRecortado || foto.url;
+    abrirCropModal(src, `ha-foto-${idx}`, {});
   }
 
   function abrirEditarFoto(foto) {
@@ -1057,7 +1083,10 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       const camionesParaPDF = camionSeleccionado === 'todos'
         ? camionesRegistrados
         : camionesRegistrados.filter(c => c.key === camionSeleccionado);
-      const { doc, filename } = await construirDocumentoPDF(protocolo, fotosCombinadas, kmInicio, kmFin, camionesParaPDF);
+      const protocoloParaPDF = (esHA && camionSeleccionado !== 'todos' && fotosHA.length > 0)
+        ? { ...protocolo, datos: { ...(protocolo.datos ?? {}), fotosHA } }
+        : protocolo;
+      const { doc, filename } = await construirDocumentoPDF(protocoloParaPDF, fotosCombinadas, kmInicio, kmFin, camionesParaPDF);
       const url = doc.output('bloburl');
       setPreviewPDF({ doc, filename, url });
     } catch (err) {
@@ -1318,27 +1347,39 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         </>
       )}
 
-      {/* Subsección HA: fotos del camión seleccionado (solo lectura) */}
-      {esHA && camionSeleccionado !== 'todos' && (() => {
-        const c = camionesRegistrados.find(x => x.key === camionSeleccionado);
-        const fotosHA = [
-          ...(c?.fotoGuiaUrl ? [{ id: 'ha-guia', storageUrl: c.fotoGuiaUrl, descripcion: 'Guía de despacho' }] : []),
-          ...(c?.fotosEnsayoUrls ?? []).map((url, i) => ({ id: `ha-ensayo-${i}`, storageUrl: url, descripcion: `Ensayo ${i + 1}` })),
-        ];
-        if (fotosHA.length === 0) return <p key="ha-sin-fotos" style={s.sinFotos}>Sin fotos registradas para este camión.</p>;
-        return (
-          <div key="ha-fotos" style={s.fotosGrid}>
-            {fotosHA.map(foto => (
-              <div key={foto.id} style={s.fotoCard}>
-                <div style={{ ...s.fotoThumb, aspectRatio: '3/4' }}>
-                  <img src={foto.storageUrl} alt={foto.descripcion} style={s.fotoImg} />
+      {/* Subsección HA: fotos del camión seleccionado con crop e inclusión */}
+      {esHA && camionSeleccionado !== 'todos' && (
+        fotosHA.length === 0
+          ? <p style={s.sinFotos}>Sin fotos registradas para este camión.</p>
+          : (
+            <div style={s.cotasSlotsGrid}>
+              {fotosHA.map((foto, idx) => (
+                <div key={foto.url + idx} style={s.cotasSlot}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
+                    <span style={s.cotasSlotLabel}>{foto.label}</span>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: foto.incluida ? '#10b981' : '#8892b0', fontSize: '12px', fontWeight: 600 }}>
+                      <input type="checkbox" checked={foto.incluida} onChange={() => toggleIncluirFotoHA(idx)} style={{ accentColor: '#10b981' }} />
+                      Incluir en protocolo
+                    </label>
+                  </div>
+                  <div style={{ ...s.cotasSlotPreview, opacity: foto.incluida ? 1 : 0.4 }}>
+                    <div style={{ ...s.fotoThumb, aspectRatio: '3/4', maxWidth: '140px' }}>
+                      <img src={foto.dataUrlRecortado || foto.url} alt={foto.label} style={s.fotoImg} />
+                    </div>
+                    {!readOnly && (
+                      <div style={s.cotasSlotActions}>
+                        <button style={s.btnFoto} onClick={() => abrirCropHA(idx)}>✂️ Recortar</button>
+                        {foto.dataUrlRecortado && (
+                          <button style={{ ...s.btnFoto, background: '#1a3a1a' }} onClick={() => setFotosHA(prev => prev.map((f, i) => i === idx ? { ...f, dataUrlRecortado: null } : f))}>↩ Original</button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <input readOnly style={s.fotoDescInput} value={foto.descripcion} onChange={() => {}} />
-              </div>
-            ))}
-          </div>
-        );
-      })()}
+              ))}
+            </div>
+          )
+      )}
 
       {/* Subsección 2: agregar nueva foto — oculto para COTAS y HA */}
       {!readOnly && !esCOTAS && !esHA && (
@@ -1772,7 +1813,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                 <ReactCrop
                   crop={cropActivo ?? cropGuardado}
                   onChange={(_, pct) => setCropActivo(pct)}
-                  aspect={esHA ? 4/3 : 3/4}
+                  aspect={3/4}
                   keepSelection
                 >
                   <img
@@ -1884,7 +1925,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             <div style={s.cropModalTitulo}>
               {cropModal.tipo?.startsWith('editar') ? '✏️ Editar foto' : '✂️ Recortar foto'}
               <span style={{ fontSize: '12px', color: '#8892b0', fontWeight: 400, marginLeft: '8px' }}>
-                {cropModal.tipo === 'cotas-autocad' ? 'Guía 16:5 (libre)' : cropModal.tipo === 'cotas-tabla' ? 'Guía 16:9 (libre)' : esHA ? 'Proporción fija 4:3' : 'Proporción fija 3:4'}
+                {cropModal.tipo === 'cotas-autocad' ? 'Guía 16:5 (libre)' : cropModal.tipo === 'cotas-tabla' ? 'Guía 16:9 (libre)' : 'Proporción fija 3:4'}
               </span>
             </div>
             <div style={s.rotacionRow}>
