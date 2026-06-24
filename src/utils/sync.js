@@ -85,6 +85,15 @@ async function sincronizarProtocolos() {
         }
       }
 
+      // Limpiar fotosRecortadas base64 residuales en protocolos HA (ya fueron subidas como fotosRecortadasUrls)
+      if (protocolo.protocoloId === 'HA_RADIER' || protocolo.protocoloId === 'HA_MURO') {
+        if (datos.fotosRecortadas) {
+          const { fotosRecortadas: _, ...datosSinBase64 } = datos;
+          datos = datosSinBase64;
+          await db.protocolos.update(protocolo.id, { datos });
+        }
+      }
+
       // Subir fotos COTAS (fotoAutocad / fotoTabla) pendientes antes del upsert
       if (protocolo.protocoloId === 'COTAS') {
         let changed = false;

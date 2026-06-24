@@ -678,16 +678,43 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     return changed ? updated : fotos;
   }
 
+  async function subirFotosRecortadasHA(fotosRecortadas) {
+    if (!supabase || !navigator.onLine) return fotosRecortadas;
+    const result = {};
+    for (const [urlOriginal, dataUrl] of Object.entries(fotosRecortadas)) {
+      if (!dataUrl?.startsWith('data:')) { result[urlOriginal] = dataUrl; continue; }
+      try {
+        const storageUrl = await uploadFoto(dataUrl, {
+          tipo, entidadId: entidadIdReal,
+          carpeta: `protocolos/HA`,
+          archivo: `${entidadIdReal}_${Date.now()}_recorte.jpg`,
+        });
+        result[urlOriginal] = storageUrl ?? dataUrl;
+      } catch (err) {
+        console.warn('[HA] Error subiendo foto recortada:', err?.message ?? err);
+        result[urlOriginal] = dataUrl;
+      }
+    }
+    return result;
+  }
+
   async function guardar(nuevoEstado, extra = {}, mensaje = null) {
     if (guardando) return;
     setGuardando(true);
     try {
       await procesarEliminacionesFotos();
-      const fotosSubidas = await subirFotosNubePendientes(fotosNubeSeleccionadas);
-      if (fotosSubidas !== fotosNubeSeleccionadas) setFotosNubeSeleccionadas(fotosSubidas);
-      const datos = esCOTAS
-        ? { fechaControl: cotasFechaControl, nControl: cotasNControl, instrumentoNS: cotasInstrumento, nombrePR: cotasNombrePR, cotaPR: cotasCotaPR, observacionCotas: cotasObs, fotoAutocad, fotoTabla }
-        : { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas };
+      let datos;
+      if (esHA) {
+        const fotosRecortadasUrls = await subirFotosRecortadasHA(fotosRecortadas);
+        if (fotosRecortadasUrls !== fotosRecortadas) setFotosRecortadas(fotosRecortadasUrls);
+        datos = { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadasUrls, observaciones };
+      } else {
+        const fotosSubidas = await subirFotosNubePendientes(fotosNubeSeleccionadas);
+        if (fotosSubidas !== fotosNubeSeleccionadas) setFotosNubeSeleccionadas(fotosSubidas);
+        datos = esCOTAS
+          ? { fechaControl: cotasFechaControl, nControl: cotasNControl, instrumentoNS: cotasInstrumento, nombrePR: cotasNombrePR, cotaPR: cotasCotaPR, observacionCotas: cotasObs, fotoAutocad, fotoTabla }
+          : { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas };
+      }
 
       const campos = {
         estado: nuevoEstado, usuarioNombre: usuario,
@@ -1106,7 +1133,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         ? camionesRegistrados
         : camionesRegistrados.filter(c => c.key === camionSeleccionado);
       const protocoloParaPDF = esHA
-        ? { ...protocolo, datos: { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadas, observaciones } }
+        ? { ...protocolo, datos: { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadasUrls: fotosRecortadas, observaciones } }
         : protocolo;
       const { doc, filename } = await construirDocumentoPDF(protocoloParaPDF, fotosCombinadas, kmInicio, kmFin, camionesParaPDF);
       const url = doc.output('bloburl');

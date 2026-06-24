@@ -772,7 +772,7 @@ async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, tot
   const escala = ESCALA_NORMAL;
   const datosProtocolo = protocolo.datos ?? {};
   const fotosExcluidas = datosProtocolo.fotosExcluidas ?? [];
-  const fotosRecortadas = datosProtocolo.fotosRecortadas ?? {};
+  const fotosRecortadasUrls = datosProtocolo.fotosRecortadasUrls ?? {};
   let pagina = 1;
 
   if (camiones.length === 0) {
@@ -833,7 +833,7 @@ async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, tot
     if (camion.fotoGuiaUrl && !fotosExcluidas.includes(camion.fotoGuiaUrl)) {
       fotosParaPDF.push({
         storageUrl: camion.fotoGuiaUrl,
-        dataUrlRecortado: fotosRecortadas[camion.fotoGuiaUrl] ?? null,
+        storageUrlRecortado: fotosRecortadasUrls[camion.fotoGuiaUrl] ?? null,
         descripcion: 'Guia de despacho',
       });
     }
@@ -842,7 +842,7 @@ async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, tot
       if (!fotosExcluidas.includes(url)) {
         fotosParaPDF.push({
           storageUrl: url,
-          dataUrlRecortado: fotosRecortadas[url] ?? null,
+          storageUrlRecortado: fotosRecortadasUrls[url] ?? null,
           descripcion: 'Foto del ensayo',
         });
       }
