@@ -27,6 +27,7 @@ import AtraviesoDetalle from './pages/AtraviesoDetalle';
 import Cubicaciones from './pages/Cubicaciones';
 import Login from './pages/Login';
 import PortalITO from './pages/PortalITO';
+import Firma from './pages/Firma';
 import Protocolo from './pages/Protocolo';
 import GenerarProtocolo from './pages/GenerarProtocolo';
 import Configuracion from './pages/Configuracion';
@@ -139,6 +140,7 @@ export default function App() {
             <Route path="/cubicaciones" element={<Cubicaciones />} />
             <Route path="/login" element={<Login />} />
             <Route path="/ito" element={<PortalITO />} />
+            <Route path="/firma/:token" element={<Firma />} />
           </Routes>
         </Layout>
       </UserProvider>

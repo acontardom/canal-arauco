@@ -333,7 +333,6 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [fechaEnvio, setFechaEnvio] = useState(null);
   const [guardando, setGuardando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
-  const [confirmandoEnvio, setConfirmandoEnvio] = useState(false);
   const [confirmandoDesbloqueo, setConfirmandoDesbloqueo] = useState(false);
   const [descargando, setDescargando] = useState(false);
   const [generandoPreview, setGenerandoPreview] = useState(false);
@@ -1909,15 +1908,6 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           >
             {estado === 'completado' ? '✓ Completado' : 'Marcar como completado'}
           </button>
-          {estado === 'completado' && (
-            <button
-              style={{ ...s.btnAccion, ...s.btnEnviar }}
-              onClick={() => setConfirmandoEnvio(true)}
-              disabled={guardando}
-            >
-              📤 Marcar como enviado
-            </button>
-          )}
           {(estado === 'completado' || estado === 'listo') && usuarioAuth?.rol === 'admin' && (
             <button
               style={{ ...s.btnAccion, ...s.btnEnviarITO }}
@@ -1975,19 +1965,6 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         />
       )}
 
-      {confirmandoEnvio && (
-        <ModalConfirmar
-          titulo="¿Confirmar envío?"
-          texto="¿Confirmar que este protocolo fue enviado al ITO?"
-          textoConfirmar="Confirmar"
-          colorConfirmar="#3b82f6"
-          onConfirmar={async () => {
-            setConfirmandoEnvio(false);
-            await guardar('enviado', { fechaEnvio: fechaHoy() }, '📤 Protocolo marcado como enviado');
-          }}
-          onCancelar={() => setConfirmandoEnvio(false)}
-        />
-      )}
 
       {confirmandoDesbloqueo && (
         <ModalConfirmar
