@@ -12,17 +12,27 @@ function fmtFecha(iso) {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
+function PageShell({ children, centered = false }) {
+  return (
+    <div style={s.outer}>
+      <div style={centered ? s.innerCentered : s.inner}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export default function Firma() {
   const { token } = useParams();
-  const [protocolo, setProtocolo]   = useState(null);
-  const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
-  const [firmaUrl, setFirmaUrl]     = useState(null);
+  const [protocolo, setProtocolo]     = useState(null);
+  const [pdfBlobUrl, setPdfBlobUrl]   = useState(null);
+  const [firmaUrl, setFirmaUrl]       = useState(null);
   const [observacion, setObservacion] = useState('');
-  const [vista, setVista]           = useState('detalle');
-  const [loading, setLoading]       = useState(true);
-  const [error, setError]           = useState(null);
-  const [subiendo, setSubiendo]     = useState(false);
-  const [itoUsuario, setItoUsuario] = useState(null);
+  const [vista, setVista]             = useState('detalle');
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState(null);
+  const [subiendo, setSubiendo]       = useState(false);
+  const [itoUsuario, setItoUsuario]   = useState(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => { cargarProtocolo(); }, [token]);
@@ -40,6 +50,26 @@ export default function Firma() {
         setLoading(false);
         return;
       }
+
+      // Validar estado antes de continuar
+      if (data.estado === 'con_observaciones') {
+        setError('Este protocolo está siendo corregido. Se enviará un nuevo link cuando esté listo.');
+        setLoading(false);
+        return;
+      }
+      if (data.estado === 'firmado') {
+        setProtocolo(data);
+        await generarBlobPDF(data);
+        setVista('ya_firmado');
+        setLoading(false);
+        return;
+      }
+      if (data.estado !== 'enviado_ito') {
+        setError('Este link ya no es válido.');
+        setLoading(false);
+        return;
+      }
+
       setProtocolo(data);
 
       const { data: ito } = await supabase
@@ -134,49 +164,78 @@ export default function Firma() {
     setVista('confirmado');
   }
 
+  // ── Estados de pantalla ──────────────────────────────────────────────────────
+
   if (loading) {
-    return <div style={s.centrado}>Cargando...</div>;
+    return (
+      <PageShell centered>
+        <p style={s.cargandoMsg}>Cargando...</p>
+      </PageShell>
+    );
   }
 
   if (error) {
     return (
-      <div style={s.centrado}>
+      <PageShell centered>
         <span style={s.errorIcono}>⚠️</span>
         <p style={s.errorMsg}>{error}</p>
-      </div>
+      </PageShell>
     );
   }
 
   const tipoLabel    = NOMBRE_TIPO[protocolo?.tipo] ?? protocolo?.tipo ?? '';
   const entidadLabel = `${tipoLabel} ${protocolo?.entidad_id ?? ''}`;
 
+  if (vista === 'ya_firmado') {
+    return (
+      <PageShell>
+        <Header protocolo={protocolo} entidadLabel={entidadLabel} />
+        <div style={s.confirmado}>
+          <span style={s.confirmadoIcono}>✅</span>
+          <h2 style={s.confirmadoTitulo}>Protocolo firmado</h2>
+          {protocolo?.firma_fecha && (
+            <p style={s.confirmadoTexto}>Firmado el {fmtFecha(protocolo.firma_fecha)}</p>
+          )}
+          {protocolo?.firma_imagen_url && (
+            <img src={protocolo.firma_imagen_url} alt="Firma ITO" style={s.firmaImgFirmado} />
+          )}
+          {pdfBlobUrl && (
+            <a
+              href={pdfBlobUrl}
+              download={`${protocolo.protocolo_id}_${protocolo.entidad_id}.pdf`}
+              style={s.btnDescarga}
+            >
+              ↓ Descargar PDF
+            </a>
+          )}
+        </div>
+      </PageShell>
+    );
+  }
+
   if (vista === 'confirmado') {
     return (
-      <div style={s.page}>
-        <Header protocolo={protocolo} tipoLabel={tipoLabel} entidadLabel={entidadLabel} />
+      <PageShell>
+        <Header protocolo={protocolo} entidadLabel={entidadLabel} />
         <div style={s.confirmado}>
           <span style={s.confirmadoIcono}>✅</span>
           <h2 style={s.confirmadoTitulo}>Respuesta enviada</h2>
           <p style={s.confirmadoTexto}>El equipo ha sido notificado.</p>
         </div>
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div style={s.page}>
-      <Header protocolo={protocolo} tipoLabel={tipoLabel} entidadLabel={entidadLabel} />
+    <PageShell>
+      <Header protocolo={protocolo} entidadLabel={entidadLabel} />
 
       {/* PDF */}
       <section style={s.seccion}>
         <h3 style={s.seccionTitulo}>Protocolo</h3>
         {pdfBlobUrl ? (
           <>
-            <iframe
-              src={pdfBlobUrl}
-              style={s.iframe}
-              title="PDF Protocolo"
-            />
+            <iframe src={pdfBlobUrl} style={s.iframe} title="PDF Protocolo" />
             <a
               href={pdfBlobUrl}
               download={`${protocolo.protocolo_id}_${protocolo.entidad_id}.pdf`}
@@ -264,11 +323,11 @@ export default function Firma() {
           </button>
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }
 
-function Header({ protocolo, tipoLabel, entidadLabel }) {
+function Header({ protocolo, entidadLabel }) {
   return (
     <header style={s.header}>
       <img src={logoUrl} alt="ExMaq" style={s.logo} />
@@ -288,50 +347,56 @@ function Header({ protocolo, tipoLabel, entidadLabel }) {
 }
 
 const s = {
-  page: {
+  outer: {
+    minHeight: '100vh',
+    background: '#0f172a',
+    color: 'white',
+  },
+  inner: {
     maxWidth: '960px',
     margin: '0 auto',
-    padding: '32px 24px 60px',
+    padding: '2rem',
     display: 'flex',
     flexDirection: 'column',
     gap: '24px',
-    minHeight: '100vh',
-    background: '#1a1a2e',
-    color: '#ccd6f6',
+    paddingBottom: '60px',
     boxSizing: 'border-box',
   },
-  centrado: {
-    minHeight: '100vh',
-    background: '#1a1a2e',
+  innerCentered: {
+    maxWidth: '960px',
+    margin: '0 auto',
+    padding: '2rem',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    color: '#8892b0',
-    fontSize: '15px',
     gap: '12px',
+    minHeight: '100vh',
+    boxSizing: 'border-box',
   },
-  errorIcono: { fontSize: '40px' },
-  errorMsg:   { color: '#f87171', fontSize: '15px', textAlign: 'center', maxWidth: '320px' },
+
+  cargandoMsg: { color: '#8892b0', fontSize: '15px', margin: 0 },
+  errorIcono:  { fontSize: '40px' },
+  errorMsg:    { color: '#f87171', fontSize: '15px', textAlign: 'center', maxWidth: '360px', margin: 0 },
 
   header: {
     display: 'flex',
     alignItems: 'center',
     gap: '16px',
     padding: '20px',
-    background: '#16213e',
+    background: '#1e293b',
     borderRadius: '12px',
-    border: '1px solid #0f3460',
+    border: '1px solid #334155',
   },
-  logo: { width: '52px', height: 'auto', borderRadius: '6px', flexShrink: 0 },
+  logo:        { width: '52px', height: 'auto', borderRadius: '6px', flexShrink: 0 },
   headerTexto: { display: 'flex', flexDirection: 'column', gap: '3px' },
-  appNombre:  { color: '#64ffda', fontSize: '13px', fontWeight: 700, letterSpacing: '0.3px' },
-  protNombre: { color: '#ccd6f6', fontSize: '16px', fontWeight: 700 },
-  fechaEnvio: { color: '#8892b0', fontSize: '12px' },
+  appNombre:   { color: '#64ffda', fontSize: '13px', fontWeight: 700, letterSpacing: '0.3px' },
+  protNombre:  { color: '#f1f5f9', fontSize: '16px', fontWeight: 700 },
+  fechaEnvio:  { color: '#94a3b8', fontSize: '12px' },
 
   seccion: {
-    background: '#16213e',
-    border: '1px solid #0f3460',
+    background: '#1e293b',
+    border: '1px solid #334155',
     borderRadius: '12px',
     padding: '20px',
     display: 'flex',
@@ -339,7 +404,7 @@ const s = {
     gap: '14px',
   },
   seccionTitulo: {
-    color: '#8892b0',
+    color: '#94a3b8',
     fontSize: '11px',
     fontWeight: 700,
     textTransform: 'uppercase',
@@ -349,10 +414,10 @@ const s = {
 
   iframe: {
     width: '100%',
-    height: '500px',
-    border: '1px solid #0f3460',
+    height: '560px',
+    border: '1px solid #334155',
     borderRadius: '8px',
-    background: '#0a1428',
+    background: '#0f172a',
   },
   btnDescarga: {
     display: 'inline-block',
@@ -365,7 +430,7 @@ const s = {
     borderRadius: '8px',
     alignSelf: 'flex-start',
   },
-  pdfNote: { color: '#8892b0', fontSize: '13px', margin: 0 },
+  pdfNote: { color: '#94a3b8', fontSize: '13px', margin: 0 },
 
   firmaPreviewBox: {
     display: 'flex',
@@ -377,15 +442,24 @@ const s = {
     maxHeight: '100px',
     maxWidth: '260px',
     borderRadius: '6px',
-    border: '1px solid #0f3460',
+    border: '1px solid #334155',
     background: '#fff',
     padding: '6px',
   },
+  firmaImgFirmado: {
+    maxHeight: '120px',
+    maxWidth: '300px',
+    borderRadius: '8px',
+    border: '1px solid #334155',
+    background: '#fff',
+    padding: '8px',
+    marginTop: '8px',
+  },
   btnCambiarFirma: {
     background: 'transparent',
-    border: '1px solid #1e3a5f',
+    border: '1px solid #334155',
     borderRadius: '7px',
-    color: '#8892b0',
+    color: '#94a3b8',
     fontSize: '12px',
     fontWeight: 600,
     padding: '8px 14px',
@@ -396,9 +470,9 @@ const s = {
     alignItems: 'center',
     justifyContent: 'center',
     height: '90px',
-    border: '2px dashed #1e3a5f',
+    border: '2px dashed #334155',
     borderRadius: '10px',
-    color: '#8892b0',
+    color: '#94a3b8',
     fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
@@ -409,10 +483,10 @@ const s = {
 
   textarea: {
     width: '100%',
-    background: '#0f3460',
-    border: '1px solid #1e3a5f',
+    background: '#0f172a',
+    border: '1px solid #334155',
     borderRadius: '8px',
-    color: '#ccd6f6',
+    color: '#f1f5f9',
     fontSize: '14px',
     padding: '12px 14px',
     fontFamily: 'inherit',
@@ -429,10 +503,10 @@ const s = {
   btnCancelar: {
     flex: 1,
     padding: '14px',
-    background: '#0f3460',
-    border: 'none',
+    background: '#1e293b',
+    border: '1px solid #334155',
     borderRadius: '10px',
-    color: '#ccd6f6',
+    color: '#f1f5f9',
     fontSize: '14px',
     fontWeight: 700,
     cursor: 'pointer',
@@ -465,11 +539,11 @@ const s = {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '12px',
+    gap: '14px',
     padding: '60px 24px',
     textAlign: 'center',
   },
-  confirmadoIcono: { fontSize: '56px' },
+  confirmadoIcono:  { fontSize: '56px' },
   confirmadoTitulo: { color: '#64ffda', fontSize: '22px', fontWeight: 700, margin: 0 },
-  confirmadoTexto:  { color: '#8892b0', fontSize: '14px', margin: 0 },
+  confirmadoTexto:  { color: '#94a3b8', fontSize: '14px', margin: 0 },
 };

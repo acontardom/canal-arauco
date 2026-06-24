@@ -707,14 +707,18 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     mostrarToast('📨 Protocolo enviado al ITO');
   }
 
-  async function marcarComoListo() {
+  async function marcarListoParaRevision() {
     if (!protocolo?.id) return;
-    await db.protocolos.update(protocolo.id, { estado: 'listo', sincronizada: false });
+    const nuevoToken = crypto.randomUUID();
+    await db.protocolos.update(protocolo.id, { estado: 'listo', firmaToken: nuevoToken, sincronizada: false });
     setEstado('listo');
     if (supabase && protocolo.supabaseId) {
-      await supabase.from('protocolos').update({ estado: 'listo' }).eq('id', protocolo.supabaseId);
+      await supabase
+        .from('protocolos')
+        .update({ estado: 'listo', firma_token: nuevoToken, observacion_ito: null })
+        .eq('id', protocolo.supabaseId);
     }
-    mostrarToast('✓ Protocolo marcado como listo');
+    mostrarToast('✓ Listo para revisión');
   }
 
   async function guardarEdp(valor) {
@@ -1887,44 +1891,49 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         </div>
       ) : (
         <div style={s.acciones}>
-          {estado === 'con_observaciones' && (
-            <div style={s.bannerObservacion}>
-              <span style={s.bannerObsIcono}>⚠️</span>
-              <div>
-                <strong style={s.bannerObsTitulo}>Observación del ITO</strong>
-                {protocolo?.datos?.observacion_ito && (
-                  <p style={s.bannerObsTexto}>{protocolo.datos.observacion_ito}</p>
-                )}
+          {estado === 'con_observaciones' ? (
+            <>
+              <div style={s.bannerObservacion}>
+                <span style={s.bannerObsIcono}>⚠️</span>
+                <div>
+                  <strong style={s.bannerObsTitulo}>Observación del ITO</strong>
+                  {(protocolo?.observacionIto || protocolo?.datos?.observacion_ito) && (
+                    <p style={s.bannerObsTexto}>
+                      {protocolo.observacionIto ?? protocolo.datos.observacion_ito}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
-          <button style={{ ...s.btnAccion, ...s.btnBorrador }} onClick={() => guardar('borrador')} disabled={guardando}>
-            {guardando ? 'Guardando...' : 'Guardar borrador'}
-          </button>
-          <button
-            style={{ ...s.btnAccion, ...s.btnCompletar, opacity: estado === 'completado' ? 0.6 : 1 }}
-            onClick={() => setConfirmando(true)}
-            disabled={guardando || estado === 'completado'}
-          >
-            {estado === 'completado' ? '✓ Completado' : 'Marcar como completado'}
-          </button>
-          {(estado === 'completado' || estado === 'listo') && usuarioAuth?.rol === 'admin' && (
-            <button
-              style={{ ...s.btnAccion, ...s.btnEnviarITO }}
-              onClick={enviarAlITO}
-              disabled={guardando}
-            >
-              📨 Enviar al ITO
-            </button>
-          )}
-          {estado === 'con_observaciones' && (
-            <button
-              style={{ ...s.btnAccion, ...s.btnMarcarListo }}
-              onClick={marcarComoListo}
-              disabled={guardando}
-            >
-              ✓ Marcar como listo
-            </button>
+              <button
+                style={{ ...s.btnAccion, ...s.btnMarcarListo }}
+                onClick={marcarListoParaRevision}
+                disabled={guardando}
+              >
+                {guardando ? 'Guardando...' : '✓ Listo para revisión'}
+              </button>
+            </>
+          ) : (
+            <>
+              <button style={{ ...s.btnAccion, ...s.btnBorrador }} onClick={() => guardar('borrador')} disabled={guardando}>
+                {guardando ? 'Guardando...' : 'Guardar borrador'}
+              </button>
+              <button
+                style={{ ...s.btnAccion, ...s.btnCompletar, opacity: estado === 'completado' ? 0.6 : 1 }}
+                onClick={() => setConfirmando(true)}
+                disabled={guardando || estado === 'completado'}
+              >
+                {estado === 'completado' ? '✓ Completado' : 'Marcar como completado'}
+              </button>
+              {(estado === 'completado' || estado === 'listo') && usuarioAuth?.rol === 'admin' && (
+                <button
+                  style={{ ...s.btnAccion, ...s.btnEnviarITO }}
+                  onClick={enviarAlITO}
+                  disabled={guardando}
+                >
+                  📨 Enviar al ITO
+                </button>
+              )}
+            </>
           )}
         </div>
       )}
