@@ -41,10 +41,13 @@ const PROTOCOLO_A_PARTIDA = {
 // ─── Estados base y colores ────────────────────────────────────────────────────
 
 const ESTADOS = {
-  sin_iniciar: { label: 'Sin iniciar',      color: '#2a2a3e' },
-  por_protoc:  { label: 'Por protocolizar', color: '#e6a817' },
-  listo:       { label: 'Protocolo listo',  color: '#3d7ebf' },
-  enviado:     { label: 'Enviado EDP',      color: '#27ae60' },
+  sin_iniciar:       { label: 'Sin iniciar',       color: '#1e293b' },
+  por_protoc:        { label: 'Por protocolizar',   color: '#e6a817' },
+  listo:             { label: 'Protocolo listo',    color: '#3b82f6' },
+  enviado:           { label: 'Enviado EDP',        color: '#27ae60' },
+  enviado_ito:       { label: 'Enviado al ITO',     color: '#1e40af' },
+  con_observaciones: { label: 'Con observaciones',  color: '#f97316' },
+  firmado:           { label: 'Firmado',            color: '#1d4ed8' },
 };
 
 const COLOR_ENVIADO_BASE = '#27ae60';
@@ -52,9 +55,13 @@ const COLOR_EDP_OSCURO   = '#1a5e38';
 const COLOR_EDP_CLARO    = '#82e0aa';
 
 function calcEstado(protEstado, recepcionada) {
-  if (protEstado === 'enviado')    return 'enviado';
-  if (protEstado === 'completado') return 'listo';
-  if (recepcionada)                return 'por_protoc';
+  if (protEstado === 'enviado')           return 'enviado';
+  if (protEstado === 'completado')        return 'listo';
+  if (protEstado === 'listo')             return 'listo';
+  if (protEstado === 'enviado_ito')       return 'enviado_ito';
+  if (protEstado === 'con_observaciones') return 'con_observaciones';
+  if (protEstado === 'firmado')           return 'firmado';
+  if (recepcionada)                       return 'por_protoc';
   return 'sin_iniciar';
 }
 

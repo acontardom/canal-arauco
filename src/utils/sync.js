@@ -124,6 +124,7 @@ async function sincronizarProtocolos() {
         entidad_id:         String(protocolo.entidadId),
         protocolo_id:       protocolo.protocoloId,
         estado:             protocolo.estado,
+        firma_token:        protocolo.firmaToken ?? null,
         edp:                protocolo.edp ?? null,
         fecha_envio:        protocolo.fechaEnvio ?? null,
         usuario_nombre:     protocolo.usuarioNombre ?? null,
@@ -426,7 +427,7 @@ export async function descargarDesdeSupabase() {
     // ── Protocolos ────────────────────────────────────────────────────────────
     const { data: remotos, error: errProt } = await supabase
       .from('protocolos')
-      .select('id, local_id, device_protocolo_id, tipo, entidad, entidad_id, protocolo_id, estado, edp, usuario_nombre, fecha_creacion, fecha_modificacion, fecha_envio');
+      .select('id, local_id, device_protocolo_id, tipo, entidad, entidad_id, protocolo_id, estado, firma_token, edp, usuario_nombre, fecha_creacion, fecha_modificacion, fecha_envio');
 
     if (errProt) throw errProt;
 
@@ -452,6 +453,7 @@ export async function descargarDesdeSupabase() {
                              : remoto.entidad_id,
         protocoloId:       remoto.protocolo_id,
         estado:            remoto.estado,
+        firmaToken:        remoto.firma_token ?? null,
         edp:               remoto.edp ?? null,
         fechaEnvio:        remoto.fecha_envio ?? null,
         usuarioNombre:     remoto.usuario_nombre ?? null,

@@ -78,6 +78,12 @@ db.version(10).stores({
     '++id, tipo, entidadId, etiquetas, descripcion, dataUrl, storageUrl, subidaStorage, usuarioNombre, fechaCaptura, sincronizada, deviceFotoTerrenoId',
 });
 
+// v11: agrega firmaToken a protocolos (UUID generado por la app al enviar al ITO)
+db.version(11).stores({
+  protocolos:
+    '++id, tipo, entidad, entidadId, protocoloId, estado, usuarioNombre, fechaCreacion, fechaModificacion, datos, supabaseId, sincronizada, deviceProtocoloId, firmaToken',
+});
+
 // Hooks: genera UUID permanente al crear cualquier registro nuevo
 db.camiones.hook('creating', (primKey, obj) => {
   if (!obj.deviceCamionId) obj.deviceCamionId = generateUUID();

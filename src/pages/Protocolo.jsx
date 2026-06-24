@@ -8,6 +8,7 @@ import { useUser } from '../context/UserContext';
 import { PROTOCOLOS, CHECKLISTS, CHECKLIST_DEFAULTS, TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
 import { generarPDF, construirDocumentoPDF } from '../utils/generarPDF';
 import { useKm } from '../hooks/useKm';
+import { useAuth } from '../hooks/useAuth';
 import { sincronizar } from '../utils/sync';
 import { supabase } from '../config/supabase';
 import { fechaHoy, formatearFecha } from '../utils/fecha';
@@ -128,10 +129,14 @@ function Seccion({ titulo, children }) {
 
 function EstadoBadge({ estado }) {
   const cfg = {
-    pendiente:  { color: '#8892b0', label: 'Pendiente' },
-    borrador:   { color: '#f59e0b', label: 'Borrador' },
-    completado: { color: '#10b981', label: 'Completado' },
-    enviado:    { color: '#3b82f6', label: '📤 Enviado' },
+    pendiente:         { color: '#8892b0', label: 'Pendiente' },
+    borrador:          { color: '#f59e0b', label: 'Borrador' },
+    completado:        { color: '#10b981', label: 'Completado' },
+    listo:             { color: '#10b981', label: 'Listo' },
+    enviado:           { color: '#3b82f6', label: '📤 Enviado' },
+    enviado_ito:       { color: '#60a5fa', label: '📨 Enviado al ITO' },
+    con_observaciones: { color: '#f97316', label: '⚠️ Con observaciones' },
+    firmado:           { color: '#34d399', label: '✅ Firmado' },
   };
   const { color, label } = cfg[estado] ?? cfg.pendiente;
   return <span style={{ ...s.estadoBadge, color, borderColor: color }}>{label}</span>;
@@ -285,6 +290,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [searchParams] = useSearchParams();
   const { usuario } = useUser();
   const { kmInicio, kmFin } = useKm(tipo, entidadId);
+  const { usuario: usuarioAuth } = useAuth();
 
   const entidadIdReal = tipo === 'caida' ? Number(entidadId) : entidadId;
   const protocoloInfo = PROTOCOLOS.find(p => p.id === protocoloId);
@@ -689,6 +695,27 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       datos: datosIniciales,
       sincronizada: false,
     });
+  }
+
+  async function enviarAlITO() {
+    if (!protocolo?.id) return;
+    const token = crypto.randomUUID();
+    await db.protocolos.update(protocolo.id, { estado: 'enviado_ito', firmaToken: token, sincronizada: false });
+    setEstado('enviado_ito');
+    if (supabase && protocolo.supabaseId) {
+      await supabase.from('protocolos').update({ estado: 'enviado_ito', firma_token: token }).eq('id', protocolo.supabaseId);
+    }
+    mostrarToast('📨 Protocolo enviado al ITO');
+  }
+
+  async function marcarComoListo() {
+    if (!protocolo?.id) return;
+    await db.protocolos.update(protocolo.id, { estado: 'listo', sincronizada: false });
+    setEstado('listo');
+    if (supabase && protocolo.supabaseId) {
+      await supabase.from('protocolos').update({ estado: 'listo' }).eq('id', protocolo.supabaseId);
+    }
+    mostrarToast('✓ Protocolo marcado como listo');
   }
 
   async function guardarEdp(valor) {
@@ -1214,7 +1241,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   if (cargando) return <div style={s.cargando}>Cargando...</div>;
 
-  const readOnly = estado === 'enviado';
+  const readOnly = estado === 'enviado' || estado === 'enviado_ito' || estado === 'firmado';
 
   const respondidos = itemsChecklist.filter(item => checklist[item.id]?.valor !== null).length;
 
@@ -1844,15 +1871,34 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           </span>
         )}
       </div>
-      {readOnly ? (
+      {estado === 'enviado' ? (
         <div style={s.enviadoBox}>
           <span style={s.enviadoBadge}>📤 Enviado el {formatearFechaEnvio(fechaEnvio)}</span>
           <button style={s.btnDesbloquear} onClick={() => setConfirmandoDesbloqueo(true)}>
             🔓 Desbloquear
           </button>
         </div>
+      ) : estado === 'enviado_ito' ? (
+        <div style={{ ...s.enviadoBox, borderColor: '#1e40af', background: '#0a1828' }}>
+          <span style={{ ...s.enviadoBadge, color: '#60a5fa' }}>📨 Enviado al ITO — en revisión</span>
+        </div>
+      ) : estado === 'firmado' ? (
+        <div style={{ ...s.enviadoBox, borderColor: '#10b981', background: '#061a14' }}>
+          <span style={{ ...s.enviadoBadge, color: '#34d399' }}>✅ Firmado por ITO</span>
+        </div>
       ) : (
         <div style={s.acciones}>
+          {estado === 'con_observaciones' && (
+            <div style={s.bannerObservacion}>
+              <span style={s.bannerObsIcono}>⚠️</span>
+              <div>
+                <strong style={s.bannerObsTitulo}>Observación del ITO</strong>
+                {protocolo?.datos?.observacion_ito && (
+                  <p style={s.bannerObsTexto}>{protocolo.datos.observacion_ito}</p>
+                )}
+              </div>
+            </div>
+          )}
           <button style={{ ...s.btnAccion, ...s.btnBorrador }} onClick={() => guardar('borrador')} disabled={guardando}>
             {guardando ? 'Guardando...' : 'Guardar borrador'}
           </button>
@@ -1870,6 +1916,24 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
               disabled={guardando}
             >
               📤 Marcar como enviado
+            </button>
+          )}
+          {(estado === 'completado' || estado === 'listo') && usuarioAuth?.rol === 'admin' && (
+            <button
+              style={{ ...s.btnAccion, ...s.btnEnviarITO }}
+              onClick={enviarAlITO}
+              disabled={guardando}
+            >
+              📨 Enviar al ITO
+            </button>
+          )}
+          {estado === 'con_observaciones' && (
+            <button
+              style={{ ...s.btnAccion, ...s.btnMarcarListo }}
+              onClick={marcarComoListo}
+              disabled={guardando}
+            >
+              ✓ Marcar como listo
             </button>
           )}
         </div>
@@ -2259,6 +2323,16 @@ const s = {
     background: 'transparent', border: '1.5px solid #f59e0b', color: '#f59e0b',
     borderRadius: '8px', padding: '8px 14px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
   },
+  btnEnviarITO: { background: '#1e40af', color: '#fff' },
+  btnMarcarListo: { background: '#10b981', color: '#fff' },
+  bannerObservacion: {
+    display: 'flex', alignItems: 'flex-start', gap: '10px', width: '100%',
+    background: 'rgba(249,115,22,0.12)', border: '1.5px solid #f97316',
+    borderRadius: '10px', padding: '12px 16px',
+  },
+  bannerObsIcono: { fontSize: '20px', lineHeight: 1, flexShrink: 0 },
+  bannerObsTitulo: { color: '#fb923c', fontSize: '13px', fontWeight: 700, display: 'block' },
+  bannerObsTexto: { color: '#fdba74', fontSize: '13px', margin: '4px 0 0', lineHeight: '1.5' },
 
   toast: { position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)', color: '#fff', padding: '12px 24px', borderRadius: '10px', fontSize: '14px', fontWeight: 600, zIndex: 1000, boxShadow: '0 4px 16px rgba(0,0,0,0.4)', whiteSpace: 'nowrap' },
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '16px' },
