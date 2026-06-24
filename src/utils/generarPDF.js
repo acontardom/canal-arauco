@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import logoUrl from '../assets/Logo_ExMaq.jpg';
 import esquemaCaidaUrl from '../assets/esquema_tipo_caida.jpg';
+import formulaPUUrl from '../assets/formula_peso_unitario.jpg';
 import { PROTOCOLOS, CHECKLISTS, KM_DATA } from '../constants/estructura';
 
 // ─── Nombres de protocolo para el encabezado PICE ─────────────────────────────
@@ -677,15 +678,22 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
   agregarPieFirma(doc, PH - 42);
 }
 
-// ─── Control H.A. (Radier / Muro) — bloques por camión ────────────────────────
+// ─── Control H.A. (Radier / Muro) — 2 páginas por camión ─────────────────────
 
-const ALTO_FOTO_HA = 45;
-const GAP_FOTO_HA = 4;
-const COLS_ENSAYO_HA = 2;
 const ANCHO_LABEL_HA = 65;
 
-// Descarga y cachea en base64 las fotos (guía + ensayo) de todos los camiones,
-// para no repetir los fetch en la segunda pasada (cálculo de totalPaginas).
+async function loadFormulaB64() {
+  try {
+    const resp = await fetch(formulaPUUrl);
+    const blob = await resp.blob();
+    return new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    });
+  } catch { return null; }
+}
+
 async function precargarImagenesCamiones(camiones) {
   const cache = new Map();
   for (const camion of camiones) {
@@ -705,201 +713,203 @@ function filaLabelValor(label, valor, valorStyles = {}) {
   ];
 }
 
-function agregarBloqueDatosCamion(doc, camion, indice, y, escala) {
-  const titulo = `Camión #${indice} — Guía ${camion.numeroGuia || '—'} — ${camion.tipoHormigon || '—'}`;
-  const estadoTxt = camion.estadoCalidad === 'aprobado' ? 'Aprobado'
-    : camion.estadoCalidad === 'rechazado' ? 'Rechazado' : '—';
-  const estadoColor = camion.estadoCalidad === 'aprobado' ? [16, 185, 129]
-    : camion.estadoCalidad === 'rechazado' ? [239, 68, 68] : [60, 60, 60];
-
-  autoTable(doc, {
-    startY: y,
-    margin: { left: ML, right: MR, ...CONTENT_MARGIN },
-    tableWidth: CW,
-    head: [[{ content: titulo, colSpan: 2, styles: { fillColor: [44, 62, 80], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center', fontSize: escala.headFontSize } }]],
-    body: [
-      filaLabelValor('Planta', camion.planta),
-      filaLabelValor('N° Guía', camion.numeroGuia),
-      filaLabelValor('Tipo hormigón / Volumen', `${camion.tipoHormigon || '—'} — ${camion.volumen || '—'} m³`),
-      filaLabelValor('Cono (cm)', camion.cono),
-      filaLabelValor('Temperatura hormigón', `${camion.tempHormigon ?? '—'} °C`),
-      filaLabelValor('Temperatura ambiente', `${camion.tempAmbiente ?? '—'} °C`),
-      filaLabelValor('Hora de carga', camion.horaCarga),
-      filaLabelValor('Hora de descarga', camion.horaDescarga),
-      filaLabelValor('Tiempo de traslado', `${camion.tiempoTraslado ?? '—'} min`),
-      filaLabelValor('Estado', estadoTxt, { fontStyle: 'bold', textColor: estadoColor }),
-    ],
-    columnStyles: {
-      0: { cellWidth: ANCHO_LABEL_HA },
-      1: { cellWidth: CW - ANCHO_LABEL_HA },
-    },
-    styles: {
-      fontSize: escala.fontSize,
-      cellPadding: escala.cellPadding,
-      lineColor: [120, 120, 120],
-      lineWidth: 0.2,
-      textColor: [30, 30, 30],
-    },
-    theme: 'grid',
-    pageBreak: 'avoid',
-  });
-
-  return doc.lastAutoTable.finalY + 3;
+function hasPhotosHA(camion) {
+  return !!camion.fotoGuiaUrl || (camion.fotosEnsayoUrls?.length ?? 0) > 0;
 }
 
-function agregarTablaPesoUnitario(doc, camion, y, escala) {
-  const body = [
-    filaLabelValor('Peso hoya (kg)', '6,9'),
-    filaLabelValor('Peso hoya + hormigón (kg)', camion.pesoHoyaHormigon),
-    filaLabelValor('PU calculado (kg/m³)', camion.puCalculado, { fontStyle: 'bold', fontSize: escala.fontSize + 1.5 }),
-  ];
-
-  if (camion.observaciones) {
-    body.push([
-      { content: 'Observaciones', styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
-      { content: camion.observaciones },
-    ]);
-  }
-
-  autoTable(doc, {
-    startY: y,
-    margin: { left: ML, right: MR, ...CONTENT_MARGIN },
-    tableWidth: CW,
-    head: [[{ content: 'ENSAYO DE PESO UNITARIO', colSpan: 2, styles: { fillColor: [189, 195, 199], textColor: [30, 30, 30], fontStyle: 'bold', halign: 'center', fontSize: escala.headFontSize } }]],
-    body,
-    columnStyles: {
-      0: { cellWidth: ANCHO_LABEL_HA },
-      1: { cellWidth: CW - ANCHO_LABEL_HA },
-    },
-    styles: {
-      fontSize: escala.fontSize,
-      cellPadding: escala.cellPadding,
-      lineColor: [120, 120, 120],
-      lineWidth: 0.2,
-      textColor: [30, 30, 30],
-    },
-    theme: 'grid',
-    pageBreak: 'avoid',
-  });
-
-  return doc.lastAutoTable.finalY + 3;
-}
-
-// Altura estimada (mm) del bloque de fotos de un camión, para decidir saltos de página.
-function alturaFotosCamion(camion) {
-  let h = 0;
-  if (camion.fotoGuiaUrl) h += 6 + ALTO_FOTO_HA + GAP_FOTO_HA;
-  const n = (camion.fotosEnsayoUrls ?? []).length;
-  if (n > 0) h += 6 + Math.ceil(n / COLS_ENSAYO_HA) * (ALTO_FOTO_HA + GAP_FOTO_HA);
-  return h;
-}
-
-function dibujarCeldaFoto(doc, x, y, w, h, url, cache) {
-  doc.setDrawColor(120, 120, 120);
-  doc.setLineWidth(0.2);
-  doc.rect(x, y, w, h);
-  const img = cache.get(url);
-  if (img) {
-    try { doc.addImage(img.dataUrl, img.formato, x + 1, y + 1, w - 2, h - 2); }
-    catch (err) { console.warn('[PDF] Error al incrustar imagen:', err?.message ?? err); }
-  }
-}
-
-function agregarFotosCamion(doc, camion, y, cache) {
-  const imgW = (CW - GAP_FOTO_HA) / COLS_ENSAYO_HA;
-
-  if (camion.fotoGuiaUrl) {
-    doc.setFont(undefined, 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(30, 30, 30);
-    doc.text('Guía de despacho', ML, y + 4);
-    y += 7;
-    dibujarCeldaFoto(doc, ML, y, imgW, ALTO_FOTO_HA, camion.fotoGuiaUrl, cache);
-    y += ALTO_FOTO_HA + GAP_FOTO_HA;
-  }
-
-  const fotosEnsayo = camion.fotosEnsayoUrls ?? [];
-  if (fotosEnsayo.length > 0) {
-    doc.setFont(undefined, 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(30, 30, 30);
-    doc.text('Fotos del ensayo', ML, y + 4);
-    y += 7;
-    fotosEnsayo.forEach((url, i) => {
-      const col = i % COLS_ENSAYO_HA;
-      const row = Math.floor(i / COLS_ENSAYO_HA);
-      const x = ML + col * (imgW + GAP_FOTO_HA);
-      const cy = y + row * (ALTO_FOTO_HA + GAP_FOTO_HA);
-      dibujarCeldaFoto(doc, x, cy, imgW, ALTO_FOTO_HA, url, cache);
-    });
-    y += Math.ceil(fotosEnsayo.length / COLS_ENSAYO_HA) * (ALTO_FOTO_HA + GAP_FOTO_HA);
-  }
-
-  doc.setFont(undefined, 'normal');
-  return y;
-}
-
-// Construye el documento completo de Control H.A. Devuelve el número de páginas
-// usadas, para que la segunda pasada pueda dibujar "PAGINA: X de Y" correcto.
-function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPaginas, logoB64, imagenesCache, escala = ESCALA_NORMAL) {
+function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPaginas, logoB64, formulaB64, imagenesCache) {
+  const escala = ESCALA_NORMAL;
   let pagina = 1;
-  let y = agregarEncabezado(doc, protocolo, pagina, totalPaginas, kmInicio, kmFin, logoB64);
-  y = agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin, escala);
 
   if (camiones.length === 0) {
+    const y = agregarEncabezado(doc, protocolo, 1, totalPaginas, kmInicio, kmFin, logoB64);
     doc.setFont(undefined, 'italic');
     doc.setFontSize(10);
     doc.setTextColor(80, 80, 80);
-    doc.text('Sin camiones registrados para este elemento — usa el módulo Recibir Camión', PW / 2, y + 8, { align: 'center' });
+    doc.text('Sin camiones registrados — usa el módulo Recibir Camión', PW / 2, y + 8, { align: 'center' });
     doc.setFont(undefined, 'normal');
-    agregarPieFirma(doc, pieFirmaY(y + 16));
-    return pagina;
+    agregarPieFirma(doc, pieFirmaY(y + 16), 'Álvaro Muñoz');
+    return 1;
   }
 
-  const ALTURA_DATOS = 8 + 10 * 6;  // título + 10 filas
-  const ALTURA_PU = 8 + 3 * 6;      // título + 3 filas (sin observaciones)
-  const ALTURA_OBS = 12;
+  const LW2 = 38;
+  const VW2 = CW / 2 - LW2;
+  const labelStyle = { fontStyle: 'bold', fillColor: [240, 240, 240] };
+  const GAP = 3;
 
   for (let i = 0; i < camiones.length; i++) {
     const camion = camiones[i];
-    const alturaPU = ALTURA_PU + (camion.observaciones ? ALTURA_OBS : 0);
-    const alturaFotos = alturaFotosCamion(camion);
-    const alturaTotalCamion = ALTURA_DATOS + alturaPU + alturaFotos;
+    if (i > 0) { doc.addPage(); pagina++; }
 
-    // Saltar de página una sola vez si el bloque completo del camión no cabe
-    if (y + alturaTotalCamion > PH - CONTENT_MARGIN.bottom) {
+    // ── Página A: datos + fórmula + ensayo ──────────────────────────────────
+    let y = agregarEncabezado(doc, protocolo, pagina, totalPaginas, kmInicio, kmFin, logoB64);
+    if (i === 0) y = agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin, escala);
+
+    const estadoTxt = camion.estadoCalidad === 'aprobado' ? 'Aprobado'
+      : camion.estadoCalidad === 'rechazado' ? 'Rechazado' : '—';
+    const estadoColor = camion.estadoCalidad === 'aprobado' ? [16, 185, 129]
+      : camion.estadoCalidad === 'rechazado' ? [239, 68, 68] : [30, 30, 30];
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: ML, right: MR, ...CONTENT_MARGIN },
+      tableWidth: CW,
+      body: [
+        [{ content: `Camión #${i + 1} — Guía N°${camion.numeroGuia || '—'} — ${camion.tipoHormigon || '—'}`, colSpan: 4, styles: { fillColor: [44, 62, 80], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center', fontSize: escala.headFontSize } }],
+        [{ content: 'Planta', styles: labelStyle }, camion.planta || '—', { content: 'N° Guía', styles: labelStyle }, camion.numeroGuia || '—'],
+        [{ content: 'Tipo hormigón', styles: labelStyle }, camion.tipoHormigon || '—', { content: 'Volumen (m³)', styles: labelStyle }, String(camion.volumen ?? '—')],
+        [{ content: 'Cono (cm)', styles: labelStyle }, String(camion.cono ?? '—'), { content: 'Temp. hormigón', styles: labelStyle }, `${camion.tempHormigon ?? '—'} °C`],
+        [{ content: 'Temp. ambiente', styles: labelStyle }, `${camion.tempAmbiente ?? '—'} °C`, { content: 'Hora de carga', styles: labelStyle }, camion.horaCarga || '—'],
+        [{ content: 'Hora de descarga', styles: labelStyle }, camion.horaDescarga || '—', { content: 'Tiempo traslado', styles: labelStyle }, `${camion.tiempoTraslado ?? '—'} min`],
+        [{ content: 'Estado', styles: labelStyle }, { content: estadoTxt, colSpan: 3, styles: { fontStyle: 'bold', textColor: estadoColor } }],
+      ],
+      columnStyles: { 0: { cellWidth: LW2 }, 1: { cellWidth: VW2 }, 2: { cellWidth: LW2 }, 3: { cellWidth: VW2 } },
+      styles: { fontSize: escala.fontSize, cellPadding: escala.cellPadding, lineColor: [120, 120, 120], lineWidth: 0.2, textColor: [30, 30, 30] },
+      theme: 'grid',
+    });
+
+    y = doc.lastAutoTable.finalY + 4;
+
+    // Imagen fórmula peso unitario — ancho completo, altura proporcional
+    if (formulaB64) {
+      try {
+        const props = doc.getImageProperties(formulaB64);
+        const imgH = CW / (props.width / props.height);
+        doc.addImage(formulaB64, 'JPEG', ML, y, CW, imgH);
+        doc.setDrawColor(180, 180, 180);
+        doc.setLineWidth(0.2);
+        doc.rect(ML, y, CW, imgH);
+        y += imgH + 4;
+      } catch (err) {
+        console.warn('[PDF] Error fórmula HA:', err?.message ?? err);
+      }
+    }
+
+    // Tabla ensayo peso unitario
+    const bodyEnsayo = [
+      filaLabelValor('Peso hoya (kg)', '6,9'),
+      filaLabelValor('Peso hoya + hormigón (kg)', camion.pesoHoyaHormigon),
+      filaLabelValor('PU calculado (kg/m³)', camion.puCalculado ? `${camion.puCalculado} kg/m³` : '—', { fontStyle: 'bold', fontSize: escala.fontSize + 1.5 }),
+    ];
+    if (camion.observaciones) {
+      bodyEnsayo.push([
+        { content: 'Observaciones', styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+        { content: camion.observaciones },
+      ]);
+    }
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: ML, right: MR, ...CONTENT_MARGIN },
+      tableWidth: CW,
+      head: [[{ content: 'ENSAYO DE PESO UNITARIO', colSpan: 2, styles: { fillColor: [189, 195, 199], textColor: [30, 30, 30], fontStyle: 'bold', halign: 'center', fontSize: escala.headFontSize } }]],
+      body: bodyEnsayo,
+      columnStyles: { 0: { cellWidth: ANCHO_LABEL_HA }, 1: { cellWidth: CW - ANCHO_LABEL_HA } },
+      styles: { fontSize: escala.fontSize, cellPadding: escala.cellPadding, lineColor: [120, 120, 120], lineWidth: 0.2, textColor: [30, 30, 30] },
+      theme: 'grid',
+      pageBreak: 'avoid',
+    });
+
+    y = doc.lastAutoTable.finalY;
+    agregarPieFirma(doc, pieFirmaY(y), 'Álvaro Muñoz');
+
+    // ── Página B: fotos (solo si existen) ───────────────────────────────────
+    if (hasPhotosHA(camion)) {
       doc.addPage();
       pagina++;
       y = agregarEncabezado(doc, protocolo, pagina, totalPaginas, kmInicio, kmFin, logoB64);
-    }
 
-    y = agregarBloqueDatosCamion(doc, camion, i + 1, y, escala);
-    y = agregarTablaPesoUnitario(doc, camion, y, escala);
-    if (alturaFotos > 0) {
-      y = agregarFotosCamion(doc, camion, y, imagenesCache) + 3;
+      const MAX_GUIA_H = 80;
+      const MAX_ENSAYO_H = 65;
+      const ENSAYO_W = (CW - GAP) / 2;
+
+      // Foto guía — ancho completo, altura proporcional
+      if (camion.fotoGuiaUrl) {
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(30, 30, 30);
+        doc.text('Guía de despacho', ML, y + 4);
+        y += 7;
+        const img = imagenesCache.get(camion.fotoGuiaUrl);
+        if (img) {
+          try {
+            const props = doc.getImageProperties(img.dataUrl);
+            const h = Math.min(MAX_GUIA_H, CW / (props.width / props.height));
+            doc.addImage(img.dataUrl, img.formato, ML, y, CW, h);
+            doc.setDrawColor(120, 120, 120);
+            doc.setLineWidth(0.2);
+            doc.rect(ML, y, CW, h);
+            y += h + GAP;
+          } catch (err) { console.warn('[PDF] Error foto guía HA:', err?.message ?? err); }
+        }
+      }
+
+      // Fotos ensayo — grilla 2 columnas, proporciones naturales
+      const fotosEnsayo = camion.fotosEnsayoUrls ?? [];
+      if (fotosEnsayo.length > 0) {
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(30, 30, 30);
+        doc.text('Fotos del ensayo', ML, y + 4);
+        y += 7;
+
+        // Pre-calcular altura máxima de cada fila para dibujo correcto
+        const rowMaxH = [];
+        for (let ri = 0; ri < fotosEnsayo.length; ri += 2) {
+          let rh = 0;
+          for (let rj = ri; rj < Math.min(ri + 2, fotosEnsayo.length); rj++) {
+            const img = imagenesCache.get(fotosEnsayo[rj]);
+            if (img) {
+              try {
+                const props = doc.getImageProperties(img.dataUrl);
+                rh = Math.max(rh, Math.min(MAX_ENSAYO_H, ENSAYO_W / (props.width / props.height)));
+              } catch { rh = Math.max(rh, MAX_ENSAYO_H); }
+            }
+          }
+          rowMaxH.push(rh || MAX_ENSAYO_H);
+        }
+
+        let rowIdx = 0;
+        for (let ei = 0; ei < fotosEnsayo.length; ei++) {
+          const col = ei % 2;
+          if (col === 0 && ei > 0) { y += rowMaxH[rowIdx++] + GAP; }
+          const img = imagenesCache.get(fotosEnsayo[ei]);
+          if (img) {
+            try {
+              const props = doc.getImageProperties(img.dataUrl);
+              const h = Math.min(MAX_ENSAYO_H, ENSAYO_W / (props.width / props.height));
+              const x = ML + col * (ENSAYO_W + GAP);
+              doc.addImage(img.dataUrl, img.formato, x, y, ENSAYO_W, h);
+              doc.setDrawColor(120, 120, 120);
+              doc.setLineWidth(0.2);
+              doc.rect(x, y, ENSAYO_W, h);
+            } catch (err) { console.warn('[PDF] Error foto ensayo HA:', err?.message ?? err); }
+          }
+          if (ei === fotosEnsayo.length - 1) { y += rowMaxH[rowIdx]; }
+        }
+      }
+
+      doc.setFont(undefined, 'normal');
+      agregarPieFirma(doc, pieFirmaY(y + GAP), 'Álvaro Muñoz');
     }
   }
-
-  if (y + PIE_FIRMA_GAP + PIE_FIRMA_H > PH) {
-    doc.addPage();
-    pagina++;
-    y = agregarEncabezado(doc, protocolo, pagina, totalPaginas, kmInicio, kmFin, logoB64);
-  }
-  agregarPieFirma(doc, pieFirmaY(y));
 
   return pagina;
 }
 
-// Genera el PDF de Control H.A. en dos pasadas: la primera determina el total
-// de páginas, la segunda dibuja el documento final con "PAGINA: X de Y" correcto.
 async function generarPDFControlHA(protocolo, camiones, kmInicio, kmFin, logoB64) {
-  const imagenesCache = await precargarImagenesCamiones(camiones);
+  const [formulaB64, imagenesCache] = await Promise.all([
+    loadFormulaB64(),
+    precargarImagenesCamiones(camiones),
+  ]);
 
+  // Primera pasada: contar páginas para "X de Y"
   let doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const totalPaginas = construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, 1, logoB64, imagenesCache);
+  const totalPaginas = construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, 1, logoB64, formulaB64, imagenesCache);
 
+  // Segunda pasada: dibujar con totalPaginas correcto
   doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPaginas, logoB64, imagenesCache);
+  construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPaginas, logoB64, formulaB64, imagenesCache);
 
   return doc;
 }

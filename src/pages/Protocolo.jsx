@@ -1145,8 +1145,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         </div>
       )}
 
-      {/* Subsección 1: seleccionar desde nube — oculto para COTAS */}
-      {!esCOTAS && (
+      {/* Subsección 1: seleccionar desde nube — oculto para COTAS y HA */}
+      {!esCOTAS && !esHA && (
         <>
           <p style={s.subSeccionTitulo}>Seleccionar desde nube 📷</p>
           <div style={s.chipsRow}>
@@ -1318,8 +1318,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         </>
       )}
 
-      {/* Subsección 2: agregar nueva foto — oculto para COTAS */}
-      {!readOnly && !esCOTAS && (
+      {/* Subsección 2: agregar nueva foto — oculto para COTAS y HA */}
+      {!readOnly && !esCOTAS && !esHA && (
         <>
           <p style={s.subSeccionTitulo}>Agregar nueva foto 📸</p>
           <input ref={inputCamaraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFotoSeleccionada} />
@@ -1331,9 +1331,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         </>
       )}
 
-      {/* Fotos seleccionadas (combinadas) — oculto en COTAS editable, los slots ya muestran preview */}
-      {/* Fotos seleccionadas — oculto en COTAS editable (los slots muestran el preview) */}
-      {(!esCOTAS || readOnly) && (
+      {/* Fotos seleccionadas — oculto en COTAS editable y en HA (fotos van en la tarjeta de camión) */}
+      {(!esCOTAS || readOnly) && !esHA && (
         <>
           <p style={s.subSeccionTitulo}>Fotos seleccionadas{fotosCombinadas.length > 0 ? ` (${fotosCombinadas.length})` : ''}</p>
           {fotosCombinadas.length > 0 ? (
@@ -1438,40 +1437,58 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       {esHA && (
         /* ── Camiones registrados desde Recepción de Camiones ────────────────── */
         <Seccion titulo="Camiones registrados">
-          <div style={s.badgeCamiones}>🚛 {camionesRegistrados.length} camiones registrados</div>
-          {camionesRegistrados.length > 0 && (
-            <select
-              value={camionSeleccionado}
-              onChange={e => setCamionSeleccionado(e.target.value)}
-              style={{ ...s.inputEdit, marginBottom: '12px' }}
-            >
-              <option value="todos">Todos los camiones ({camionesRegistrados.length})</option>
-              {camionesRegistrados.map(c => (
-                <option key={c.key} value={c.key}>
-                  Camión #{c.numeroGuia ?? '—'} — {c.tipoHormigon ?? ''}
-                </option>
-              ))}
-            </select>
-          )}
           {cargandoCamiones ? (
             <p style={s.sinFotos}>Cargando camiones...</p>
           ) : camionesRegistrados.length === 0 ? (
             <p style={s.sinFotos}>No hay camiones registrados para este elemento. Usa el módulo Recibir Camión.</p>
           ) : (
-            <div style={s.camionesList}>
-              {camionesRegistrados.map(c => (
-                <CamionRegistradoCard
-                  key={c.key}
-                  camion={c}
-                  expandido={expandidoCamion === c.key}
-                  onToggle={() => setExpandidoCamion(prev => prev === c.key ? null : c.key)}
-                  editando={editandoCamion === c.key}
-                  onEditar={() => setEditandoCamion(c.key)}
-                  onCancelarEdicion={() => setEditandoCamion(null)}
-                  onGuardarEdicion={(nuevoTipo, nuevoEntidadId) => actualizarEntidadCamion(c, nuevoTipo, nuevoEntidadId)}
-                />
-              ))}
-            </div>
+            <>
+              <div style={s.haSelectorRow}>
+                {/* Tarjeta "Todos" */}
+                <button
+                  style={{ ...s.haCamionChip, ...(camionSeleccionado === 'todos' ? s.haCamionChipActivo : {}) }}
+                  onClick={() => setCamionSeleccionado('todos')}
+                >
+                  <span style={s.haCamionChipNum}>Todos</span>
+                  <span style={s.haCamionChipSub}>{camionesRegistrados.length} camiones</span>
+                </button>
+                {/* Tarjeta por camión */}
+                {camionesRegistrados.map((c, idx) => {
+                  const color = c.estadoCalidad === 'aprobado' ? '#10b981'
+                    : c.estadoCalidad === 'rechazado' ? '#ef4444' : '#8892b0';
+                  const activo = camionSeleccionado === c.key;
+                  return (
+                    <button
+                      key={c.key}
+                      style={{ ...s.haCamionChip, ...(activo ? s.haCamionChipActivo : {}), borderColor: activo ? color : undefined }}
+                      onClick={() => setCamionSeleccionado(c.key)}
+                    >
+                      <span style={{ ...s.haCamionChipNum, color }}>{`#${c.numeroGuia || (idx + 1)}`}</span>
+                      <span style={s.haCamionChipSub}>{c.tipoHormigon || '—'}</span>
+                      {c.estadoCalidad && <span style={{ ...s.haCamionChipEstado, color }}>{c.estadoCalidad === 'aprobado' ? '✓' : '✗'}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Detalle del camión seleccionado */}
+              {camionSeleccionado !== 'todos' && (() => {
+                const c = camionesRegistrados.find(x => x.key === camionSeleccionado);
+                if (!c) return null;
+                return (
+                  <CamionRegistradoCard
+                    key={c.key}
+                    camion={c}
+                    expandido={true}
+                    onToggle={() => {}}
+                    editando={editandoCamion === c.key}
+                    onEditar={() => setEditandoCamion(c.key)}
+                    onCancelarEdicion={() => setEditandoCamion(null)}
+                    onGuardarEdicion={(nuevoTipo, nuevoEntidadId) => actualizarEntidadCamion(c, nuevoTipo, nuevoEntidadId)}
+                  />
+                );
+              })()}
+            </>
           )}
         </Seccion>
       )}
@@ -1962,6 +1979,13 @@ const s = {
 
   badgeCamiones: { background: '#0a2040', border: '1px solid #64ffda', borderRadius: '8px', padding: '8px 14px', color: '#ccd6f6', fontSize: '13px', fontWeight: 700, marginBottom: '12px', textAlign: 'center' },
   camionesList: { display: 'flex', flexDirection: 'column', gap: '8px' },
+
+  haSelectorRow: { display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' },
+  haCamionChip: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', padding: '8px 14px', background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '10px', cursor: 'pointer', minWidth: '70px', position: 'relative' },
+  haCamionChipActivo: { background: 'rgba(100,255,218,0.08)', border: '1px solid #64ffda' },
+  haCamionChipNum: { color: '#ccd6f6', fontSize: '13px', fontWeight: 700 },
+  haCamionChipSub: { color: '#8892b0', fontSize: '11px' },
+  haCamionChipEstado: { fontSize: '12px', fontWeight: 700 },
   camionRegCard: { background: '#0f3460', borderRadius: '8px', border: '1px solid #1e3a5f', overflow: 'hidden' },
   camionFila: { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', cursor: 'pointer' },
   camionInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' },
