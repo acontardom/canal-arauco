@@ -998,7 +998,6 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     const [first, ...rest] = files;
     setPendingFiles(rest);
     const fechaExif = await leerFechaExif(first);
-    console.log('[EXIF] Usando fechaCaptura:', fechaExif ?? 'fecha actual (sin EXIF)');
     const dataUrl = await comprimirFoto(first);
     abrirCropModal(dataUrl, 'nueva', { file: first });
   }

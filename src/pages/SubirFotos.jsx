@@ -73,7 +73,6 @@ export default function SubirFotos() {
 
     for (let i = 0; i < files.length; i++) {
       const fechaExif = await leerFechaExif(files[i]);
-      console.log('[EXIF] Usando fechaCaptura:', fechaExif ?? 'fecha actual (sin EXIF)');
       const dataUrl = await comprimirFoto(files[i]);
       const id = ids[i];
       setPendientes(prev => prev.map(p => p.id === id

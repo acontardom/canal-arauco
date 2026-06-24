@@ -231,7 +231,6 @@ export default function RecibirCamion() {
 
     for (let i = 0; i < files.length; i++) {
       const fechaExif = await leerFechaExif(files[i]);
-      console.log('[EXIF] Usando fechaCaptura:', fechaExif ?? 'fecha actual (sin EXIF)');
       const dataUrl = await comprimirFoto(files[i]);
       let url = null;
       if (supabase && navigator.onLine) {
