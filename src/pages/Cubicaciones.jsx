@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TRAMOS, CAIDAS, ATRAVIESOS, KM_DATA } from '../constants/estructura';
 import { supabase } from '../config/supabase';
+import { generarPDFCubicaciones } from '../utils/generarPDFCubicaciones';
 
 // ─── Parámetros y constantes ─────────────────────────────────────────────────
 
@@ -131,6 +132,7 @@ export default function Cubicaciones() {
   const [libres, setLibres]                       = useState(() => [
     { id: 0, l: '', a: '', h: '', tipo: 'radier', desc: '' },
   ]);
+  const [generandoPDF, setGenerandoPDF]           = useState(false);
 
   // Cargar avance desde Supabase
   useEffect(() => {
@@ -232,6 +234,18 @@ export default function Cubicaciones() {
   function guardarParams() {
     setParams({ ...paramsEdit });
     setEditandoParams(false);
+  }
+
+  async function handleExportarPDF() {
+    if (generandoPDF) return;
+    setGenerandoPDF(true);
+    try {
+      await generarPDFCubicaciones(itemsConVolumen, libres, params, totalRadier, totalMuros);
+    } catch (err) {
+      console.error('[PDF Cubicaciones]', err);
+    } finally {
+      setGenerandoPDF(false);
+    }
   }
 
   function restaurarParams() {
@@ -427,8 +441,8 @@ export default function Cubicaciones() {
             </div>
           ))}
         </div>
-        <button style={s.btnPDF} onClick={() => alert('PDF próximamente')}>
-          📄 Exportar PDF
+        <button style={s.btnPDF} onClick={handleExportarPDF} disabled={generandoPDF}>
+          {generandoPDF ? 'Generando PDF...' : '📄 Exportar PDF'}
         </button>
       </Sec>
 
