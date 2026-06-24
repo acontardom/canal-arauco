@@ -303,6 +303,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const esHA = protocoloId === 'HA_RADIER' || protocoloId === 'HA_MURO';
   // Protocolo de Cotas Topográficas — formulario propio, sin checklist
   const esCOTAS = protocoloId === 'COTAS';
+  // Protocolos de Hormigones — tienen dropdown de camiones en ítem cono
+  const esPICE2 = protocoloId === 'PICE2_RADIER' || protocoloId === 'PICE2_MURO';
   // Protocolos solo-fotos (ej. G5 Emplantillado) — sin checklist ni observaciones
   const soloFotos = protocoloInfo?.soloFotos === true;
   // Evaluado una sola vez al montar — suficiente para PWA móvil
@@ -320,6 +322,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [camionSeleccionado, setCamionSeleccionado] = useState('todos');
   const [fotosExcluidas, setFotosExcluidas] = useState([]);  // array de URLs excluidas del PDF
   const [fotosRecortadas, setFotosRecortadas] = useState({});  // { [url]: dataUrlRecortado }
+  const [camionesTramo, setCamionesTramo] = useState([]);
   const [estado, setEstado] = useState('pendiente');
   const [fechaEnvio, setFechaEnvio] = useState(null);
   const [guardando, setGuardando] = useState(false);
@@ -367,6 +370,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   const cargadoRef = useRef(false);
   const toastTimerRef = useRef(null);
+  const autoSetConoRef = useRef(false);
   const inputCamaraRef      = useRef(null);
   const inputGaleriaRef     = useRef(null);
   const inputCotasAutocadRef = useRef(null);
@@ -511,6 +515,55 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     cargarCamionesRegistrados();
     return () => { cancelado = true; };
   }, [esHA, tipo, entidadIdReal, protocoloId]);
+
+  // Camiones del tramo/caída para el ítem cono_conforme en PICE2
+  useEffect(() => {
+    if (!esPICE2) return;
+    let cancelado = false;
+    const uso = protocoloId === 'PICE2_RADIER' ? 'radier' : 'muro';
+
+    async function cargarCamionesTramo() {
+      if (supabase && navigator.onLine) {
+        try {
+          const { data, error } = await supabase
+            .from('camiones')
+            .select('*')
+            .eq('tipo_entidad', tipo)
+            .eq('entidad_id', String(entidadIdReal))
+            .eq('uso_hormigon', uso);
+          if (error) throw error;
+          if (!cancelado) setCamionesTramo((data ?? []).map(normalizarCamionRemoto));
+          return;
+        } catch (err) {
+          console.warn('[PICE2] Error cargando camiones:', err?.message ?? err);
+        }
+      }
+      const locales = await db.camiones
+        .filter(c =>
+          c.tipoEntidad === tipo &&
+          String(c.entidadId) === String(entidadIdReal) &&
+          c.usoHormigon === uso
+        )
+        .toArray();
+      if (!cancelado) setCamionesTramo(locales.map(normalizarCamionLocal));
+    }
+
+    cargarCamionesTramo();
+    return () => { cancelado = true; };
+  }, [esPICE2, tipo, entidadIdReal, protocoloId]);
+
+  // Auto-seleccionar primer camión en cono_conforme cuando cargan los camiones de PICE2
+  useEffect(() => {
+    if (!esPICE2 || camionesTramo.length === 0) return;
+    if (autoSetConoRef.current) return;
+    autoSetConoRef.current = true;
+    setChecklist(prev => {
+      if (prev['cono_conforme']?.valor) return prev;
+      const c = camionesTramo[0];
+      const obs = `Control de docilidad conforme. Resultado de cono ${c.cono} cm, guía N°${c.numeroGuia}.`;
+      return { ...prev, cono_conforme: { valor: 'si', obs } };
+    });
+  }, [esPICE2, camionesTramo]);
 
   // Fotos del camión seleccionado, enriquecidas con estado de exclusión y recorte
   const fotosHA = useMemo(() => {
@@ -1709,18 +1762,46 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                       {/* Línea 2: select + textarea — solo si hay valor marcado */}
                       {entry.valor && (
                         <div style={s.checkBody}>
-                          {entry.valor === 'si' && textosTipo.length > 0 && !readOnly && (
-                            <select
-                              style={s.textoTipoSelect}
-                              value={textoSelected}
-                              onChange={e => { if (e.target.value) setCheckObs(item.id, e.target.value); }}
-                            >
-                              <option value="">Seleccionar texto tipo o escribir observación...</option>
-                              {textosTipo.map((t, i) => (
-                                <option key={i} value={t}>{t.length > 80 ? t.substring(0, 80) + '…' : t}</option>
-                              ))}
-                            </select>
-                          )}
+                          {entry.valor === 'si' && !readOnly && (() => {
+                            if (item.id === 'cono_conforme' && esPICE2 && camionesTramo.length > 0) {
+                              const selectedKey = camionesTramo.find(c =>
+                                entry.obs === `Control de docilidad conforme. Resultado de cono ${c.cono} cm, guía N°${c.numeroGuia}.`
+                              )?.key ?? '';
+                              return (
+                                <select
+                                  style={s.textoTipoSelect}
+                                  value={selectedKey}
+                                  onChange={e => {
+                                    if (!e.target.value) return;
+                                    const c = camionesTramo.find(x => x.key === e.target.value);
+                                    if (c) setCheckObs(item.id, `Control de docilidad conforme. Resultado de cono ${c.cono} cm, guía N°${c.numeroGuia}.`);
+                                  }}
+                                >
+                                  <option value="">Seleccionar camión...</option>
+                                  {camionesTramo.map(c => (
+                                    <option key={c.key} value={c.key}>
+                                      {`Guía N°${c.numeroGuia} — Cono: ${c.cono} cm — ${c.tipoHormigon}`}
+                                    </option>
+                                  ))}
+                                </select>
+                              );
+                            }
+                            if (textosTipo.length > 0) {
+                              return (
+                                <select
+                                  style={s.textoTipoSelect}
+                                  value={textoSelected}
+                                  onChange={e => { if (e.target.value) setCheckObs(item.id, e.target.value); }}
+                                >
+                                  <option value="">Seleccionar texto tipo o escribir observación...</option>
+                                  {textosTipo.map((t, i) => (
+                                    <option key={i} value={t}>{t.length > 80 ? t.substring(0, 80) + '…' : t}</option>
+                                  ))}
+                                </select>
+                              );
+                            }
+                            return null;
+                          })()}
                           <textarea
                             style={s.checkObs}
                             value={entry.obs}
