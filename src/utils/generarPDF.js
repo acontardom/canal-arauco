@@ -273,7 +273,7 @@ function agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio,
     body: [
       [
         tituloDocumento,
-        `FECHA: ${fmt(protocolo.fechaModificacion)}`,
+        `FECHA: ${protocolo.datos?.fechaProtocolo ? fmt(protocolo.datos.fechaProtocolo + 'T12:00:00') : fmt(protocolo.fechaModificacion)}`,
       ],
       [
         'PROYECTO: Construcción Canal Siberia - Sección Los Litres',

@@ -307,6 +307,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   // Evaluado una sola vez al montar — suficiente para PWA móvil
   const isMobile = window.innerWidth < 768;
 
+  const [fechaProtocolo, setFechaProtocolo] = useState(fechaHoy());
   const [checklist, setChecklist] = useState(emptyChecklist);
   const [observaciones, setObservaciones] = useState('');
   const [edp, setEdp] = useState('');
@@ -536,6 +537,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         const datosVacios = !protocolo.datos || Object.keys(protocolo.datos).length === 0;
 
         function aplicarDatos(d) {
+          if (d.fechaProtocolo) setFechaProtocolo(d.fechaProtocolo);
           if (esCOTAS) {
             setCotasFechaControl(d.fechaControl ?? fechaHoy());
             setCotasNControl(d.nControl ?? '');
@@ -707,13 +709,13 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       if (esHA) {
         const fotosRecortadasUrls = await subirFotosRecortadasHA(fotosRecortadas);
         if (fotosRecortadasUrls !== fotosRecortadas) setFotosRecortadas(fotosRecortadasUrls);
-        datos = { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadasUrls, observaciones };
+        datos = { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadasUrls, observaciones, fechaProtocolo };
       } else {
         const fotosSubidas = await subirFotosNubePendientes(fotosNubeSeleccionadas);
         if (fotosSubidas !== fotosNubeSeleccionadas) setFotosNubeSeleccionadas(fotosSubidas);
         datos = esCOTAS
-          ? { fechaControl: cotasFechaControl, nControl: cotasNControl, instrumentoNS: cotasInstrumento, nombrePR: cotasNombrePR, cotaPR: cotasCotaPR, observacionCotas: cotasObs, fotoAutocad, fotoTabla }
-          : { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas };
+          ? { fechaControl: cotasFechaControl, nControl: cotasNControl, instrumentoNS: cotasInstrumento, nombrePR: cotasNombrePR, cotaPR: cotasCotaPR, observacionCotas: cotasObs, fotoAutocad, fotoTabla, fechaProtocolo }
+          : { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fechaProtocolo };
       }
 
       const campos = {
@@ -1546,6 +1548,18 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         })()}
       </div>
 
+      {/* ── Fecha del protocolo ─────────────────────────────────────────────── */}
+      <div style={s.fechaProtocoloRow}>
+        <label style={s.fechaProtocoloLabel}>Fecha del protocolo</label>
+        <input
+          type="date"
+          style={s.fechaProtocoloInput}
+          value={fechaProtocolo}
+          onChange={e => setFechaProtocolo(e.target.value)}
+          readOnly={readOnly}
+        />
+      </div>
+
       {esHA && (
         /* ── Camiones registrados desde Recepción de Camiones ────────────────── */
         <Seccion titulo="Camiones registrados">
@@ -2071,6 +2085,9 @@ const s = {
   checkSep: { borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: '12px' },
   checkBtns: { display: 'flex', gap: '4px', flexShrink: 0 },
   checkBtn: { padding: '5px 9px', border: '1.5px solid', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.12s', minWidth: '36px', textAlign: 'center' },
+  fechaProtocoloRow: { display: 'flex', alignItems: 'center', gap: '12px', margin: '12px 0 4px' },
+  fechaProtocoloLabel: { color: '#94a3b8', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' },
+  fechaProtocoloInput: { ...obsInputBase, width: '160px' },
   cotasGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px 20px', marginBottom: '4px' },
   cotasCampo: { display: 'flex', flexDirection: 'column', gap: '4px' },
   cotasLabel: { color: '#94a3b8', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' },
