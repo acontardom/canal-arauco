@@ -492,7 +492,7 @@ export async function descargarDesdeSupabase() {
           protocoloLocalId: remoto.protocolo_local_id,
           nombre:           remoto.nombre ?? null,
           tipo:             remoto.tipo_mime ?? null,
-          dataUrl:          remoto.data_url,
+          dataUrl:          null,  // no se descarga — usar storageUrl
           descripcion:      remoto.descripcion ?? null,
           storageUrl:       remoto.storage_url ?? null,
           subidaStorage:    remoto.subida_storage ?? false,
@@ -522,7 +522,7 @@ export async function descargarDesdeSupabase() {
           entidadId:     remoto.tipo === 'caida' ? Number(remoto.entidad_id) : remoto.entidad_id,
           etiquetas:     remoto.etiquetas ?? [],
           descripcion:   remoto.descripcion ?? null,
-          dataUrl:       remoto.data_url,
+          dataUrl:       null,  // no se descarga — usar storageUrl
           storageUrl:    remoto.storage_url ?? null,
           subidaStorage: remoto.subida_storage ?? false,
           usuarioNombre: remoto.usuario_nombre ?? null,
