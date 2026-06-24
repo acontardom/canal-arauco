@@ -770,16 +770,40 @@ function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPagi
 
     y = doc.lastAutoTable.finalY + 4;
 
-    // Imagen fórmula peso unitario — ancho completo, altura proporcional
+    // Imagen fórmula peso unitario — ancho completo, altura proporcional + valores superpuestos
     if (formulaB64) {
       try {
         const props = doc.getImageProperties(formulaB64);
-        const imgH = CW / (props.width / props.height);
-        doc.addImage(formulaB64, 'JPEG', ML, y, CW, imgH);
+        const formulaH = CW * props.height / props.width;
+        doc.addImage(formulaB64, 'JPEG', ML, y, CW, formulaH);
         doc.setDrawColor(180, 180, 180);
         doc.setLineWidth(0.2);
-        doc.rect(ML, y, CW, imgH);
-        y += imgH + 4;
+        doc.rect(ML, y, CW, formulaH);
+
+        // Superponer valores dinámicos — escala: imagen 900 px → CW mm
+        const sc = CW / 900;
+        const yF = y;
+
+        const pesoW = camion.pesoHoyaHormigon
+          ? (parseFloat(camion.pesoHoyaHormigon) - 6.9).toFixed(1)
+          : '—';
+
+        // Resultados (cuadros de la derecha): negrita, tamaño 11
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(0, 0, 0);
+        doc.text(String(pesoW),                      ML + 345 * sc, yF + 282 * sc, { align: 'center' });
+        doc.text(String(camion.puCalculado ?? '—'),  ML + 360 * sc, yF + 322 * sc, { align: 'center' });
+
+        // Valores izquierda (entradas del cálculo): normal, tamaño 10
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(10);
+        doc.text(String(camion.pesoHoyaHormigon ?? '—'), ML + 140 * sc, yF + 282 * sc, { align: 'center' });
+        doc.text(String(camion.pesoHoyaHormigon ?? '—'), ML + 130 * sc, yF + 322 * sc, { align: 'center' });
+
+        doc.setTextColor(30, 30, 30);
+
+        y += formulaH + 3;
       } catch (err) {
         console.warn('[PDF] Error fórmula HA:', err?.message ?? err);
       }
