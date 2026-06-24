@@ -334,7 +334,8 @@ const s = {
   tablaWrap: {
     flex: isMobile ? '1 1 100%' : '0 1 48%',
     maxWidth: isMobile ? 'none' : '520px',
-    overflowX: 'auto',
+    overflow: 'auto',
+    maxHeight: 'calc(100vh - 120px)',
     border: '1px solid #0f3460',
     borderRadius: '10px',
     marginBottom: isMobile ? '8px' : 0,
@@ -344,6 +345,7 @@ const s = {
   tituloTabla: {
     background: '#0f3460', color: '#64ffda', fontSize: '17px', fontWeight: 800,
     textAlign: 'center', padding: '12px 0', letterSpacing: '2px', textTransform: 'uppercase',
+    position: 'sticky', top: 0, zIndex: 2,
   },
   separadorFila: {
     background: '#1e3a5f', color: '#64ffda', fontSize: '13px', fontWeight: 700,
@@ -354,13 +356,16 @@ const s = {
     fontSize: '15px', fontWeight: 700, textAlign: 'center', verticalAlign: 'middle',
     border: '1px solid #1a1a2e', padding: '8px 4px',
     writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap',
+    position: 'sticky', top: 44, zIndex: 2,
   },
   cornerCell: {
     width: `${ROW_HEADER_W}px`, background: '#0f3460', border: '1px solid #1a1a2e',
+    position: 'sticky', top: 44, left: 0, zIndex: 3,
   },
   rowHeader: {
     width: `${ROW_HEADER_W}px`, height: `${CELL}px`, background: '#0f3460', color: '#ccd6f6',
     fontSize: '12px', fontWeight: 700, textAlign: 'center', border: '1px solid #1a1a2e', padding: '6px 4px',
+    position: 'sticky', left: 0, zIndex: 1,
   },
   celda: {
     height: `${CELL}px`, minWidth: `${CELL}px`, border: '1px solid #1a1a2e',
