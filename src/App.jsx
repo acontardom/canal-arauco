@@ -110,39 +110,46 @@ export default function App() {
   return (
     <BrowserRouter>
       <UserProvider>
-        <Layout cargandoSync={cargandoSync}>
-          <Routes>
-            <Route path="/" element={<Inicio />} />
-            <Route path="/gestion" element={<Gestion />} />
-            <Route path="/perfil" element={<Perfil />} />
-            <Route path="/galeria" element={<Galeria />} />
-            <Route path="/camiones" element={<HistorialCamiones />} />
-            <Route path="/control" element={<CentroControl />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/matriz" element={<DashboardMatriz />} />
-            <Route path="/proximamente" element={<Proximamente />} />
-            <Route path="/subir-fotos" element={<SubirFotos />} />
-            <Route path="/subir-fotos/:tipo/:entidadId" element={<SubirFotos />} />
-            <Route path="/recibir-camion" element={<RecibirCamion />} />
-            <Route path="/planificacion" element={<Planificacion />} />
-            <Route path="/recepcionar-avance" element={<RecepcionarAvance />} />
-            <Route path="/cuadrillas" element={<Cuadrillas />} />
-            <Route path="/tramos" element={<Tramos />} />
-            <Route path="/tramos/:tramoId" element={<TramoDetalle />} />
-            <Route path="/caidas" element={<Caidas />} />
-            <Route path="/caidas/:caidaId" element={<CaidaDetalle />} />
-            <Route path="/atraviesos" element={<Atraviesos />} />
-            <Route path="/atraviesos/:atraviesoId" element={<AtraviesoDetalle />} />
-            <Route path="/protocolo/:tipo/:entidadId/:protocoloId" element={<Protocolo />} />
-            <Route path="/generar-protocolo" element={<GenerarProtocolo />} />
-            <Route path="/configuracion" element={<Configuracion />} />
-            <Route path="/vista-canal" element={<VistaCanal />} />
-            <Route path="/cubicaciones" element={<Cubicaciones />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/ito" element={<PortalITO />} />
-            <Route path="/firma/:token" element={<Firma />} />
-          </Routes>
-        </Layout>
+        <Routes>
+          {/* Página pública fuera del layout con sidebar */}
+          <Route path="/firma/:token" element={<Firma />} />
+
+          {/* Todas las demás rutas con Layout + Sidebar */}
+          <Route path="*" element={
+            <Layout cargandoSync={cargandoSync}>
+              <Routes>
+                <Route path="/" element={<Inicio />} />
+                <Route path="/gestion" element={<Gestion />} />
+                <Route path="/perfil" element={<Perfil />} />
+                <Route path="/galeria" element={<Galeria />} />
+                <Route path="/camiones" element={<HistorialCamiones />} />
+                <Route path="/control" element={<CentroControl />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/matriz" element={<DashboardMatriz />} />
+                <Route path="/proximamente" element={<Proximamente />} />
+                <Route path="/subir-fotos" element={<SubirFotos />} />
+                <Route path="/subir-fotos/:tipo/:entidadId" element={<SubirFotos />} />
+                <Route path="/recibir-camion" element={<RecibirCamion />} />
+                <Route path="/planificacion" element={<Planificacion />} />
+                <Route path="/recepcionar-avance" element={<RecepcionarAvance />} />
+                <Route path="/cuadrillas" element={<Cuadrillas />} />
+                <Route path="/tramos" element={<Tramos />} />
+                <Route path="/tramos/:tramoId" element={<TramoDetalle />} />
+                <Route path="/caidas" element={<Caidas />} />
+                <Route path="/caidas/:caidaId" element={<CaidaDetalle />} />
+                <Route path="/atraviesos" element={<Atraviesos />} />
+                <Route path="/atraviesos/:atraviesoId" element={<AtraviesoDetalle />} />
+                <Route path="/protocolo/:tipo/:entidadId/:protocoloId" element={<Protocolo />} />
+                <Route path="/generar-protocolo" element={<GenerarProtocolo />} />
+                <Route path="/configuracion" element={<Configuracion />} />
+                <Route path="/vista-canal" element={<VistaCanal />} />
+                <Route path="/cubicaciones" element={<Cubicaciones />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/ito" element={<PortalITO />} />
+              </Routes>
+            </Layout>
+          } />
+        </Routes>
       </UserProvider>
     </BrowserRouter>
   );

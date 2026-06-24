@@ -427,7 +427,7 @@ export async function descargarDesdeSupabase() {
     // ── Protocolos ────────────────────────────────────────────────────────────
     const { data: remotos, error: errProt } = await supabase
       .from('protocolos')
-      .select('id, local_id, device_protocolo_id, tipo, entidad, entidad_id, protocolo_id, estado, firma_token, edp, usuario_nombre, fecha_creacion, fecha_modificacion, fecha_envio');
+      .select('id, local_id, device_protocolo_id, tipo, entidad, entidad_id, protocolo_id, estado, firma_token, firma_imagen_url, firma_fecha, observacion_ito, pdf_firmado_url, edp, usuario_nombre, fecha_creacion, fecha_modificacion, fecha_envio');
 
     if (errProt) throw errProt;
 
@@ -470,7 +470,14 @@ export async function descargarDesdeSupabase() {
         const fechaRemota = remoto.fecha_modificacion ?? '';
         const fechaLocal  = local.fechaModificacion ?? '';
         if (fechaRemota > fechaLocal) {
-          await db.protocolos.update(local.id, dexieData);
+          await db.protocolos.update(local.id, {
+            ...dexieData,
+            firmaToken:     remoto.firma_token      ?? null,
+            firmaImagenUrl: remoto.firma_imagen_url ?? null,
+            firmaFecha:     remoto.firma_fecha       ?? null,
+            observacionIto: remoto.observacion_ito  ?? null,
+            pdfFirmadoUrl:  remoto.pdf_firmado_url  ?? null,
+          });
         }
       }
     }

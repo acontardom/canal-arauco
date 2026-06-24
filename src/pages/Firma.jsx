@@ -157,7 +157,7 @@ export default function Firma() {
         <div style={s.confirmado}>
           <span style={s.confirmadoIcono}>✅</span>
           <h2 style={s.confirmadoTitulo}>Respuesta enviada</h2>
-          <p style={s.confirmadoTexto}>El equipo de El Espinal ha sido notificado.</p>
+          <p style={s.confirmadoTexto}>El equipo ha sido notificado.</p>
         </div>
       </div>
     );
@@ -289,15 +289,16 @@ function Header({ protocolo, tipoLabel, entidadLabel }) {
 
 const s = {
   page: {
-    maxWidth: '700px',
+    maxWidth: '960px',
     margin: '0 auto',
-    padding: '24px 16px 60px',
+    padding: '32px 24px 60px',
     display: 'flex',
     flexDirection: 'column',
     gap: '24px',
     minHeight: '100vh',
     background: '#1a1a2e',
     color: '#ccd6f6',
+    boxSizing: 'border-box',
   },
   centrado: {
     minHeight: '100vh',

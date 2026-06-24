@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TRAMOS, CAIDAS, ATRAVIESOS, PROTOCOLOS } from '../constants/estructura';
+import { db } from '../db/database';
+import { supabase } from '../config/supabase';
 import Protocolo from './Protocolo';
 
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
@@ -9,9 +11,46 @@ const LISTAS = { tramo: TRAMOS, caida: CAIDAS, atravieso: ATRAVIESOS };
 export default function GenerarProtocolo() {
   const navigate = useNavigate();
 
-  const [tipo, setTipo] = useState('tramo');
+  const [tipo, setTipo]           = useState('tramo');
   const [entidadId, setEntidadId] = useState(String(TRAMOS[0]));
   const [protocoloId, setProtocoloId] = useState('');
+  const [protocoloLocal, setProtocoloLocal] = useState(null);
+
+  useEffect(() => {
+    if (!protocoloId) { setProtocoloLocal(null); return; }
+    const entidadIdReal = tipo === 'caida' ? Number(entidadId) : entidadId;
+    db.protocolos
+      .where('entidadId').equals(entidadIdReal)
+      .filter(p => p.tipo === tipo && p.protocoloId === protocoloId)
+      .first()
+      .then(p => setProtocoloLocal(p ?? null));
+  }, [tipo, entidadId, protocoloId]);
+
+  useEffect(() => {
+    if (!protocoloLocal?.supabaseId || !supabase) return;
+    supabase
+      .from('protocolos')
+      .select('estado, observacion_ito, firma_token, firma_imagen_url, firma_fecha, pdf_firmado_url')
+      .eq('id', protocoloLocal.supabaseId)
+      .single()
+      .then(({ data }) => {
+        if (!data) return;
+        if (data.estado !== protocoloLocal.estado) {
+          db.protocolos.update(protocoloLocal.id, {
+            estado:         data.estado,
+            observacionIto: data.observacion_ito  ?? null,
+            firmaToken:     data.firma_token       ?? null,
+            pdfFirmadoUrl:  data.pdf_firmado_url   ?? null,
+            sincronizada:   true,
+          });
+          setProtocoloLocal(prev => ({
+            ...prev,
+            estado:         data.estado,
+            observacionIto: data.observacion_ito ?? null,
+          }));
+        }
+      });
+  }, [protocoloLocal?.supabaseId]);
 
   function handleTipoChange(nuevoTipo) {
     setTipo(nuevoTipo);
