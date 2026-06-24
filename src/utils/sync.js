@@ -36,7 +36,7 @@ async function subirFotosNubeEnSync(fotos, protocolo) {
           carpeta: `protocolos/${protocolo.protocoloId}`,
           archivo: `${Date.now()}_${i}_orig.jpg`,
         });
-        if (url) { f.storageUrl = url; delete f.dataUrl; changed = true; }
+        if (url) { f.storageUrl = url; delete f.dataUrl; delete f.dataUrlRecortado; changed = true; }
       } catch (err) {
         console.warn('[Sync] Error subida original nube:', err?.message ?? err);
       }
@@ -48,7 +48,7 @@ async function subirFotosNubeEnSync(fotos, protocolo) {
           carpeta: `protocolos/${protocolo.protocoloId}`,
           archivo: `${Date.now()}_${i}_crop.jpg`,
         });
-        if (url) { f.storageUrlRecortado = url; delete f.dataUrlRecortado; changed = true; }
+        if (url) { f.storageUrlRecortado = url; delete f.dataUrlRecortado; delete f.dataUrl; changed = true; }
       } catch (err) {
         console.warn('[Sync] Error subida recortada nube:', err?.message ?? err);
       }
