@@ -315,6 +315,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [cargandoCamiones, setCargandoCamiones] = useState(true);
   const [expandidoCamion, setExpandidoCamion] = useState(null);
   const [editandoCamion, setEditandoCamion] = useState(null);
+  const [camionSeleccionado, setCamionSeleccionado] = useState('todos');
   const [estado, setEstado] = useState('pendiente');
   const [fechaEnvio, setFechaEnvio] = useState(null);
   const [guardando, setGuardando] = useState(false);
@@ -1053,7 +1054,10 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   async function abrirVistaPrevia() {
     setGenerandoPreview(true);
     try {
-      const { doc, filename } = await construirDocumentoPDF(protocolo, fotosCombinadas, kmInicio, kmFin, camionesRegistrados);
+      const camionesParaPDF = camionSeleccionado === 'todos'
+        ? camionesRegistrados
+        : camionesRegistrados.filter(c => c.key === camionSeleccionado);
+      const { doc, filename } = await construirDocumentoPDF(protocolo, fotosCombinadas, kmInicio, kmFin, camionesParaPDF);
       const url = doc.output('bloburl');
       setPreviewPDF({ doc, filename, url });
     } catch (err) {
@@ -1435,6 +1439,20 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         /* ── Camiones registrados desde Recepción de Camiones ────────────────── */
         <Seccion titulo="Camiones registrados">
           <div style={s.badgeCamiones}>🚛 {camionesRegistrados.length} camiones registrados</div>
+          {camionesRegistrados.length > 0 && (
+            <select
+              value={camionSeleccionado}
+              onChange={e => setCamionSeleccionado(e.target.value)}
+              style={{ ...s.inputEdit, marginBottom: '12px' }}
+            >
+              <option value="todos">Todos los camiones ({camionesRegistrados.length})</option>
+              {camionesRegistrados.map(c => (
+                <option key={c.key} value={c.key}>
+                  Camión #{c.numeroGuia ?? '—'} — {c.tipoHormigon ?? ''}
+                </option>
+              ))}
+            </select>
+          )}
           {cargandoCamiones ? (
             <p style={s.sinFotos}>Cargando camiones...</p>
           ) : camionesRegistrados.length === 0 ? (

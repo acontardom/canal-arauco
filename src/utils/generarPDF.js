@@ -679,7 +679,7 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
 
 // ─── Control H.A. (Radier / Muro) — bloques por camión ────────────────────────
 
-const ALTO_FOTO_HA = 65;
+const ALTO_FOTO_HA = 45;
 const GAP_FOTO_HA = 4;
 const COLS_ENSAYO_HA = 2;
 const ANCHO_LABEL_HA = 65;
@@ -862,29 +862,20 @@ function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPagi
 
   for (let i = 0; i < camiones.length; i++) {
     const camion = camiones[i];
-
-    if (y + ALTURA_DATOS > PH - CONTENT_MARGIN.bottom) {
-      doc.addPage();
-      pagina++;
-      y = agregarEncabezado(doc, protocolo, pagina, totalPaginas, kmInicio, kmFin, logoB64);
-    }
-    y = agregarBloqueDatosCamion(doc, camion, i + 1, y, escala);
-
     const alturaPU = ALTURA_PU + (camion.observaciones ? ALTURA_OBS : 0);
-    if (y + alturaPU > PH - CONTENT_MARGIN.bottom) {
+    const alturaFotos = alturaFotosCamion(camion);
+    const alturaTotalCamion = ALTURA_DATOS + alturaPU + alturaFotos;
+
+    // Saltar de página una sola vez si el bloque completo del camión no cabe
+    if (y + alturaTotalCamion > PH - CONTENT_MARGIN.bottom) {
       doc.addPage();
       pagina++;
       y = agregarEncabezado(doc, protocolo, pagina, totalPaginas, kmInicio, kmFin, logoB64);
     }
-    y = agregarTablaPesoUnitario(doc, camion, y, escala);
 
-    const alturaFotos = alturaFotosCamion(camion);
+    y = agregarBloqueDatosCamion(doc, camion, i + 1, y, escala);
+    y = agregarTablaPesoUnitario(doc, camion, y, escala);
     if (alturaFotos > 0) {
-      if (y + alturaFotos > PH - CONTENT_MARGIN.bottom) {
-        doc.addPage();
-        pagina++;
-        y = agregarEncabezado(doc, protocolo, pagina, totalPaginas, kmInicio, kmFin, logoB64);
-      }
       y = agregarFotosCamion(doc, camion, y, imagenesCache) + 3;
     }
   }
