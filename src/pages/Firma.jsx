@@ -102,7 +102,10 @@ export default function Firma() {
         usuarioNombre: data.usuario_nombre ?? null,
         datos:         data.datos ?? {},
       };
-      const { doc } = await construirDocumentoPDF(protMapeado, [], '', '', []);
+      const fotosParaPDF = protMapeado.datos?.fotosNubeSeleccionadas ?? [];
+      const kmInicio = protMapeado.datos?.kmInicio ?? '';
+      const kmFin    = protMapeado.datos?.kmFin    ?? '';
+      const { doc } = await construirDocumentoPDF(protMapeado, fotosParaPDF, kmInicio, kmFin, []);
       const blob = doc.output('blob');
       setPdfBlobUrl(URL.createObjectURL(blob));
     } catch {
@@ -176,11 +179,14 @@ export default function Firma() {
       };
 
       // 3. Generar PDF con firma incrustada
+      const fotosParaPDF = protocoloCompleto.datos?.fotosNubeSeleccionadas ?? [];
+      const kmInicio = protocoloCompleto.datos?.kmInicio ?? '';
+      const kmFin    = protocoloCompleto.datos?.kmFin    ?? '';
       const { doc } = await construirDocumentoPDF(
         protocoloCompleto,
-        [],
-        datosRow?.km_inicio ?? protocolo.km_inicio ?? '',
-        datosRow?.km_fin    ?? protocolo.km_fin    ?? '',
+        fotosParaPDF,
+        kmInicio,
+        kmFin,
         [],
         firmaBase64,
       );
