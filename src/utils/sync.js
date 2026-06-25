@@ -441,6 +441,23 @@ export async function descargarDesdeSupabase() {
         local = await db.protocolos.where('supabaseId').equals(remoto.id).first();
       }
 
+      // Tercer fallback — buscar por protocolo_id + entidad_id + tipo
+      // Evita duplicados cuando el registro fue modificado externamente (ej: firma ITO)
+      if (!local) {
+        local = await db.protocolos
+          .filter(p =>
+            p.protocoloId === remoto.protocolo_id &&
+            String(p.entidadId) === String(remoto.entidad_id) &&
+            p.tipo === remoto.tipo
+          )
+          .first();
+
+        // Si encontramos por este método, actualizar supabaseId para futuros lookups
+        if (local) {
+          await db.protocolos.update(local.id, { supabaseId: remoto.id });
+        }
+      }
+
       // No se descarga el campo 'datos' (jsonb con fotos base64 ~4.7MB/registro)
       // Se carga bajo demanda al abrir un protocolo específico (Protocolo.jsx)
       const dexieData = {
