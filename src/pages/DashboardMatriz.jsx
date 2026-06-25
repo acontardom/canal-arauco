@@ -49,17 +49,17 @@ const PROTOCOLO_A_PARTIDA = {
 
 const ESTADOS = {
   sin_iniciar:       { label: 'Sin iniciar',       color: '#1e293b' },
-  por_protoc:        { label: 'Por protocolizar',   color: '#e6a817' },
+  por_protoc:        { label: 'Por protocolizar',   color: '#f59e0b' },
   listo:             { label: 'Protocolo listo',    color: '#3b82f6' },
-  enviado:           { label: 'Enviado EDP',        color: '#27ae60' },
-  enviado_ito:       { label: 'Enviado al ITO',     color: '#1e40af' },
+  enviado:           { label: 'Enviado EDP',        color: '#16a34a' },
+  enviado_ito:       { label: 'Enviado al ITO',     color: '#8b5cf6' },
   con_observaciones: { label: 'Con observaciones',  color: '#f97316' },
-  firmado:           { label: 'Firmado',            color: '#1d4ed8' },
+  firmado:           { label: 'Firmado',            color: '#5b21b6' },
 };
 
-const COLOR_ENVIADO_BASE = '#27ae60';
-const COLOR_EDP_OSCURO   = '#1a5e38';
-const COLOR_EDP_CLARO    = '#82e0aa';
+const COLOR_ENVIADO_BASE = '#16a34a';
+const COLOR_EDP_OSCURO   = '#14532d';
+const COLOR_EDP_CLARO    = '#86efac';
 
 function calcEstado(protEstado, recepcionada) {
   if (protEstado === 'enviado')           return 'enviado';
@@ -188,34 +188,59 @@ export default function DashboardMatriz() {
 
       <div style={s.controles}>
         <div style={s.leyenda}>
-          {verPorEdp ? (
-            <>
-              {['sin_iniciar', 'por_protoc', 'listo'].map(key => (
-                <span key={key} style={s.leyendaItem}>
-                  <span style={{ ...s.swatch, background: ESTADOS[key].color }} />
-                  {ESTADOS[key].label}
-                </span>
-              ))}
-              {edpList.length > 0 ? edpList.map(edp => (
-                <span key={edp} style={s.leyendaItem}>
-                  <span style={{ ...s.swatch, background: edpColorMap[edp] }} />
-                  {edp}
-                </span>
+          <div style={s.leyendaItem}>
+            <div style={{ ...s.swatch, border: '1px solid #475569' }} />
+            <span>Sin iniciar</span>
+          </div>
+
+          <div style={s.leyendaGrupo}>
+            <div style={s.leyendaGrupoTitulo}>Nuestra parte</div>
+            <div style={s.leyendaGrupoItems}>
+              <div style={s.leyendaItem}>
+                <div style={{ ...s.swatch, background: ESTADOS.por_protoc.color }} />
+                <span>Por protocolizar</span>
+              </div>
+              <div style={s.leyendaItem}>
+                <div style={{ ...s.swatch, background: ESTADOS.listo.color }} />
+                <span>Protocolo listo</span>
+              </div>
+            </div>
+          </div>
+
+          <div style={s.leyendaGrupo}>
+            <div style={s.leyendaGrupoTitulo}>Parte del ITO</div>
+            <div style={s.leyendaGrupoItems}>
+              <div style={s.leyendaItem}>
+                <div style={{ ...s.swatch, background: ESTADOS.enviado_ito.color }} />
+                <span>Enviado al ITO</span>
+              </div>
+              <div style={s.leyendaItem}>
+                <div style={{ ...s.swatch, background: ESTADOS.con_observaciones.color }} />
+                <span>Con observaciones</span>
+              </div>
+              <div style={s.leyendaItem}>
+                <div style={{ ...s.swatch, background: ESTADOS.firmado.color }} />
+                <span>Firmado</span>
+              </div>
+            </div>
+          </div>
+
+          <div style={s.leyendaGrupo}>
+            <div style={s.leyendaGrupoTitulo}>Sin gestión</div>
+            <div style={s.leyendaGrupoItems}>
+              {verPorEdp && edpList.length > 0 ? edpList.map(edp => (
+                <div key={edp} style={s.leyendaItem}>
+                  <div style={{ ...s.swatch, background: edpColorMap[edp] }} />
+                  <span>{edp}</span>
+                </div>
               )) : (
-                <span style={s.leyendaItem}>
-                  <span style={{ ...s.swatch, background: COLOR_ENVIADO_BASE }} />
-                  Enviado EDP
-                </span>
+                <div style={s.leyendaItem}>
+                  <div style={{ ...s.swatch, background: ESTADOS.enviado.color }} />
+                  <span>Enviado EDP</span>
+                </div>
               )}
-            </>
-          ) : (
-            Object.entries(ESTADOS).map(([key, { label, color }]) => (
-              <span key={key} style={s.leyendaItem}>
-                <span style={{ ...s.swatch, background: color }} />
-                {label}
-              </span>
-            ))
-          )}
+            </div>
+          </div>
         </div>
 
         <button
@@ -325,9 +350,12 @@ const s = {
     display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
     gap: '20px', flexWrap: 'wrap', marginBottom: '28px',
   },
-  leyenda: { display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'center' },
-  leyendaItem: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: '#ccd6f6' },
-  swatch: { width: '18px', height: '18px', borderRadius: '4px', display: 'inline-block', border: '1px solid #0f3460', flexShrink: 0 },
+  leyenda: { display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'flex-start' },
+  leyendaGrupo: { display: 'flex', flexDirection: 'column', gap: 4 },
+  leyendaGrupoTitulo: { fontSize: 11, color: '#8892b0', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' },
+  leyendaGrupoItems: { display: 'flex', gap: 10, flexWrap: 'wrap' },
+  leyendaItem: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#ccd6f6' },
+  swatch: { width: 14, height: 14, borderRadius: 3, background: '#1e293b', flexShrink: 0 },
 
   btnToggle: {
     background: '#16213e', border: '1px solid #0f3460', color: '#8892b0',
