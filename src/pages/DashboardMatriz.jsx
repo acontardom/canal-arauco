@@ -106,9 +106,10 @@ function MatrizCell({ tipo, entidadId, protocolo, protMap, avanceSet, navigate, 
     const tieneRadier = avanceSet.has(`${tipo}-${String(entidadId)}-hormigon_radier`);
     if (!tieneRadier) {
       estado = 'sin_iniciar';
+    } else if (protEstado) {
+      estado = calcEstado(protEstado, false);
     } else {
-      // Tiene radier: si hay protocolo usa su estado; si no, azul (listo para protocolizar)
-      estado = calcEstado(protEstado ?? 'completado', false);
+      estado = 'por_protoc';
     }
   } else {
     const partidaId    = PROTOCOLO_A_PARTIDA[protocolo.id];
