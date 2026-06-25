@@ -92,15 +92,19 @@ export default function Firma() {
   async function generarBlobPDF(data) {
     try {
       const protMapeado = {
-        tipo:          data.tipo,
-        entidad:       data.entidad ?? data.tipo,
-        entidadId:     data.entidad_id,
-        protocoloId:   data.protocolo_id,
-        estado:        data.estado,
-        edp:           data.edp ?? null,
-        fechaEnvio:    data.fecha_envio ?? null,
-        usuarioNombre: data.usuario_nombre ?? null,
-        datos:         data.datos ?? {},
+        id:                data.id,
+        protocoloId:       data.protocolo_id,
+        tipo:              data.tipo,
+        entidadId:         data.entidad_id,
+        entidad:           data.entidad ?? data.tipo,
+        estado:            data.estado,
+        edp:               data.edp ?? null,
+        fechaEnvio:        data.fecha_envio ?? null,
+        usuarioNombre:     data.usuario_nombre ?? null,
+        fechaCreacion:     data.fecha_creacion ?? null,
+        fechaModificacion: data.fecha_modificacion ?? null,
+        supabaseId:        data.id,
+        datos:             data.datos ?? {},
       };
       const fotosParaPDF = protMapeado.datos?.fotosNubeSeleccionadas ?? [];
       const kmInicio = protMapeado.datos?.kmInicio ?? '';
@@ -169,13 +173,24 @@ export default function Firma() {
       // 2. Cargar datos completos del protocolo
       const { data: datosRow } = await supabase
         .from('protocolos')
-        .select('datos, km_inicio, km_fin')
+        .select('datos')
         .eq('firma_token', token)
         .single();
 
       const protocoloCompleto = {
-        ...protocolo,
-        datos: datosRow?.datos ?? protocolo.datos ?? {},
+        id:                protocolo.id,
+        protocoloId:       protocolo.protocolo_id,
+        tipo:              protocolo.tipo,
+        entidadId:         protocolo.entidad_id,
+        entidad:           protocolo.entidad ?? protocolo.tipo,
+        estado:            protocolo.estado,
+        edp:               protocolo.edp ?? null,
+        fechaEnvio:        protocolo.fecha_envio ?? null,
+        usuarioNombre:     protocolo.usuario_nombre ?? null,
+        fechaCreacion:     protocolo.fecha_creacion ?? null,
+        fechaModificacion: protocolo.fecha_modificacion ?? null,
+        supabaseId:        protocolo.id,
+        datos:             datosRow?.datos ?? protocolo.datos ?? {},
       };
 
       // 3. Generar PDF con firma incrustada
