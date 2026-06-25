@@ -487,10 +487,11 @@ export async function descargarDesdeSupabase() {
       if (!local) {
         await db.protocolos.add({ ...dexieData, datos: {} });
       } else {
-        // Actualizar solo si el remoto es más reciente (comparación lexicográfica de ISO)
-        const fechaRemota = remoto.fecha_modificacion ?? '';
-        const fechaLocal  = local.fechaModificacion ?? '';
-        if (fechaRemota > fechaLocal) {
+        // Actualizar si el remoto es más reciente O si el estado difiere (ej: cambio externo vía firma ITO)
+        const fechaRemota  = remoto.fecha_modificacion ?? '';
+        const fechaLocal   = local.fechaModificacion ?? '';
+        const estadoDifiere = remoto.estado !== local.estado;
+        if (fechaRemota > fechaLocal || estadoDifiere) {
           await db.protocolos.update(local.id, {
             ...dexieData,
             firmaToken:     remoto.firma_token      ?? null,

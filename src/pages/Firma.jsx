@@ -178,7 +178,11 @@ export default function Firma() {
     setSubiendo(true);
     await supabase
       .from('protocolos')
-      .update({ estado: 'con_observaciones', observacion_ito: observacion })
+      .update({
+        estado:             'con_observaciones',
+        observacion_ito:    observacion,
+        fecha_modificacion: new Date().toISOString(),
+      })
       .eq('firma_token', token);
     setSubiendo(false);
     setVista('confirmado');
@@ -269,10 +273,11 @@ export default function Firma() {
       await supabase
         .from('protocolos')
         .update({
-          estado:           'firmado',
-          firma_imagen_url: firmaUrl,
-          firma_fecha:      new Date().toISOString(),
-          pdf_firmado_url:  pdfData.publicUrl,
+          estado:             'firmado',
+          firma_imagen_url:   firmaUrl,
+          firma_fecha:        new Date().toISOString(),
+          pdf_firmado_url:    pdfData.publicUrl,
+          fecha_modificacion: new Date().toISOString(),
         })
         .eq('firma_token', token);
 
