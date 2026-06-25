@@ -432,17 +432,13 @@ export async function descargarDesdeSupabase() {
     if (errProt) throw errProt;
 
     for (const remoto of remotos ?? []) {
-      console.log('[Sync] Procesando remoto:', remoto.protocolo_id, remoto.entidad_id, remoto.estado);
-
       // Buscar por UUID permanente (v10+) → fallback a supabaseId
       let local = remoto.device_protocolo_id
         ? await db.protocolos.where('deviceProtocoloId').equals(remoto.device_protocolo_id).first()
         : null;
-      console.log('[Sync] Encontrado por deviceProtocoloId:', !!local);
 
       if (!local && remoto.id) {
         local = await db.protocolos.where('supabaseId').equals(remoto.id).first();
-        console.log('[Sync] Encontrado por supabaseId:', !!local);
       }
 
       // Tercer fallback — buscar por protocolo_id + entidad_id + tipo
@@ -455,19 +451,11 @@ export async function descargarDesdeSupabase() {
             p.tipo === remoto.tipo
           )
           .first();
-        console.log('[Sync] Encontrado por protocolo+entidad+tipo:', !!local);
 
         // Si encontramos por este método, actualizar supabaseId para futuros lookups
         if (local) {
           await db.protocolos.update(local.id, { supabaseId: remoto.id });
         }
-      }
-
-      if (local) {
-        const fechaRemota  = remoto.fecha_modificacion ?? '';
-        const fechaLocal   = local.fechaModificacion ?? '';
-        const estadoDifiere = remoto.estado !== local.estado;
-        console.log('[Sync] fechaRemota:', fechaRemota, 'fechaLocal:', fechaLocal, 'estadoDifiere:', estadoDifiere);
       }
 
       // No se descarga el campo 'datos' (jsonb con fotos base64 ~4.7MB/registro)
@@ -654,6 +642,7 @@ export async function sincronizar() {
     await sincronizarFotosTerreno();
     await subirFotosCamionesPendientes();
     await sincronizarCamiones();
+    await descargarDesdeSupabase();
   } catch (err) {
     console.warn('[Sync] Error general:', err?.message ?? err);
   } finally {
