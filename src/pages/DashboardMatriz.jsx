@@ -97,12 +97,24 @@ function generarEscalaEdp(edps) {
 const isMobile = window.innerWidth < 768;
 
 function MatrizCell({ tipo, entidadId, protocolo, protMap, avanceSet, navigate, nombreEntidad, verPorEdp, edpColorMap }) {
-  const protData     = protMap[`${tipo}-${entidadId}-${protocolo.id}`];
-  const protEstado   = protData?.estado;
-  const edp          = protData?.edp;
-  const partidaId    = PROTOCOLO_A_PARTIDA[protocolo.id];
-  const recepcionada = partidaId ? avanceSet.has(`${tipo}-${String(entidadId)}-${partidaId}`) : false;
-  const estado       = calcEstado(protEstado, recepcionada);
+  const protData   = protMap[`${tipo}-${entidadId}-${protocolo.id}`];
+  const protEstado = protData?.estado;
+  const edp        = protData?.edp;
+
+  let estado;
+  if (protocolo.id === 'COTAS') {
+    const tieneRadier = avanceSet.has(`${tipo}-${String(entidadId)}-hormigon_radier`);
+    if (!tieneRadier) {
+      estado = 'sin_iniciar';
+    } else {
+      // Tiene radier: si hay protocolo usa su estado; si no, azul (listo para protocolizar)
+      estado = calcEstado(protEstado ?? 'completado', false);
+    }
+  } else {
+    const partidaId    = PROTOCOLO_A_PARTIDA[protocolo.id];
+    const recepcionada = partidaId ? avanceSet.has(`${tipo}-${String(entidadId)}-${partidaId}`) : false;
+    estado             = calcEstado(protEstado, recepcionada);
+  }
   const { label, color } = ESTADOS[estado];
 
   // En modo EDP, las celdas enviadas toman el color del EDP correspondiente

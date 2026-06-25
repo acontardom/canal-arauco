@@ -17,6 +17,19 @@ export default function GenerarProtocolo() {
   const [protocoloLocal, setProtocoloLocal] = useState(null);
   const [estadoReal, setEstadoReal]         = useState(null);
   const [observacionReal, setObservacionReal] = useState(null);
+  const [tieneRadier, setTieneRadier] = useState(false);
+
+  useEffect(() => {
+    if (!supabase || !navigator.onLine) { setTieneRadier(true); return; }
+    const entidadIdQuery = tipo === 'caida' ? Number(entidadId) : String(entidadId);
+    supabase
+      .from('avance')
+      .select('partida_id')
+      .eq('tipo_entidad', tipo)
+      .eq('entidad_id', entidadIdQuery)
+      .eq('partida_id', 'hormigon_radier')
+      .then(({ data }) => setTieneRadier((data?.length ?? 0) > 0));
+  }, [tipo, entidadId]);
 
   useEffect(() => {
     if (!protocoloId) { setProtocoloLocal(null); setEstadoReal(null); setObservacionReal(null); return; }
@@ -99,6 +112,7 @@ export default function GenerarProtocolo() {
         <select style={s.input} value={protocoloId} onChange={e => setProtocoloId(e.target.value)}>
           <option value="">Seleccionar...</option>
           {PROTOCOLOS.filter(p => {
+            if (p.id === 'COTAS' && !tieneRadier) return false;
             if (p.id === 'PICE4_MURO' && tipo === 'tramo') return false;
             return true;
           }).map(p => (
