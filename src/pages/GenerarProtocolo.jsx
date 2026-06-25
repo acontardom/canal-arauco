@@ -98,7 +98,11 @@ export default function GenerarProtocolo() {
         <label style={s.label}>Protocolo</label>
         <select style={s.input} value={protocoloId} onChange={e => setProtocoloId(e.target.value)}>
           <option value="">Seleccionar...</option>
-          {PROTOCOLOS.map(p => (
+          {PROTOCOLOS.filter(p => {
+            if (tipo === 'tramo' && p.soloCaida) return false;
+            if (tipo !== 'tramo' && p.soloTramo) return false;
+            return true;
+          }).map(p => (
             <option key={p.id} value={p.id}>{p.nombre} ({p.codigo})</option>
           ))}
         </select>

@@ -5,16 +5,21 @@ import { supabase } from '../config/supabase';
 
 // ─── Orden y etiquetas de columnas ────────────────────────────────────────────
 
-const ORDEN_MATRIZ = [
+const ORDEN_MATRIZ_TRAMO = [
+  'PICE1', 'G5', 'PICE4_RADIER', 'PICE3', 'PICE2_RADIER', 'PICE2_MURO', 'HA_RADIER', 'HA_MURO', 'COTAS',
+];
+
+const ORDEN_MATRIZ_CAIDA = [
   'PICE1', 'G5', 'PICE4_RADIER', 'PICE4_MURO', 'PICE3', 'PICE2_RADIER', 'PICE2_MURO', 'HA_RADIER', 'HA_MURO', 'COTAS',
 ];
 
-const PROTOCOLOS_MATRIZ = ORDEN_MATRIZ.map(id => PROTOCOLOS.find(p => p.id === id));
+const PROTOCOLOS_MATRIZ_TRAMO = ORDEN_MATRIZ_TRAMO.map(id => PROTOCOLOS.find(p => p.id === id));
+const PROTOCOLOS_MATRIZ_CAIDA = ORDEN_MATRIZ_CAIDA.map(id => PROTOCOLOS.find(p => p.id === id));
 
 const COL_LABEL = {
   PICE1:        'Excavación',
   G5:           'Emplantillado',
-  PICE4_RADIER: 'Enfierr. Radier',
+  PICE4_RADIER: 'Enfierradura',
   PICE4_MURO:   'Enfierr. Muro',
   PICE3:        'Moldajes',
   PICE2_RADIER: 'Horm. Radier',
@@ -116,20 +121,20 @@ function MatrizCell({ tipo, entidadId, protocolo, protMap, avanceSet, navigate, 
   );
 }
 
-function ColGroup() {
+function ColGroup({ protocolos }) {
   return (
     <colgroup>
       <col style={{ width: `${ROW_HEADER_W}px` }} />
-      {PROTOCOLOS_MATRIZ.map(p => <col key={p.id} />)}
+      {protocolos.map(p => <col key={p.id} />)}
     </colgroup>
   );
 }
 
-function EncabezadoColumnas() {
+function EncabezadoColumnas({ protocolos }) {
   return (
     <tr>
       <th style={s.cornerCell} />
-      {PROTOCOLOS_MATRIZ.map(p => (
+      {protocolos.map(p => (
         <th key={p.id} style={s.colHeader}>{COL_LABEL[p.id]}</th>
       ))}
     </tr>
@@ -223,18 +228,18 @@ export default function DashboardMatriz() {
         {/* ── Tabla TRAMOS ──────────────────────────────────────────────── */}
         <div style={s.tablaWrap}>
           <table style={s.tabla}>
-            <ColGroup />
+            <ColGroup protocolos={PROTOCOLOS_MATRIZ_TRAMO} />
             <thead>
               <tr>
-                <th colSpan={PROTOCOLOS_MATRIZ.length + 1} style={s.tituloTabla}>TRAMOS</th>
+                <th colSpan={PROTOCOLOS_MATRIZ_TRAMO.length + 1} style={s.tituloTabla}>TRAMOS</th>
               </tr>
-              <EncabezadoColumnas />
+              <EncabezadoColumnas protocolos={PROTOCOLOS_MATRIZ_TRAMO} />
             </thead>
             <tbody>
               {TRAMOS.map(tramoId => (
                 <tr key={tramoId}>
                   <th style={s.rowHeader}>{tramoId}</th>
-                  {PROTOCOLOS_MATRIZ.map(p => (
+                  {PROTOCOLOS_MATRIZ_TRAMO.map(p => (
                     <MatrizCell
                       key={p.id}
                       tipo="tramo"
@@ -253,18 +258,18 @@ export default function DashboardMatriz() {
         {/* ── Tabla CAÍDAS + ATRAVIESOS ────────────────────────────────── */}
         <div style={s.tablaWrap}>
           <table style={s.tabla}>
-            <ColGroup />
+            <ColGroup protocolos={PROTOCOLOS_MATRIZ_CAIDA} />
             <thead>
               <tr>
-                <th colSpan={PROTOCOLOS_MATRIZ.length + 1} style={s.tituloTabla}>CAÍDAS</th>
+                <th colSpan={PROTOCOLOS_MATRIZ_CAIDA.length + 1} style={s.tituloTabla}>CAÍDAS</th>
               </tr>
-              <EncabezadoColumnas />
+              <EncabezadoColumnas protocolos={PROTOCOLOS_MATRIZ_CAIDA} />
             </thead>
             <tbody>
               {CAIDAS.map(caidaId => (
                 <tr key={caidaId}>
                   <th style={s.rowHeader}>{caidaId}</th>
-                  {PROTOCOLOS_MATRIZ.map(p => (
+                  {PROTOCOLOS_MATRIZ_CAIDA.map(p => (
                     <MatrizCell
                       key={p.id}
                       tipo="caida"
@@ -278,13 +283,13 @@ export default function DashboardMatriz() {
               ))}
 
               <tr>
-                <th colSpan={PROTOCOLOS_MATRIZ.length + 1} style={s.separadorFila}>ATRAVIESOS</th>
+                <th colSpan={PROTOCOLOS_MATRIZ_CAIDA.length + 1} style={s.separadorFila}>ATRAVIESOS</th>
               </tr>
 
               {ATRAVIESOS.map(atId => (
                 <tr key={atId}>
                   <th style={s.rowHeader}>{`AT${atId}`}</th>
-                  {PROTOCOLOS_MATRIZ.map(p => (
+                  {PROTOCOLOS_MATRIZ_CAIDA.map(p => (
                     <MatrizCell
                       key={p.id}
                       tipo="atravieso"

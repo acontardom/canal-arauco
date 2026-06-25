@@ -332,6 +332,9 @@ function agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio,
 
 function agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin, escala = ESCALA_NORMAL) {
   const textos = TEXTOS_PROTOCOLO[protocolo.protocoloId] ?? { objetivo: '', alcance: '', normativa: '', selector: null };
+  const selectorEfectivo = (protocolo.protocoloId === 'PICE4_RADIER' && protocolo.tipo === 'tramo')
+    ? 'ambos'
+    : textos.selector;
   const km = resolveKm(protocolo, kmInicio, kmFin);
   const entidad = `${NOMBRES_TIPO[protocolo.tipo] ?? protocolo.tipo} ${protocolo.entidadId}`;
   const actividad = `km: ${km.inicio || '—'} hasta ${km.fin || '—'} — Elemento: ${entidad}`;
@@ -343,7 +346,7 @@ function agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin, escala = ESCALA_NO
   // Filas simples: la columna de valor abarca las 4 columnas restantes
   const filaTexto = (label, contenido) => [label, { content: contenido, colSpan: 4 }];
 
-  const filaActividad = textos.selector
+  const filaActividad = selectorEfectivo
     ? ['Actividad / Partida', { content: '', colSpan: 4 }]
     : filaTexto('Actividad / Partida', actividad);
 
@@ -374,12 +377,12 @@ function agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin, escala = ESCALA_NO
     },
     theme: 'grid',
     didParseCell: (data) => {
-      if (textos.selector && data.section === 'body' && data.row.index === FILA_ACTIVIDAD && data.column.index === 1) {
+      if (selectorEfectivo && data.section === 'body' && data.row.index === FILA_ACTIVIDAD && data.column.index === 1) {
         data.cell.styles.minCellHeight = 9;
       }
     },
     didDrawCell: (data) => {
-      if (!textos.selector) return;
+      if (!selectorEfectivo) return;
       if (data.section !== 'body' || data.row.index !== FILA_ACTIVIDAD || data.column.index !== 1) return;
 
       const { x, y: cy0, width, height } = data.cell;
@@ -390,8 +393,8 @@ function agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin, escala = ESCALA_NO
       const centerY = cy0 + height / 2;
 
       const opciones = [
-        { label: 'Radier', activo: textos.selector === 'radier' || textos.selector === 'ambos' },
-        { label: 'Muro', activo: textos.selector === 'muro' || textos.selector === 'ambos' },
+        { label: 'Radier', activo: selectorEfectivo === 'radier' || selectorEfectivo === 'ambos' },
+        { label: 'Muro', activo: selectorEfectivo === 'muro' || selectorEfectivo === 'ambos' },
         { label: 'Otro', activo: false },
       ];
 
