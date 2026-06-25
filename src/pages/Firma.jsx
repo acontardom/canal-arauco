@@ -33,6 +33,7 @@ export default function Firma() {
   const [error, setError]             = useState(null);
   const [subiendo, setSubiendo]       = useState(false);
   const [itoUsuario, setItoUsuario]   = useState(null);
+  const [pdfFirmadoUrl, setPdfFirmadoUrl] = useState(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => { cargarProtocolo(); }, [token]);
@@ -149,19 +150,74 @@ export default function Firma() {
     setVista('confirmado');
   }
 
-  async function firmar() {
+  async function confirmarFirma() {
     if (!firmaUrl) return;
     setSubiendo(true);
-    await supabase
-      .from('protocolos')
-      .update({
-        estado:           'firmado',
-        firma_imagen_url: firmaUrl,
-        firma_fecha:      new Date().toISOString(),
-      })
-      .eq('firma_token', token);
-    setSubiendo(false);
-    setVista('confirmado');
+    try {
+      // 1. Descargar firma como base64
+      const firmaResp = await fetch(firmaUrl);
+      const firmaBlob = await firmaResp.blob();
+      const firmaBase64 = await new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(firmaBlob);
+      });
+
+      // 2. Cargar datos completos del protocolo
+      const { data: datosRow } = await supabase
+        .from('protocolos')
+        .select('datos, km_inicio, km_fin')
+        .eq('firma_token', token)
+        .single();
+
+      const protocoloCompleto = {
+        ...protocolo,
+        datos: datosRow?.datos ?? protocolo.datos ?? {},
+      };
+
+      // 3. Generar PDF con firma incrustada
+      const { doc } = await construirDocumentoPDF(
+        protocoloCompleto,
+        [],
+        datosRow?.km_inicio ?? protocolo.km_inicio ?? '',
+        datosRow?.km_fin    ?? protocolo.km_fin    ?? '',
+        [],
+        firmaBase64,
+      );
+
+      // 4. Subir PDF a Storage
+      const pdfBytes = doc.output('arraybuffer');
+      const pdfBlob  = new Blob([pdfBytes], { type: 'application/pdf' });
+      const pdfPath  = `protocolos/firmados/${protocolo.id}.pdf`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('fotos-canal-arauco')
+        .upload(pdfPath, pdfBlob, { upsert: true, contentType: 'application/pdf' });
+      if (uploadError) throw uploadError;
+
+      const { data: pdfData } = supabase.storage
+        .from('fotos-canal-arauco')
+        .getPublicUrl(pdfPath);
+
+      // 5. Actualizar Supabase
+      await supabase
+        .from('protocolos')
+        .update({
+          estado:           'firmado',
+          firma_imagen_url: firmaUrl,
+          firma_fecha:      new Date().toISOString(),
+          pdf_firmado_url:  pdfData.publicUrl,
+        })
+        .eq('firma_token', token);
+
+      setPdfFirmadoUrl(pdfData.publicUrl);
+      setVista('confirmado');
+    } catch (err) {
+      console.error('[Firma] Error al confirmar:', err);
+      alert('Hubo un error al procesar la firma. Intenta nuevamente.');
+    } finally {
+      setSubiendo(false);
+    }
   }
 
   // ── Estados de pantalla ──────────────────────────────────────────────────────
@@ -221,6 +277,11 @@ export default function Firma() {
           <span style={s.confirmadoIcono}>✅</span>
           <h2 style={s.confirmadoTitulo}>Respuesta enviada</h2>
           <p style={s.confirmadoTexto}>El equipo ha sido notificado.</p>
+          {pdfFirmadoUrl && (
+            <a href={pdfFirmadoUrl} target="_blank" rel="noopener noreferrer" style={s.btnDescarga}>
+              ↓ Descargar PDF firmado
+            </a>
+          )}
         </div>
       </PageShell>
     );
@@ -317,7 +378,7 @@ export default function Firma() {
           <button
             style={{ ...s.btnFirmar, opacity: !firmaUrl || subiendo ? 0.5 : 1 }}
             disabled={!firmaUrl || subiendo}
-            onClick={firmar}
+            onClick={confirmarFirma}
           >
             {subiendo ? 'Procesando...' : 'Confirmar firma'}
           </button>
