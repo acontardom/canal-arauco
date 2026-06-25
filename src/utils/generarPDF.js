@@ -528,7 +528,7 @@ function agregarProtocoloControl(doc, protocolo, y, escala = ESCALA_NORMAL) {
 
 // ─── Pie de firma ─────────────────────────────────────────────────────────────
 
-// El pie de firma siempre queda al fondo de la página (startY: PH - 42) si el
+// El pie de firma siempre queda al fondo de la página (startY: PH - 52) si el
 // contenido deja espacio suficiente; si el contenido llena la página, se
 // dibuja pegado debajo de él (startY: finalY + 5).
 function pieFirmaY(finalY) {
@@ -641,7 +641,7 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
   const DESC_PAD = 2;
 
   // Espacio disponible para fotos + descripciones (reservar pie de firma al fondo)
-  const espacioDisponible = PH - 42 - y;
+  const espacioDisponible = PH - 52 - y;
 
   // imgW base según tipo
   const imgWBase = esG5
@@ -705,7 +705,7 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
   }
 
   // Pie de firma siempre anclado al fondo de la página
-  agregarPieFirma(doc, PH - 42, undefined, firmaITO);
+  agregarPieFirma(doc, PH - 52, undefined, firmaITO);
 }
 
 // ─── Control H.A. (Radier / Muro) — 2 páginas por camión ─────────────────────
