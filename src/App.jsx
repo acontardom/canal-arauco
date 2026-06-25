@@ -34,6 +34,7 @@ import Configuracion from './pages/Configuracion';
 import VistaCanal from './pages/VistaCanal';
 import { descargarDesdeSupabase, iniciarSyncAutomatico } from './utils/sync';
 import { supabase } from './config/supabase';
+import { useAuth } from './hooks/useAuth';
 
 function BannerSync() {
   return (
@@ -71,14 +72,16 @@ function esFlujoInterno(pathname) {
 
 function Layout({ children, cargandoSync }) {
   const location = useLocation();
-  const mostrarBottomNav = !esFlujoInterno(location.pathname);
+  const { usuario } = useAuth();
+  const esITO = usuario?.rol === 'ito';
+  const mostrarBottomNav = !esITO && !esFlujoInterno(location.pathname);
 
   return (
     <div style={{ minHeight: '100vh', background: '#1a1a2e' }}>
       {cargandoSync && <BannerSync />}
       <Navbar />
       <div className="app-body">
-        <Sidebar />
+        {!esITO && <Sidebar />}
         <main className={mostrarBottomNav ? 'with-bottom-nav main-content' : 'main-content'} style={{ padding: '24px', flex: 1, minWidth: 0 }}>
           {children}
         </main>

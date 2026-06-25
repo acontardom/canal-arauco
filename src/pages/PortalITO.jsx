@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../config/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { PROTOCOLOS } from '../constants/estructura';
@@ -12,48 +13,43 @@ function fmtFecha(iso) {
   return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
 }
 
-function ProtocoloCard({ p, accion, labelAccion }) {
-  const nombre = NOMBRE_PROTOCOLO[p.protocolo_id] ?? p.protocolo_id;
-  const entidad = `${NOMBRE_TIPO[p.tipo] ?? p.tipo} ${p.entidad_id}`;
-  return (
-    <div style={s.card}>
-      <div style={s.cardInfo}>
-        <div style={s.cardNombre}>{nombre}</div>
-        <div style={s.cardMeta}>{entidad} · {fmtFecha(p.fecha_modificacion)}</div>
-      </div>
-      {accion && (
-        <button style={s.btnAccion} onClick={accion}>{labelAccion}</button>
-      )}
-    </div>
-  );
-}
-
 export default function PortalITO() {
+  const navigate = useNavigate();
   const { usuario, signOut } = useAuth();
-  const [pendientes,  setPendientes]  = useState([]);
-  const [firmados,    setFirmados]    = useState([]);
-  const [rechazados,  setRechazados]  = useState([]);
-  const [cargando,    setCargando]    = useState(true);
+  const [pendientes,       setPendientes]       = useState([]);
+  const [firmados,         setFirmados]         = useState([]);
+  const [conObservaciones, setConObservaciones] = useState([]);
+  const [cargando,         setCargando]         = useState(true);
 
-  useEffect(() => { cargarProtocolos(); }, []);
+  useEffect(() => {
+    cargarProtocolos();
+    const interval = setInterval(cargarProtocolos, 60_000);
+    return () => clearInterval(interval);
+  }, []);
 
   async function cargarProtocolos() {
     setCargando(true);
     try {
       const { data, error } = await supabase
         .from('protocolos')
-        .select('id, tipo, entidad_id, protocolo_id, estado, fecha_modificacion')
+        .select('id, tipo, entidad_id, protocolo_id, estado, fecha_modificacion, firma_token, pdf_firmado_url, observacion_ito')
         .in('estado', ['enviado_ito', 'firmado', 'con_observaciones'])
         .order('fecha_modificacion', { ascending: false });
       if (error) throw error;
-      setPendientes(data?.filter(p => p.estado === 'enviado_ito')        ?? []);
-      setFirmados(  data?.filter(p => p.estado === 'firmado')            ?? []);
-      setRechazados(data?.filter(p => p.estado === 'con_observaciones')  ?? []);
+      setPendientes(       data?.filter(p => p.estado === 'enviado_ito')        ?? []);
+      setFirmados(         data?.filter(p => p.estado === 'firmado')            ?? []);
+      setConObservaciones( data?.filter(p => p.estado === 'con_observaciones')  ?? []);
     } catch (err) {
       console.error('[PortalITO]', err?.message ?? err);
     } finally {
       setCargando(false);
     }
+  }
+
+  function labelProtocolo(p) {
+    const nombre  = NOMBRE_PROTOCOLO[p.protocolo_id] ?? p.protocolo_id;
+    const entidad = `${NOMBRE_TIPO[p.tipo] ?? p.tipo} ${p.entidad_id}`;
+    return `${nombre} — ${entidad}`;
   }
 
   return (
@@ -70,39 +66,66 @@ export default function PortalITO() {
         <p style={s.cargando}>Cargando protocolos...</p>
       ) : (
         <>
+          {/* Pendientes de firma */}
           <Seccion titulo="Pendientes de firma" count={pendientes.length} color="#e6a817">
             {pendientes.length === 0
               ? <p style={s.empty}>No hay protocolos pendientes.</p>
               : pendientes.map(p => (
-                  <ProtocoloCard
-                    key={p.id}
-                    p={p}
-                    labelAccion="Ver y Firmar"
-                    accion={() => alert('Firma digital — próximamente')}
-                  />
+                  <div key={p.id} style={s.card}>
+                    <div style={s.cardInfo}>
+                      <div style={s.cardNombre}>{labelProtocolo(p)}</div>
+                      <div style={s.cardMeta}>Enviado el {fmtFecha(p.fecha_modificacion)}</div>
+                    </div>
+                    <button
+                      style={s.btnFirmar}
+                      onClick={() => navigate(`/firma/${p.firma_token}`)}
+                    >
+                      Ver y Firmar →
+                    </button>
+                  </div>
                 ))
             }
           </Seccion>
 
+          {/* Firmados */}
           <Seccion titulo="Firmados" count={firmados.length} color="#10b981">
             {firmados.length === 0
               ? <p style={s.empty}>No hay protocolos firmados.</p>
               : firmados.map(p => (
-                  <ProtocoloCard
-                    key={p.id}
-                    p={p}
-                    labelAccion="Ver PDF"
-                    accion={() => alert('Ver PDF — próximamente')}
-                  />
+                  <div key={p.id} style={s.card}>
+                    <div style={s.cardInfo}>
+                      <div style={s.cardNombre}>{labelProtocolo(p)}</div>
+                      <div style={s.cardMeta}>Firmado el {fmtFecha(p.fecha_modificacion)}</div>
+                    </div>
+                    {p.pdf_firmado_url && (
+                      <a
+                        href={p.pdf_firmado_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={s.btnPDF}
+                      >
+                        ↓ PDF Firmado
+                      </a>
+                    )}
+                  </div>
                 ))
             }
           </Seccion>
 
-          <Seccion titulo="Con observaciones" count={rechazados.length} color="#ef4444">
-            {rechazados.length === 0
+          {/* Con observaciones */}
+          <Seccion titulo="Con observaciones" count={conObservaciones.length} color="#f97316">
+            {conObservaciones.length === 0
               ? <p style={s.empty}>Sin protocolos con observaciones.</p>
-              : rechazados.map(p => (
-                  <ProtocoloCard key={p.id} p={p} />
+              : conObservaciones.map(p => (
+                  <div key={p.id} style={{ ...s.card, borderLeft: '3px solid #f97316' }}>
+                    <div style={s.cardInfo}>
+                      <div style={s.cardNombre}>{labelProtocolo(p)}</div>
+                      {p.observacion_ito && (
+                        <div style={s.cardObservacion}>Observación: {p.observacion_ito}</div>
+                      )}
+                    </div>
+                    <span style={s.labelEnCorreccion}>En corrección</span>
+                  </div>
                 ))
             }
           </Seccion>
@@ -139,8 +162,8 @@ const s = {
     justifyContent: 'space-between',
     gap: '12px',
   },
-  titulo: { color: '#ccd6f6', fontSize: '22px', fontWeight: 700, margin: 0 },
-  bienvenida: { color: '#8892b0', fontSize: '13px', margin: '4px 0 0' },
+  titulo:    { color: '#ccd6f6', fontSize: '22px', fontWeight: 700, margin: 0 },
+  bienvenida:{ color: '#8892b0', fontSize: '13px', margin: '4px 0 0' },
   btnSalir: {
     background: 'rgba(239,68,68,0.1)',
     border: '1px solid rgba(239,68,68,0.3)',
@@ -198,19 +221,37 @@ const s = {
     justifyContent: 'space-between',
     gap: '10px',
   },
-  cardInfo:   { display: 'flex', flexDirection: 'column', gap: '3px', flex: 1 },
-  cardNombre: { color: '#ccd6f6', fontSize: '13px', fontWeight: 700 },
-  cardMeta:   { color: '#8892b0', fontSize: '12px' },
-  btnAccion: {
-    background: '#0f3460',
-    border: '1px solid #1e3a5f',
-    borderRadius: '7px',
-    color: '#64ffda',
+  cardInfo:        { display: 'flex', flexDirection: 'column', gap: '3px', flex: 1 },
+  cardNombre:      { color: '#ccd6f6', fontSize: '13px', fontWeight: 700 },
+  cardMeta:        { color: '#8892b0', fontSize: '12px' },
+  cardObservacion: { color: '#f97316', fontSize: '12px', marginTop: '4px' },
+
+  btnFirmar: {
+    background: '#1d4ed8',
+    border: 'none',
+    borderRadius: '8px',
+    color: '#fff',
     fontSize: '12px',
     fontWeight: 700,
-    padding: '8px 12px',
+    padding: '8px 14px',
     cursor: 'pointer',
     flexShrink: 0,
     whiteSpace: 'nowrap',
+  },
+  btnPDF: {
+    background: '#15803d',
+    borderRadius: '8px',
+    color: '#fff',
+    fontSize: '12px',
+    fontWeight: 700,
+    padding: '8px 14px',
+    textDecoration: 'none',
+    flexShrink: 0,
+    whiteSpace: 'nowrap',
+  },
+  labelEnCorreccion: {
+    color: '#8892b0',
+    fontSize: '12px',
+    flexShrink: 0,
   },
 };
