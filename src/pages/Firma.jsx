@@ -244,6 +244,8 @@ export default function Firma() {
       const fotosParaPDF = combinarFotos(datosProtocolo, fotosAdjuntas);
       const kmInicio = datosProtocolo?.kmInicio ?? '';
       const kmFin    = datosProtocolo?.kmFin    ?? '';
+      console.log('[Firma] fotosParaPDF:', fotosParaPDF);
+      console.log('[Firma] datosProtocolo.fotosNubeSeleccionadas:', datosProtocolo?.fotosNubeSeleccionadas);
       console.log('[Firma] Generando PDF, firmaBase64 presente:', !!firmaBase64);
       const { doc } = await construirDocumentoPDF(
         protocoloCompleto,
