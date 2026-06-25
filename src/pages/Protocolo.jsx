@@ -699,25 +699,42 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   async function enviarAlITO() {
     if (!protocolo?.id) return;
     const token = crypto.randomUUID();
+
+    const protocoloActual = await db.protocolos.get(protocolo.id);
+    const datosActuales = protocoloActual?.datos ?? {};
+
     await db.protocolos.update(protocolo.id, { estado: 'enviado_ito', firmaToken: token, sincronizada: false });
     setEstado('enviado_ito');
+
     if (supabase && protocolo.supabaseId) {
-      await supabase.from('protocolos').update({ estado: 'enviado_ito', firma_token: token }).eq('id', protocolo.supabaseId);
+      await supabase
+        .from('protocolos')
+        .update({ estado: 'enviado_ito', firma_token: token, datos: datosActuales })
+        .eq('id', protocolo.supabaseId);
     }
-    mostrarToast('📨 Protocolo enviado al ITO');
+
+    const link = `${window.location.origin}/firma/${token}`;
+    await navigator.clipboard.writeText(link).catch(() => {});
+    alert(`Protocolo enviado al ITO.\nLink copiado al portapapeles:\n${link}`);
   }
 
   async function marcarListoParaRevision() {
     if (!protocolo?.id) return;
     const nuevoToken = crypto.randomUUID();
+
+    const protocoloActual = await db.protocolos.get(protocolo.id);
+    const datosActuales = protocoloActual?.datos ?? {};
+
     await db.protocolos.update(protocolo.id, { estado: 'enviado_ito', firmaToken: nuevoToken, sincronizada: false });
     setEstado('enviado_ito');
+
     if (supabase && protocolo.supabaseId) {
       await supabase
         .from('protocolos')
-        .update({ estado: 'enviado_ito', firma_token: nuevoToken, observacion_ito: null })
+        .update({ estado: 'enviado_ito', firma_token: nuevoToken, observacion_ito: null, datos: datosActuales })
         .eq('id', protocolo.supabaseId);
     }
+
     const link = `${window.location.origin}/firma/${nuevoToken}`;
     await navigator.clipboard.writeText(link).catch(() => {});
     alert(`Protocolo reenviado al ITO.\nNuevo link copiado al portapapeles:\n${link}`);
