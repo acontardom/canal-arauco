@@ -53,6 +53,7 @@ export default function Firma() {
   useEffect(() => { cargarProtocolo(); }, [token]);
 
   async function cargarProtocolo() {
+    console.log('[Firma] cargarProtocolo iniciado, token:', token);
     try {
       const { data, error: err } = await supabase
         .from('protocolos')
@@ -65,6 +66,7 @@ export default function Firma() {
         setLoading(false);
         return;
       }
+      console.log('[Firma] protocolo cargado:', data);
 
       if (data.estado === 'con_observaciones') {
         setError('Este protocolo está siendo corregido. Se enviará un nuevo link cuando esté listo.');
@@ -80,6 +82,8 @@ export default function Firma() {
 
       const datosCargados   = datosRow?.datos ?? data.datos ?? {};
       const fotosAdjCargadas = fotosAdj ?? [];
+      console.log('[Firma] datosCompletos:', datosRow?.datos);
+      console.log('[Firma] fotosAdjuntas cargadas:', fotosAdjCargadas);
 
       if (data.estado === 'firmado') {
         setProtocolo(data);
@@ -118,6 +122,7 @@ export default function Firma() {
   }
 
   async function generarBlobPDF(data, datosProto, fotosAdj) {
+    console.log('[Firma] generando blob URL...');
     try {
       const protMapeado = {
         id:                data.id,
@@ -186,6 +191,7 @@ export default function Firma() {
   }
 
   async function confirmarFirma() {
+    console.log('[Firma] confirmarFirma iniciado');
     if (!firmaUrl) return;
     setSubiendo(true);
 
