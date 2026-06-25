@@ -1216,6 +1216,10 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   }
 
   async function abrirVistaPrevia() {
+    if (protocolo.pdfFirmadoUrl) {
+      window.open(protocolo.pdfFirmadoUrl, '_blank');
+      return;
+    }
     setGenerandoPreview(true);
     try {
       const camionesParaPDF = camionSeleccionado === 'todos'

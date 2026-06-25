@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../config/supabase';
 import { construirDocumentoPDF } from '../utils/generarPDF';
 import logoUrl from '../assets/Logo_ExMaq.jpg';
@@ -24,6 +24,8 @@ function PageShell({ children, centered = false }) {
 
 export default function Firma() {
   const { token } = useParams();
+  const navigate = useNavigate();
+  const [confirmando, setConfirmando] = useState(null); // null | 'firmar' | 'rechazar'
   const [protocolo, setProtocolo]     = useState(null);
   const [pdfBlobUrl, setPdfBlobUrl]   = useState(null);
   const [firmaUrl, setFirmaUrl]       = useState(null);
@@ -344,11 +346,16 @@ export default function Firma() {
           <span style={s.confirmadoIcono}>✅</span>
           <h2 style={s.confirmadoTitulo}>Respuesta enviada</h2>
           <p style={s.confirmadoTexto}>El equipo ha sido notificado.</p>
-          {pdfFirmadoUrl && (
-            <a href={pdfFirmadoUrl} target="_blank" rel="noopener noreferrer" style={s.btnDescarga}>
-              ↓ Descargar PDF firmado
-            </a>
-          )}
+          <div style={s.confirmadoBotones}>
+            {pdfFirmadoUrl && (
+              <a href={pdfFirmadoUrl} target="_blank" rel="noopener noreferrer" style={s.btnDescarga}>
+                ↓ Descargar PDF firmado
+              </a>
+            )}
+            <button onClick={() => navigate('/ito')} style={s.btnVolverPortal}>
+              ← Volver al portal
+            </button>
+          </div>
         </div>
       </PageShell>
     );
@@ -431,7 +438,7 @@ export default function Firma() {
             <button
               style={{ ...s.btnRechazar, opacity: !observacion.trim() || subiendo ? 0.5 : 1 }}
               disabled={!observacion.trim() || subiendo}
-              onClick={rechazar}
+              onClick={() => setConfirmando('rechazar')}
             >
               {subiendo ? 'Enviando...' : 'Enviar observación'}
             </button>
@@ -445,10 +452,42 @@ export default function Firma() {
           <button
             style={{ ...s.btnFirmar, opacity: !firmaUrl || subiendo ? 0.5 : 1 }}
             disabled={!firmaUrl || subiendo}
-            onClick={confirmarFirma}
+            onClick={() => setConfirmando('firmar')}
           >
             {subiendo ? 'Procesando...' : 'Confirmar firma'}
           </button>
+        </div>
+      )}
+
+      {/* Modal de confirmación */}
+      {confirmando && (
+        <div style={s.modalOverlay}>
+          <div style={s.modalBox}>
+            <h3 style={s.modalTitulo}>
+              {confirmando === 'firmar' ? '¿Confirmar firma?' : '¿Enviar observación?'}
+            </h3>
+            <p style={s.modalTexto}>
+              {confirmando === 'firmar'
+                ? 'Esta acción es irreversible. El protocolo quedará firmado permanentemente.'
+                : 'El protocolo volverá al equipo para corrección.'}
+            </p>
+            <div style={s.modalBotones}>
+              <button style={s.btnModalCancelar} onClick={() => setConfirmando(null)}>
+                Cancelar
+              </button>
+              <button
+                style={{ ...s.btnModalConfirmar, background: confirmando === 'firmar' ? '#15803d' : '#f97316' }}
+                onClick={() => {
+                  const accion = confirmando;
+                  setConfirmando(null);
+                  if (accion === 'firmar') confirmarFirma();
+                  else rechazar();
+                }}
+              >
+                {confirmando === 'firmar' ? 'Sí, firmar' : 'Sí, enviar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </PageShell>
@@ -674,4 +713,57 @@ const s = {
   confirmadoIcono:  { fontSize: '56px' },
   confirmadoTitulo: { color: '#64ffda', fontSize: '22px', fontWeight: 700, margin: 0 },
   confirmadoTexto:  { color: '#94a3b8', fontSize: '14px', margin: 0 },
+  confirmadoBotones: { display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '8px' },
+
+  btnVolverPortal: {
+    background: '#1d4ed8',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '10px 24px',
+    fontSize: '14px',
+    fontWeight: 700,
+    cursor: 'pointer',
+  },
+
+  modalOverlay: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0,0,0,0.7)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+    padding: '16px',
+  },
+  modalBox: {
+    background: '#1e293b',
+    borderRadius: '12px',
+    padding: '2rem',
+    maxWidth: '400px',
+    width: '100%',
+    border: '1px solid #334155',
+  },
+  modalTitulo: { color: '#f1f5f9', fontSize: '18px', fontWeight: 700, margin: '0 0 12px' },
+  modalTexto:  { color: '#94a3b8', fontSize: '14px', margin: '0 0 24px', lineHeight: '1.5' },
+  modalBotones: { display: 'flex', gap: '8px', justifyContent: 'flex-end' },
+  btnModalCancelar: {
+    background: '#374151',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '8px 18px',
+    fontSize: '14px',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  btnModalConfirmar: {
+    color: '#fff',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '8px 18px',
+    fontSize: '14px',
+    fontWeight: 700,
+    cursor: 'pointer',
+  },
 };
