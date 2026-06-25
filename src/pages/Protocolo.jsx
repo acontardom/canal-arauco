@@ -329,7 +329,6 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [fotosExcluidas, setFotosExcluidas] = useState([]);  // array de URLs excluidas del PDF
   const [fotosRecortadas, setFotosRecortadas] = useState({});  // { [url]: dataUrlRecortado }
   const [camionesTramo, setCamionesTramo] = useState([]);
-  const [estado, setEstado] = useState('pendiente');
   const [fechaEnvio, setFechaEnvio] = useState(null);
   const [guardando, setGuardando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
@@ -394,6 +393,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   const cargando = protocoloArr === undefined;
   const protocolo = protocoloArr?.[0];
+  const estado = protocolo?.estado ?? 'pendiente';
 
   const fotos = useLiveQuery(
     () =>
@@ -589,7 +589,6 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     if (!cargando && !cargadoRef.current) {
       cargadoRef.current = true;
       if (protocolo) {
-        setEstado(protocolo.estado);
         setFechaEnvio(protocolo.fechaEnvio ?? null);
         setEdp(protocolo.edp ?? '');
 
@@ -704,7 +703,6 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     const datosActuales = { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fechaProtocolo };
 
     await db.protocolos.update(protocolo.id, { estado: 'enviado_ito', firmaToken: token, datos: datosActuales, sincronizada: false });
-    setEstado('enviado_ito');
 
     if (supabase && protocolo.supabaseId) {
       await supabase
@@ -726,7 +724,6 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     const datosActuales = { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fechaProtocolo };
 
     await db.protocolos.update(protocolo.id, { estado: 'enviado_ito', firmaToken: nuevoToken, datos: datosActuales, sincronizada: false });
-    setEstado('enviado_ito');
 
     if (supabase && protocolo.supabaseId) {
       await supabase
@@ -837,7 +834,6 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         });
       }
 
-      setEstado(nuevoEstado);
       if ('fechaEnvio' in extra) setFechaEnvio(extra.fechaEnvio);
       mostrarToast(mensaje ?? (nuevoEstado === 'completado' ? '✓ Protocolo completado' : '✓ Borrador guardado'));
 
