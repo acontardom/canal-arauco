@@ -84,6 +84,12 @@ db.version(11).stores({
     '++id, tipo, entidad, entidadId, protocoloId, estado, usuarioNombre, fechaCreacion, fechaModificacion, datos, supabaseId, sincronizada, deviceProtocoloId, firmaToken',
 });
 
+// v12: agrega pdfFirmadoUrl a protocolos (URL del PDF firmado en Storage)
+db.version(12).stores({
+  protocolos:
+    '++id, tipo, entidad, entidadId, protocoloId, estado, usuarioNombre, fechaCreacion, fechaModificacion, datos, supabaseId, sincronizada, deviceProtocoloId, firmaToken, pdfFirmadoUrl',
+});
+
 // Hooks: genera UUID permanente al crear cualquier registro nuevo
 db.camiones.hook('creating', (primKey, obj) => {
   if (!obj.deviceCamionId) obj.deviceCamionId = generateUUID();

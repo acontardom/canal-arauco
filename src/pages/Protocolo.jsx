@@ -1952,6 +1952,11 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           <button
             style={{ ...s.btnAccion, ...s.btnExcel, opacity: descargando ? 0.6 : 1 }}
             onClick={async () => {
+              // PDF firmado guardado en Storage → abrir directamente sin regenerar
+              if (protocolo.pdfFirmadoUrl) {
+                window.open(protocolo.pdfFirmadoUrl, '_blank');
+                return;
+              }
               setDescargando(true);
               try { await generarPDF(protocolo, fotosCombinadas, kmInicio, kmFin, camionesRegistrados); }
               catch (err) {
@@ -1962,7 +1967,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             }}
             disabled={descargando}
           >
-            {descargando ? 'Generando...' : '⬇ Descargar PDF'}
+            {descargando ? 'Generando...' : protocolo.pdfFirmadoUrl ? '⬇ PDF Firmado' : '⬇ Descargar PDF'}
           </button>
         </div>
       )}
