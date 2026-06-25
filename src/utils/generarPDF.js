@@ -535,20 +535,33 @@ function pieFirmaY(finalY) {
   return finalY < PH - 45 ? PH - 42 : finalY + 5;
 }
 
-// Tabla de pie de firma — unificada (4 filas), pageBreak:'avoid' evita que se
-// divida entre páginas.
 function agregarPieFirma(doc, startY, pac = 'Diego Oñate Jorquera', firmaITO = null) {
   const colW = CW / 3;
+  const FIRMA_H = 25; // mm de alto para el espacio de firma
 
   autoTable(doc, {
     startY,
     margin: { left: ML, right: MR, bottom: 0 },
     tableWidth: CW,
     body: [
-      ['PAC', 'ITO', 'ADMINISTRADOR'],
-      [pac, 'Gonzalo Chavarría Sepúlveda', 'Marcelo Contardo Correa'],
-      ['firma: _______________', 'firma: _______________', 'firma: _______________'],
-      ['fecha: _______________', 'fecha: _______________', 'fecha: _______________'],
+      // Fila 1: rol + nombre
+      [
+        { content: `PAC\n${pac}`, styles: { fontStyle: 'bold', fillColor: [240, 240, 240], halign: 'center', fontSize: 8 } },
+        { content: `ITO\nGonzalo Chavarría Sepúlveda`, styles: { fontStyle: 'bold', fillColor: [240, 240, 240], halign: 'center', fontSize: 8 } },
+        { content: `ADMINISTRADOR\nMarcelo Contardo Correa`, styles: { fontStyle: 'bold', fillColor: [240, 240, 240], halign: 'center', fontSize: 8 } },
+      ],
+      // Fila 2: espacio para firma
+      [
+        { content: '', styles: { minCellHeight: FIRMA_H, halign: 'center', valign: 'middle' } },
+        { content: '', styles: { minCellHeight: FIRMA_H, halign: 'center', valign: 'middle' } },
+        { content: '', styles: { minCellHeight: FIRMA_H, halign: 'center', valign: 'middle' } },
+      ],
+      // Fila 3: fecha
+      [
+        { content: 'fecha: _______________', styles: { halign: 'center', fontSize: 8 } },
+        { content: 'fecha: _______________', styles: { halign: 'center', fontSize: 8 } },
+        { content: 'fecha: _______________', styles: { halign: 'center', fontSize: 8 } },
+      ],
     ],
     columnStyles: {
       0: { cellWidth: colW },
@@ -561,22 +574,29 @@ function agregarPieFirma(doc, startY, pac = 'Diego Oñate Jorquera', firmaITO = 
       lineColor: [120, 120, 120],
       lineWidth: 0.2,
       textColor: [30, 30, 30],
-      halign: 'center',
     },
     theme: 'grid',
     pageBreak: 'avoid',
-    didParseCell: (data) => {
-      if (data.row.index === 0) {
-        data.cell.styles.fontStyle = 'bold';
-        data.cell.styles.fillColor = [240, 240, 240];
-      }
-    },
     didDrawCell: (data) => {
-      if (firmaITO && data.row.index === 2 && data.column.index === 1) {
+      // Incrustar firma ITO en fila 2, columna 1
+      if (firmaITO && data.row.index === 1 && data.column.index === 1) {
         const { x, y, width, height } = data.cell;
         try {
           const fmt = detectFormat(firmaITO);
-          doc.addImage(firmaITO, fmt, x + 2, y + 1, width - 4, height - 2);
+          // Mantener proporciones de la firma centrada en la celda
+          const imgProps = doc.getImageProperties(firmaITO);
+          const imgRatio = imgProps.width / imgProps.height;
+          const maxW = width - 8;
+          const maxH = height - 6;
+          let drawW = maxW;
+          let drawH = drawW / imgRatio;
+          if (drawH > maxH) {
+            drawH = maxH;
+            drawW = drawH * imgRatio;
+          }
+          const drawX = x + (width - drawW) / 2;
+          const drawY = y + (height - drawH) / 2;
+          doc.addImage(firmaITO, fmt, drawX, drawY, drawW, drawH);
         } catch (err) {
           console.warn('[PDF] Error al incrustar firma ITO:', err?.message ?? err);
         }
