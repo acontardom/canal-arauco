@@ -123,6 +123,19 @@ function AppRoutes({ cargandoSync }) {
   }
 
   if (!usuario) {
+    const esMobile = window.innerWidth < 768;
+    if (!esMobile) {
+      return (
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/subir-fotos" element={<SubirFotos />} />
+          <Route path="/subir-fotos/:tipo/:entidadId" element={<SubirFotos />} />
+          <Route path="/recibir-camion" element={<RecibirCamion />} />
+          <Route path="/firma/:token" element={<Firma />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      );
+    }
     return (
       <Routes>
         <Route path="/" element={<Entrada />} />

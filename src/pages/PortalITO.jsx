@@ -66,53 +66,55 @@ export default function PortalITO() {
         <p style={s.cargando}>Cargando protocolos...</p>
       ) : (
         <>
-          {/* Pendientes de firma */}
-          <Seccion titulo="Pendientes de firma" count={pendientes.length} color="#e6a817">
-            {pendientes.length === 0
-              ? <p style={s.empty}>No hay protocolos pendientes.</p>
-              : pendientes.map(p => (
-                  <div key={p.id} style={s.card}>
-                    <div style={s.cardInfo}>
-                      <div style={s.cardNombre}>{labelProtocolo(p)}</div>
-                      <div style={s.cardMeta}>Enviado el {fmtFecha(p.fecha_modificacion)}</div>
-                    </div>
-                    <button
-                      style={s.btnFirmar}
-                      onClick={() => navigate(`/firma/${p.firma_token}`)}
-                    >
-                      Ver y Firmar →
-                    </button>
-                  </div>
-                ))
-            }
-          </Seccion>
-
-          {/* Firmados */}
-          <Seccion titulo="Firmados" count={firmados.length} color="#10b981">
-            {firmados.length === 0
-              ? <p style={s.empty}>No hay protocolos firmados.</p>
-              : firmados.map(p => (
-                  <div key={p.id} style={s.card}>
-                    <div style={s.cardInfo}>
-                      <div style={s.cardNombre}>{labelProtocolo(p)}</div>
-                      <div style={s.cardMeta}>Firmado el {fmtFecha(p.fecha_modificacion)}</div>
-                    </div>
-                    {p.pdf_firmado_url && (
-                      <a
-                        href={p.pdf_firmado_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={s.btnPDF}
+          <div style={s.grid}>
+            {/* Pendientes de firma */}
+            <Seccion titulo="Pendientes de firma" count={pendientes.length} color="#e6a817">
+              {pendientes.length === 0
+                ? <p style={s.empty}>No hay protocolos pendientes.</p>
+                : pendientes.map(p => (
+                    <div key={p.id} style={s.card}>
+                      <div style={s.cardInfo}>
+                        <div style={s.cardNombre}>{labelProtocolo(p)}</div>
+                        <div style={s.cardMeta}>Enviado el {fmtFecha(p.fecha_modificacion)}</div>
+                      </div>
+                      <button
+                        style={s.btnFirmar}
+                        onClick={() => navigate(`/firma/${p.firma_token}`)}
                       >
-                        ↓ PDF Firmado
-                      </a>
-                    )}
-                  </div>
-                ))
-            }
-          </Seccion>
+                        Ver y Firmar →
+                      </button>
+                    </div>
+                  ))
+              }
+            </Seccion>
 
-          {/* Con observaciones */}
+            {/* Firmados */}
+            <Seccion titulo="Firmados" count={firmados.length} color="#10b981">
+              {firmados.length === 0
+                ? <p style={s.empty}>No hay protocolos firmados.</p>
+                : firmados.map(p => (
+                    <div key={p.id} style={s.card}>
+                      <div style={s.cardInfo}>
+                        <div style={s.cardNombre}>{labelProtocolo(p)}</div>
+                        <div style={s.cardMeta}>Firmado el {fmtFecha(p.fecha_modificacion)}</div>
+                      </div>
+                      {p.pdf_firmado_url && (
+                        <a
+                          href={p.pdf_firmado_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={s.btnPDF}
+                        >
+                          ↓ PDF Firmado
+                        </a>
+                      )}
+                    </div>
+                  ))
+              }
+            </Seccion>
+          </div>
+
+          {/* Con observaciones — ancho completo */}
           <Seccion titulo="Con observaciones" count={conObservaciones.length} color="#f97316">
             {conObservaciones.length === 0
               ? <p style={s.empty}>Sin protocolos con observaciones.</p>
@@ -149,12 +151,19 @@ function Seccion({ titulo, count, color, children }) {
 
 const s = {
   page: {
-    maxWidth: '640px',
+    maxWidth: '860px',
     margin: '0 auto',
     display: 'flex',
     flexDirection: 'column',
     gap: '24px',
-    paddingBottom: '40px',
+    padding: '2rem',
+    width: '100%',
+    boxSizing: 'border-box',
+  },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+    gap: '1rem',
   },
   header: {
     display: 'flex',

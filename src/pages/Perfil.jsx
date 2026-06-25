@@ -1,18 +1,21 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useUser } from '../context/UserContext';
+import { useAuth } from '../hooks/useAuth';
 import { useSyncStatus } from '../hooks/useSyncStatus';
-import { USUARIOS } from '../constants/estructura';
 import { db } from '../db/database';
 import { sincronizar } from '../utils/sync';
 
 export default function Perfil() {
-  const { usuario, seleccionarUsuario } = useUser();
+  const { usuario, signOut, cambiarContrasena } = useAuth();
   const navigate = useNavigate();
   const { pendientes, sincronizando, todoSincronizado } = useSyncStatus();
 
-  const [confirmando, setConfirmando] = useState(false);
+  const [confirmando,     setConfirmando]     = useState(false);
   const [resincronizando, setResincronizando] = useState(false);
+  const [cambioPass,      setCambioPass]      = useState(false);
+  const [nuevaClave,      setNuevaClave]      = useState('');
+  const [passMsg,         setPassMsg]         = useState('');
+  const [guardandoPass,   setGuardandoPass]   = useState(false);
 
   async function forzarResync() {
     setConfirmando(false);
@@ -28,35 +31,74 @@ export default function Perfil() {
     }
   }
 
+  async function handleCambiarPass() {
+    if (!nuevaClave || nuevaClave.length < 6) { setPassMsg('Mínimo 6 caracteres'); return; }
+    setGuardandoPass(true);
+    const err = await cambiarContrasena(nuevaClave);
+    setGuardandoPass(false);
+    if (err) {
+      setPassMsg('Error al cambiar contraseña');
+    } else {
+      setPassMsg('Contraseña actualizada');
+      setNuevaClave('');
+      setTimeout(() => { setCambioPass(false); setPassMsg(''); }, 1500);
+    }
+  }
+
   return (
     <div style={s.page}>
-      <h1 style={s.nombre}>{usuario}</h1>
-
-      <div style={s.lista}>
-        {USUARIOS.map(nombre => (
-          <button
-            key={nombre}
-            style={{ ...s.btnUsuario, ...(nombre === usuario ? s.btnUsuarioActivo : {}) }}
-            onClick={() => seleccionarUsuario(nombre)}
-          >
-            {nombre}
-          </button>
-        ))}
+      <div style={s.tarjeta}>
+        <div style={s.avatar}>{(usuario?.nombre ?? usuario?.email ?? '?')[0].toUpperCase()}</div>
+        <div style={s.nombre}>{usuario?.nombre ?? '—'}</div>
+        <div style={s.email}>{usuario?.email}</div>
+        {usuario?.rol && <div style={s.rol}>{usuario.rol}</div>}
       </div>
 
-      <div style={{ ...s.syncBadge, color: sincronizando ? '#8892b0' : todoSincronizado ? '#10b981' : '#f59e0b' }}>
-        {sincronizando ? '⏳ Sincronizando...' : todoSincronizado ? '☁️ Todo sincronizado' : `🔄 ${pendientes} pendientes`}
+      <div style={s.syncBadge}>
+        <span style={{ color: sincronizando ? '#8892b0' : todoSincronizado ? '#10b981' : '#f59e0b' }}>
+          {sincronizando ? '⏳ Sincronizando...' : todoSincronizado ? '☁️ Todo sincronizado' : `🔄 ${pendientes} pendientes`}
+        </span>
       </div>
 
-      <button style={s.linkConfig} onClick={() => navigate('/configuracion')}>⚙️ Configuración</button>
+      <div style={s.acciones}>
+        <button
+          style={s.btnAccion}
+          onClick={() => { setCambioPass(v => !v); setPassMsg(''); setNuevaClave(''); }}
+        >
+          🔑 {cambioPass ? 'Cancelar' : 'Cambiar contraseña'}
+        </button>
 
-      <button
-        style={{ ...s.btnAdmin, ...(resincronizando ? s.btnAdminActivo : {}) }}
-        onClick={() => !resincronizando && setConfirmando(true)}
-        disabled={resincronizando}
-      >
-        {resincronizando ? 'Re-sincronizando...' : '🔄 Forzar re-sincronización'}
-      </button>
+        {cambioPass && (
+          <div style={s.passForm}>
+            <input
+              type="password"
+              placeholder="Nueva contraseña"
+              style={s.passInput}
+              value={nuevaClave}
+              onChange={e => setNuevaClave(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleCambiarPass()}
+            />
+            {passMsg && (
+              <span style={passMsg.includes('Error') ? s.passError : s.passOk}>{passMsg}</span>
+            )}
+            <button style={s.btnGuardarPass} onClick={handleCambiarPass} disabled={guardandoPass}>
+              {guardandoPass ? 'Guardando...' : 'Guardar contraseña'}
+            </button>
+          </div>
+        )}
+
+        <button
+          style={{ ...s.btnAccion, ...(resincronizando ? s.btnAccionActivo : {}) }}
+          onClick={() => !resincronizando && setConfirmando(true)}
+          disabled={resincronizando}
+        >
+          {resincronizando ? '⏳ Re-sincronizando...' : '🔄 Forzar re-sincronización'}
+        </button>
+
+        <button style={s.btnCerrarSesion} onClick={signOut}>
+          Cerrar sesión
+        </button>
+      </div>
 
       {confirmando && (
         <div style={s.overlay}>
@@ -77,35 +119,62 @@ export default function Perfil() {
 
 const s = {
   page: {
-    maxWidth: '480px', margin: '0 auto', display: 'flex', flexDirection: 'column',
-    alignItems: 'center', gap: '24px', paddingTop: '20px',
+    maxWidth: '420px', margin: '0 auto', display: 'flex', flexDirection: 'column',
+    alignItems: 'center', gap: '20px', paddingTop: '20px',
   },
 
-  nombre: { color: '#ccd6f6', fontSize: '24px', fontWeight: 700, margin: 0, textAlign: 'center' },
-
-  lista: { display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' },
-  btnUsuario: {
-    background: '#16213e', color: '#ccd6f6', border: '1px solid #0f3460',
-    borderRadius: '10px', padding: '14px 16px', fontSize: '15px', fontWeight: 600, cursor: 'pointer',
-    textAlign: 'center',
+  tarjeta: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
+    background: '#16213e', border: '1px solid #0f3460', borderRadius: '16px',
+    padding: '28px 32px', width: '100%', boxSizing: 'border-box',
   },
-  btnUsuarioActivo: { background: '#0f3460', color: '#64ffda', borderColor: '#64ffda' },
+  avatar: {
+    width: 56, height: 56, borderRadius: '50%', background: '#0f3460',
+    color: '#64ffda', fontSize: 24, fontWeight: 700,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    marginBottom: 8,
+  },
+  nombre: { color: '#ccd6f6', fontSize: '20px', fontWeight: 700 },
+  email:  { color: '#8892b0', fontSize: '13px' },
+  rol: {
+    marginTop: 4, background: '#0f3460', color: '#64ffda',
+    fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '10px',
+    textTransform: 'uppercase', letterSpacing: '0.5px',
+  },
 
   syncBadge: {
     fontSize: '13px', fontWeight: 600, background: '#0a2040',
     border: '1px solid #1e3a5f', borderRadius: '20px', padding: '8px 18px',
   },
 
-  linkConfig: {
-    background: 'transparent', border: 'none', color: '#8892b0',
-    fontSize: '13px', fontWeight: 600, cursor: 'pointer', padding: '8px',
+  acciones: { display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' },
+
+  btnAccion: {
+    background: '#16213e', border: '1px solid #0f3460', borderRadius: '10px',
+    color: '#8892b0', fontSize: '14px', fontWeight: 600,
+    padding: '12px 16px', cursor: 'pointer', textAlign: 'left',
+  },
+  btnAccionActivo: { color: '#64ffda', borderColor: '#2a7abf' },
+
+  passForm: { display: 'flex', flexDirection: 'column', gap: '8px', padding: '0 4px' },
+  passInput: {
+    background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '8px',
+    color: '#ccd6f6', fontSize: '14px', padding: '10px 12px',
+    fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box',
+  },
+  passOk:    { color: '#10b981', fontSize: '12px', fontWeight: 600 },
+  passError: { color: '#f87171', fontSize: '12px', fontWeight: 600 },
+  btnGuardarPass: {
+    background: 'rgba(100,255,218,0.1)', border: '1px solid #64ffda',
+    borderRadius: '8px', color: '#64ffda', fontSize: '13px', fontWeight: 700,
+    padding: '10px', cursor: 'pointer',
   },
 
-  btnAdmin: {
-    background: 'transparent', border: '1px solid #1e3a5f', color: '#8892b0',
-    borderRadius: '10px', padding: '10px 20px', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+  btnCerrarSesion: {
+    background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+    borderRadius: '10px', color: '#f87171', fontSize: '14px', fontWeight: 700,
+    padding: '12px 16px', cursor: 'pointer', textAlign: 'left',
   },
-  btnAdminActivo: { color: '#64ffda', borderColor: '#2a7abf' },
 
   overlay: {
     position: 'fixed', inset: 0, background: 'rgba(10,15,30,0.85)',
