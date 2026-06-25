@@ -29,6 +29,8 @@ const COL_LABEL = {
   COTAS:        'Cotas Topog.',
 };
 
+const COL_LABEL_CAIDA = { ...COL_LABEL, PICE4_RADIER: 'Enfierr. Radier' };
+
 // ─── Mapeo protocolo → partida de avance ──────────────────────────────────────
 
 const PROTOCOLO_A_PARTIDA = {
@@ -130,12 +132,12 @@ function ColGroup({ protocolos }) {
   );
 }
 
-function EncabezadoColumnas({ protocolos }) {
+function EncabezadoColumnas({ protocolos, colLabel = COL_LABEL }) {
   return (
     <tr>
       <th style={s.cornerCell} />
       {protocolos.map(p => (
-        <th key={p.id} style={s.colHeader}>{COL_LABEL[p.id]}</th>
+        <th key={p.id} style={s.colHeader}>{colLabel[p.id]}</th>
       ))}
     </tr>
   );
@@ -263,7 +265,7 @@ export default function DashboardMatriz() {
               <tr>
                 <th colSpan={PROTOCOLOS_MATRIZ_CAIDA.length + 1} style={s.tituloTabla}>CAÍDAS</th>
               </tr>
-              <EncabezadoColumnas protocolos={PROTOCOLOS_MATRIZ_CAIDA} />
+              <EncabezadoColumnas protocolos={PROTOCOLOS_MATRIZ_CAIDA} colLabel={COL_LABEL_CAIDA} />
             </thead>
             <tbody>
               {CAIDAS.map(caidaId => (
