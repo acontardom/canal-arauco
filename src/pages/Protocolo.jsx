@@ -700,10 +700,10 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     if (!protocolo?.id) return;
     const token = crypto.randomUUID();
 
-    const protocoloActual = await db.protocolos.get(protocolo.id);
-    const datosActuales = protocoloActual?.datos ?? {};
+    const fotosSubidas = await subirFotosNubePendientes(fotosNubeSeleccionadas);
+    const datosActuales = { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fechaProtocolo };
 
-    await db.protocolos.update(protocolo.id, { estado: 'enviado_ito', firmaToken: token, sincronizada: false });
+    await db.protocolos.update(protocolo.id, { estado: 'enviado_ito', firmaToken: token, datos: datosActuales, sincronizada: false });
     setEstado('enviado_ito');
 
     if (supabase && protocolo.supabaseId) {
@@ -722,10 +722,10 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     if (!protocolo?.id) return;
     const nuevoToken = crypto.randomUUID();
 
-    const protocoloActual = await db.protocolos.get(protocolo.id);
-    const datosActuales = protocoloActual?.datos ?? {};
+    const fotosSubidas = await subirFotosNubePendientes(fotosNubeSeleccionadas);
+    const datosActuales = { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fechaProtocolo };
 
-    await db.protocolos.update(protocolo.id, { estado: 'enviado_ito', firmaToken: nuevoToken, sincronizada: false });
+    await db.protocolos.update(protocolo.id, { estado: 'enviado_ito', firmaToken: nuevoToken, datos: datosActuales, sincronizada: false });
     setEstado('enviado_ito');
 
     if (supabase && protocolo.supabaseId) {
