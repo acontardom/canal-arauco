@@ -186,17 +186,42 @@ export default function Firma() {
   async function confirmarFirma() {
     if (!firmaUrl) return;
     setSubiendo(true);
-    try {
-      // 1. Descargar firma como base64
-      const firmaResp = await fetch(firmaUrl);
-      const firmaBlob = await firmaResp.blob();
-      const firmaBase64 = await new Promise(resolve => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.readAsDataURL(firmaBlob);
-      });
 
-      // 2. Usar datos y fotos ya cargados en estado
+    try {
+      // 1. Descargar firma con manejo de errores CORS
+      let firmaBase64 = null;
+      try {
+        const firmaResp = await fetch(firmaUrl, { mode: 'cors' });
+        if (!firmaResp.ok) throw new Error(`HTTP ${firmaResp.status}`);
+        const firmaBlob = await firmaResp.blob();
+        firmaBase64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload  = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(firmaBlob);
+        });
+      } catch (corsErr) {
+        console.warn('[Firma] Error CORS al descargar firma, intentando via Supabase Storage SDK:', corsErr);
+        // Fallback: descargar via SDK (evita restricciones CORS en URLs de Storage)
+        const ext  = firmaUrl.split('.').pop().split('?')[0] || 'png';
+        const path = `firmas/ito/${itoUsuario.id}.${ext}`;
+        const { data: firmaData } = await supabase.storage
+          .from('fotos-canal-arauco')
+          .download(path);
+        if (firmaData) {
+          firmaBase64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload  = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(firmaData);
+          });
+        }
+      }
+
+      if (!firmaBase64) throw new Error('No se pudo cargar la imagen de firma');
+      console.log('[Firma] firmaBase64 cargado, longitud:', firmaBase64.length);
+
+      // 2. Construir protocolo completo con datos ya en estado
       const protocoloCompleto = {
         id:                protocolo.id,
         protocoloId:       protocolo.protocolo_id,
@@ -213,10 +238,11 @@ export default function Firma() {
         datos:             datosProtocolo,
       };
 
-      // 3. Generar PDF con firma incrustada
+      // 3. Combinar fotos y generar PDF con firma incrustada
       const fotosParaPDF = combinarFotos(datosProtocolo, fotosAdjuntas);
       const kmInicio = datosProtocolo?.kmInicio ?? '';
       const kmFin    = datosProtocolo?.kmFin    ?? '';
+      console.log('[Firma] Generando PDF, firmaBase64 presente:', !!firmaBase64);
       const { doc } = await construirDocumentoPDF(
         protocoloCompleto,
         fotosParaPDF,
@@ -240,7 +266,7 @@ export default function Firma() {
         .from('fotos-canal-arauco')
         .getPublicUrl(pdfPath);
 
-      // 5. Actualizar Supabase
+      // 5. Actualizar estado en Supabase
       await supabase
         .from('protocolos')
         .update({
