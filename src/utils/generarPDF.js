@@ -166,7 +166,7 @@ const CW = PW - ML - MR; // content width = 182mm
 // El pie de firma se dibuja pegado debajo del último contenido (startY:
 // finalY + PIE_FIRMA_GAP), no a una posición fija al fondo de página.
 const PIE_FIRMA_GAP = 8;  // mm de separación entre el contenido y el pie de firma
-const PIE_FIRMA_H = 29;   // alto aprox. del pie de firma (4 filas)
+const PIE_FIRMA_H = 46;   // fila rol+nombre (~10mm) + espacio firma (25mm) + fecha (~8mm) + padding
 const CONTENT_MARGIN = { top: 10, bottom: 10 }; // margen de autotable (sin reserva fija de pie)
 
 // Tipografía/espaciado normal y reducido (si el contenido no cabe en una página)
@@ -532,7 +532,7 @@ function agregarProtocoloControl(doc, protocolo, y, escala = ESCALA_NORMAL) {
 // contenido deja espacio suficiente; si el contenido llena la página, se
 // dibuja pegado debajo de él (startY: finalY + 5).
 function pieFirmaY(finalY) {
-  return finalY < PH - 45 ? PH - 42 : finalY + 5;
+  return finalY < PH - 55 ? PH - 52 : finalY + 5;
 }
 
 function agregarPieFirma(doc, startY, pac = 'Diego Oñate Jorquera', firmaITO = null) {
