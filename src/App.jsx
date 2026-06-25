@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { UserProvider } from './context/UserContext';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import BottomNav from './components/BottomNav';
+import Entrada from './pages/Entrada';
 import Inicio from './pages/Inicio';
 import Dashboard from './pages/Dashboard';
 import DashboardMatriz from './pages/DashboardMatriz';
@@ -35,6 +36,14 @@ import VistaCanal from './pages/VistaCanal';
 import { descargarDesdeSupabase, iniciarSyncAutomatico } from './utils/sync';
 import { supabase } from './config/supabase';
 import { useAuth } from './hooks/useAuth';
+
+function LoadingScreen() {
+  return (
+    <div style={{ minHeight: '100vh', background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ color: '#64748b', fontSize: 14 }}>Cargando...</div>
+    </div>
+  );
+}
 
 function BannerSync() {
   return (
@@ -72,16 +81,14 @@ function esFlujoInterno(pathname) {
 
 function Layout({ children, cargandoSync }) {
   const location = useLocation();
-  const { usuario } = useAuth();
-  const esITO = usuario?.rol === 'ito';
-  const mostrarBottomNav = !esITO && !esFlujoInterno(location.pathname);
+  const mostrarBottomNav = !esFlujoInterno(location.pathname);
 
   return (
     <div style={{ minHeight: '100vh', background: '#1a1a2e' }}>
       {cargandoSync && <BannerSync />}
       <Navbar />
       <div className="app-body">
-        {!esITO && <Sidebar />}
+        <Sidebar />
         <main className={mostrarBottomNav ? 'with-bottom-nav main-content' : 'main-content'} style={{ padding: '24px', flex: 1, minWidth: 0 }}>
           {children}
         </main>
@@ -91,15 +98,94 @@ function Layout({ children, cargandoSync }) {
   );
 }
 
+function PublicSubpageLayout({ children }) {
+  return (
+    <>
+      <div style={{ paddingBottom: 60 }}>{children}</div>
+      <BottomNav />
+    </>
+  );
+}
+
+function AppRoutes({ cargandoSync }) {
+  const { usuario, loading } = useAuth();
+
+  if (loading) return <LoadingScreen />;
+
+  if (usuario?.rol === 'ito') {
+    return (
+      <Routes>
+        <Route path="/ito" element={<PortalITO />} />
+        <Route path="/firma/:token" element={<Firma />} />
+        <Route path="*" element={<Navigate to="/ito" replace />} />
+      </Routes>
+    );
+  }
+
+  if (!usuario) {
+    return (
+      <Routes>
+        <Route path="/" element={<Entrada />} />
+        <Route path="/subir-fotos" element={<PublicSubpageLayout><SubirFotos /></PublicSubpageLayout>} />
+        <Route path="/subir-fotos/:tipo/:entidadId" element={<PublicSubpageLayout><SubirFotos /></PublicSubpageLayout>} />
+        <Route path="/recibir-camion" element={<PublicSubpageLayout><RecibirCamion /></PublicSubpageLayout>} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/firma/:token" element={<Firma />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    );
+  }
+
+  return (
+    <Layout cargandoSync={cargandoSync}>
+      <Routes>
+        <Route path="/" element={<Inicio />} />
+        <Route path="/gestion" element={<Gestion />} />
+        <Route path="/perfil" element={<Perfil />} />
+        <Route path="/galeria" element={<Galeria />} />
+        <Route path="/camiones" element={<HistorialCamiones />} />
+        <Route path="/control" element={<CentroControl />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/matriz" element={<DashboardMatriz />} />
+        <Route path="/proximamente" element={<Proximamente />} />
+        <Route path="/subir-fotos" element={<SubirFotos />} />
+        <Route path="/subir-fotos/:tipo/:entidadId" element={<SubirFotos />} />
+        <Route path="/recibir-camion" element={<RecibirCamion />} />
+        <Route path="/galeria" element={<Galeria />} />
+        <Route path="/recepcionar-avance" element={<RecepcionarAvance />} />
+        <Route path="/generar-protocolo" element={<GenerarProtocolo />} />
+        <Route path="/protocolo/:tipo/:entidadId/:protocoloId" element={<Protocolo />} />
+        <Route path="/tramos" element={<Tramos />} />
+        <Route path="/tramos/:tramoId" element={<TramoDetalle />} />
+        <Route path="/caidas" element={<Caidas />} />
+        <Route path="/caidas/:caidaId" element={<CaidaDetalle />} />
+        <Route path="/atraviesos" element={<Atraviesos />} />
+        <Route path="/atraviesos/:atraviesoId" element={<AtraviesoDetalle />} />
+        <Route path="/vista-canal" element={<VistaCanal />} />
+        <Route path="/cubicaciones" element={<Cubicaciones />} />
+        <Route path="/firma/:token" element={<Firma />} />
+        {usuario.rol === 'admin' && (
+          <>
+            <Route path="/planificacion" element={<Planificacion />} />
+            <Route path="/cuadrillas" element={<Cuadrillas />} />
+            <Route path="/configuracion" element={<Configuracion />} />
+          </>
+        )}
+        <Route path="/login" element={<Navigate to="/" replace />} />
+        <Route path="/ito" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Layout>
+  );
+}
+
 export default function App() {
-  // Mostrar banner solo si Supabase está configurado y hay conexión
   const [cargandoSync, setCargandoSync] = useState(
     () => !!supabase && navigator.onLine
   );
 
   useEffect(() => {
     if (!supabase || !navigator.onLine) {
-      // Sin Supabase o sin red: arrancar sync automático directamente
       iniciarSyncAutomatico();
       return;
     }
@@ -113,46 +199,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <UserProvider>
-        <Routes>
-          {/* Página pública fuera del layout con sidebar */}
-          <Route path="/firma/:token" element={<Firma />} />
-
-          {/* Todas las demás rutas con Layout + Sidebar */}
-          <Route path="*" element={
-            <Layout cargandoSync={cargandoSync}>
-              <Routes>
-                <Route path="/" element={<Inicio />} />
-                <Route path="/gestion" element={<Gestion />} />
-                <Route path="/perfil" element={<Perfil />} />
-                <Route path="/galeria" element={<Galeria />} />
-                <Route path="/camiones" element={<HistorialCamiones />} />
-                <Route path="/control" element={<CentroControl />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/matriz" element={<DashboardMatriz />} />
-                <Route path="/proximamente" element={<Proximamente />} />
-                <Route path="/subir-fotos" element={<SubirFotos />} />
-                <Route path="/subir-fotos/:tipo/:entidadId" element={<SubirFotos />} />
-                <Route path="/recibir-camion" element={<RecibirCamion />} />
-                <Route path="/planificacion" element={<Planificacion />} />
-                <Route path="/recepcionar-avance" element={<RecepcionarAvance />} />
-                <Route path="/cuadrillas" element={<Cuadrillas />} />
-                <Route path="/tramos" element={<Tramos />} />
-                <Route path="/tramos/:tramoId" element={<TramoDetalle />} />
-                <Route path="/caidas" element={<Caidas />} />
-                <Route path="/caidas/:caidaId" element={<CaidaDetalle />} />
-                <Route path="/atraviesos" element={<Atraviesos />} />
-                <Route path="/atraviesos/:atraviesoId" element={<AtraviesoDetalle />} />
-                <Route path="/protocolo/:tipo/:entidadId/:protocoloId" element={<Protocolo />} />
-                <Route path="/generar-protocolo" element={<GenerarProtocolo />} />
-                <Route path="/configuracion" element={<Configuracion />} />
-                <Route path="/vista-canal" element={<VistaCanal />} />
-                <Route path="/cubicaciones" element={<Cubicaciones />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/ito" element={<PortalITO />} />
-              </Routes>
-            </Layout>
-          } />
-        </Routes>
+        <AppRoutes cargandoSync={cargandoSync} />
       </UserProvider>
     </BrowserRouter>
   );

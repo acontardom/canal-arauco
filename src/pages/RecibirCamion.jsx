@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
+import { useAuth } from '../hooks/useAuth';
 import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
 import { comprimirFoto } from '../utils/comprimirFoto';
 import { leerFechaExif } from '../utils/leerFechaExif';
@@ -72,6 +73,8 @@ const initialForm = {
 export default function RecibirCamion() {
   const navigate = useNavigate();
   const { usuario } = useUser();
+  const { usuario: usuarioAuth } = useAuth();
+  const nombreUsuario = usuarioAuth?.nombre ?? usuario ?? localStorage.getItem('nombreTerreno') ?? 'Sin identificar';
 
   const [tipo, setTipo] = useState('tramo');
   const [entidadId, setEntidadId] = useState(String(TRAMOS[0]));
@@ -310,7 +313,7 @@ export default function RecibirCamion() {
         pesoHoyaHormigon: form.pesoHoyaHormigon,
         puCalculado: calcPU(form.pesoHoyaHormigon),
         observaciones: form.observaciones,
-        usuarioNombre: usuario,
+        usuarioNombre: nombreUsuario,
         fechaRecepcion: fechaHoy(),
         sincronizado: false,
         supabaseId: null,

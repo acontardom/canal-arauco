@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 
-const TABS = [
+const TABS_AUTH = [
   { to: '/', label: 'Inicio', icono: '🏠', end: true },
   { to: '/cubicaciones', label: 'Cubicar', icono: '🧮', end: false },
   { to: '/vista-canal', label: 'Canal', icono: '🗺️', end: false },
@@ -8,10 +9,19 @@ const TABS = [
   { to: '/perfil', label: 'Yo', icono: '👤', end: false },
 ];
 
+const TABS_PUBLIC = [
+  { to: '/subir-fotos', label: 'Fotos', icono: '📷', end: false },
+  { to: '/recibir-camion', label: 'Camión', icono: '🚛', end: false },
+  { to: '/login', label: 'Login', icono: '🔒', end: false },
+];
+
 export default function BottomNav() {
+  const { usuario } = useAuth();
+  const tabs = usuario ? TABS_AUTH : TABS_PUBLIC;
+
   return (
     <nav className="bottom-nav" style={s.nav}>
-      {TABS.map(({ to, label, icono, end }) => (
+      {tabs.map(({ to, label, icono, end }) => (
         <NavLink
           key={to}
           to={to}

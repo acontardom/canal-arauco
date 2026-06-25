@@ -24,9 +24,9 @@ const SECCIONES = [
   {
     titulo: 'Avance',
     items: [
-      { to: '/planificacion',      label: 'Planificación',      icono: '📅' },
+      { to: '/planificacion',      label: 'Planificación',      icono: '📅', soloAdmin: true },
       { to: '/recepcionar-avance', label: 'Recepcionar Avance', icono: '✅' },
-      { to: '/cuadrillas',         label: 'Cuadrillas',         icono: '👷' },
+      { to: '/cuadrillas',         label: 'Cuadrillas',         icono: '👷', soloAdmin: true },
       { to: '/vista-canal',        label: 'Vista Canal',        icono: '🗺️' },
     ],
   },
@@ -84,7 +84,10 @@ export default function Sidebar() {
         {SECCIONES.map(seccion => (
           <div key={seccion.titulo} style={s.seccion}>
             <p style={s.seccionTitulo}>{seccion.titulo}</p>
-            {seccion.items.map(item => <Item key={item.to} {...item} />)}
+            {seccion.items
+              .filter(item => !item.soloAdmin || usuario?.rol === 'admin')
+              .map(item => <Item key={item.to} {...item} />)
+            }
           </div>
         ))}
       </div>

@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
+import { useAuth } from '../hooks/useAuth';
 import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
 import { comprimirFoto } from '../utils/comprimirFoto';
 import { leerFechaExif } from '../utils/leerFechaExif';
@@ -20,6 +21,8 @@ export default function SubirFotos() {
   const { tipo: tipoParam, entidadId: entidadIdParam } = useParams();
   const navigate = useNavigate();
   const { usuario } = useUser();
+  const { usuario: usuarioAuth } = useAuth();
+  const nombreUsuario = usuarioAuth?.nombre ?? usuario ?? localStorage.getItem('nombreTerreno') ?? 'Sin identificar';
 
   const [tipo, setTipo] = useState(tipoParam ?? 'tramo');
   const [entidadId, setEntidadId] = useState(entidadIdParam ?? String(TRAMOS[0]));
@@ -111,7 +114,7 @@ export default function SubirFotos() {
           tipo, entidadId: entidadIdReal,
           etiquetas: foto.etiquetas, descripcion: foto.descripcion,
           dataUrl: foto.dataUrl, storageUrl: null, subidaStorage: false,
-          usuarioNombre: usuario, fechaCaptura: foto.fechaCaptura ?? new Date().toISOString(),
+          usuarioNombre: nombreUsuario, fechaCaptura: foto.fechaCaptura ?? new Date().toISOString(),
           sincronizada: false,
         });
       }

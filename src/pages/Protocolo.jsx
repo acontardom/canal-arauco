@@ -291,6 +291,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const { usuario } = useUser();
   const { kmInicio, kmFin } = useKm(tipo, entidadId);
   const { usuario: usuarioAuth } = useAuth();
+  const esVisor = usuarioAuth?.rol === 'visor';
 
   const entidadIdReal = tipo === 'caida' ? Number(entidadId) : entidadId;
   const protocoloInfo = PROTOCOLOS.find(p => p.id === protocoloId);
@@ -1923,26 +1924,32 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                   )}
                 </div>
               </div>
-              <button
-                style={{ ...s.btnAccion, ...s.btnMarcarListo }}
-                onClick={marcarListoParaRevision}
-                disabled={guardando}
-              >
-                {guardando ? 'Guardando...' : '✓ Listo para revisión'}
-              </button>
+              {!esVisor && (
+                <button
+                  style={{ ...s.btnAccion, ...s.btnMarcarListo }}
+                  onClick={marcarListoParaRevision}
+                  disabled={guardando}
+                >
+                  {guardando ? 'Guardando...' : '✓ Listo para revisión'}
+                </button>
+              )}
             </>
           ) : (
             <>
-              <button style={{ ...s.btnAccion, ...s.btnBorrador }} onClick={() => guardar('borrador')} disabled={guardando}>
-                {guardando ? 'Guardando...' : 'Guardar borrador'}
-              </button>
-              <button
-                style={{ ...s.btnAccion, ...s.btnCompletar, opacity: estado === 'completado' ? 0.6 : 1 }}
-                onClick={() => setConfirmando(true)}
-                disabled={guardando || estado === 'completado'}
-              >
-                {estado === 'completado' ? '✓ Completado' : 'Marcar como completado'}
-              </button>
+              {!esVisor && (
+                <button style={{ ...s.btnAccion, ...s.btnBorrador }} onClick={() => guardar('borrador')} disabled={guardando}>
+                  {guardando ? 'Guardando...' : 'Guardar borrador'}
+                </button>
+              )}
+              {!esVisor && (
+                <button
+                  style={{ ...s.btnAccion, ...s.btnCompletar, opacity: estado === 'completado' ? 0.6 : 1 }}
+                  onClick={() => setConfirmando(true)}
+                  disabled={guardando || estado === 'completado'}
+                >
+                  {estado === 'completado' ? '✓ Completado' : 'Marcar como completado'}
+                </button>
+              )}
               {(estado === 'completado' || estado === 'listo') && usuarioAuth?.rol === 'admin' && (
                 <button
                   style={{ ...s.btnAccion, ...s.btnEnviarITO }}
