@@ -34,7 +34,19 @@ export default function Firma() {
   const [subiendo, setSubiendo]       = useState(false);
   const [itoUsuario, setItoUsuario]   = useState(null);
   const [pdfFirmadoUrl, setPdfFirmadoUrl] = useState(null);
+  const [datosProtocolo, setDatosProtocolo] = useState({});
+  const [fotosAdjuntas, setFotosAdjuntas]   = useState([]);
   const fileInputRef = useRef(null);
+
+  function combinarFotos(datosProto, fotosAdj) {
+    const fotosNube    = datosProto?.fotosNubeSeleccionadas ?? [];
+    const fotosDirectas = (fotosAdj ?? []).map(f => ({
+      storageUrl:  f.storage_url,
+      descripcion: f.descripcion ?? f.nombre ?? '',
+    }));
+    const urlsNube = new Set(fotosNube.map(f => f.storageUrl).filter(Boolean));
+    return [...fotosNube, ...fotosDirectas.filter(f => !urlsNube.has(f.storageUrl))];
+  }
 
   useEffect(() => { cargarProtocolo(); }, [token]);
 
@@ -52,36 +64,50 @@ export default function Firma() {
         return;
       }
 
-      // Validar estado antes de continuar
       if (data.estado === 'con_observaciones') {
         setError('Este protocolo está siendo corregido. Se enviará un nuevo link cuando esté listo.');
         setLoading(false);
         return;
       }
+
+      // Cargar datos y fotos adjuntas en paralelo
+      const [{ data: datosRow }, { data: fotosAdj }] = await Promise.all([
+        supabase.from('protocolos').select('datos').eq('id', data.id).single(),
+        supabase.from('fotos').select('storage_url, descripcion, nombre').eq('protocolo_id', data.id),
+      ]);
+
+      const datosCargados   = datosRow?.datos ?? data.datos ?? {};
+      const fotosAdjCargadas = fotosAdj ?? [];
+
       if (data.estado === 'firmado') {
         setProtocolo(data);
-        await generarBlobPDF(data);
+        setDatosProtocolo(datosCargados);
+        setFotosAdjuntas(fotosAdjCargadas);
+        await generarBlobPDF(data, datosCargados, fotosAdjCargadas);
         setVista('ya_firmado');
         setLoading(false);
         return;
       }
+
       if (data.estado !== 'enviado_ito') {
         setError('Este link ya no es válido.');
         setLoading(false);
         return;
       }
 
-      setProtocolo(data);
-
       const { data: ito } = await supabase
         .from('usuarios')
         .select('id, nombre, firma_url')
         .eq('rol', 'ito')
         .single();
+
+      setProtocolo(data);
+      setDatosProtocolo(datosCargados);
+      setFotosAdjuntas(fotosAdjCargadas);
       setItoUsuario(ito ?? null);
       if (ito?.firma_url) setFirmaUrl(ito.firma_url);
 
-      await generarBlobPDF(data);
+      await generarBlobPDF(data, datosCargados, fotosAdjCargadas);
     } catch {
       setError('Error al cargar el protocolo.');
     } finally {
@@ -89,7 +115,7 @@ export default function Firma() {
     }
   }
 
-  async function generarBlobPDF(data) {
+  async function generarBlobPDF(data, datosProto, fotosAdj) {
     try {
       const protMapeado = {
         id:                data.id,
@@ -104,11 +130,11 @@ export default function Firma() {
         fechaCreacion:     data.fecha_creacion ?? null,
         fechaModificacion: data.fecha_modificacion ?? null,
         supabaseId:        data.id,
-        datos:             data.datos ?? {},
+        datos:             datosProto ?? data.datos ?? {},
       };
-      const fotosParaPDF = protMapeado.datos?.fotosNubeSeleccionadas ?? [];
-      const kmInicio = protMapeado.datos?.kmInicio ?? '';
-      const kmFin    = protMapeado.datos?.kmFin    ?? '';
+      const fotosParaPDF = combinarFotos(datosProto, fotosAdj);
+      const kmInicio = (datosProto ?? {}).kmInicio ?? '';
+      const kmFin    = (datosProto ?? {}).kmFin    ?? '';
       const { doc } = await construirDocumentoPDF(protMapeado, fotosParaPDF, kmInicio, kmFin, []);
       const blob = doc.output('blob');
       setPdfBlobUrl(URL.createObjectURL(blob));
@@ -170,13 +196,7 @@ export default function Firma() {
         reader.readAsDataURL(firmaBlob);
       });
 
-      // 2. Cargar datos completos del protocolo
-      const { data: datosRow } = await supabase
-        .from('protocolos')
-        .select('datos')
-        .eq('firma_token', token)
-        .single();
-
+      // 2. Usar datos y fotos ya cargados en estado
       const protocoloCompleto = {
         id:                protocolo.id,
         protocoloId:       protocolo.protocolo_id,
@@ -190,13 +210,13 @@ export default function Firma() {
         fechaCreacion:     protocolo.fecha_creacion ?? null,
         fechaModificacion: protocolo.fecha_modificacion ?? null,
         supabaseId:        protocolo.id,
-        datos:             datosRow?.datos ?? protocolo.datos ?? {},
+        datos:             datosProtocolo,
       };
 
       // 3. Generar PDF con firma incrustada
-      const fotosParaPDF = protocoloCompleto.datos?.fotosNubeSeleccionadas ?? [];
-      const kmInicio = protocoloCompleto.datos?.kmInicio ?? '';
-      const kmFin    = protocoloCompleto.datos?.kmFin    ?? '';
+      const fotosParaPDF = combinarFotos(datosProtocolo, fotosAdjuntas);
+      const kmInicio = datosProtocolo?.kmInicio ?? '';
+      const kmFin    = datosProtocolo?.kmFin    ?? '';
       const { doc } = await construirDocumentoPDF(
         protocoloCompleto,
         fotosParaPDF,
