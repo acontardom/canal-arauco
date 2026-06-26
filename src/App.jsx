@@ -198,15 +198,15 @@ export default function App() {
   );
 
   useEffect(() => {
+    iniciarSyncAutomatico();
+  }, []);
+
+  useEffect(() => {
     if (!supabase || !navigator.onLine) {
-      iniciarSyncAutomatico();
+      setCargandoSync(false);
       return;
     }
-
-    descargarDesdeSupabase().finally(() => {
-      setCargandoSync(false);
-      iniciarSyncAutomatico();
-    });
+    descargarDesdeSupabase().finally(() => setCargandoSync(false));
   }, []);
 
   return (
