@@ -85,10 +85,38 @@ function RecuadroProtocolos({ titulo, protocolos, color, renderAccion }) {
 // ─── MatrizITO ────────────────────────────────────────────────────────────────
 
 function MatrizITO({ protocolos, verPorEDP }) {
+  // Mapa clave → { estado, edp }
   const protMap = {};
   protocolos.forEach(p => {
-    protMap[`${p.tipo}-${String(p.entidad_id)}-${p.protocolo_id}`] = p.estado;
+    protMap[`${p.tipo}-${String(p.entidad_id)}-${p.protocolo_id}`] = {
+      estado: p.estado,
+      edp:    p.edp ?? null,
+    };
   });
+
+  // Escala de colores por EDP (verde oscuro → verde claro)
+  const edpList = [...new Set(
+    protocolos
+      .filter(p => (p.estado === 'enviado' || p.estado === 'enviado_edp') && p.edp)
+      .map(p => p.edp)
+  )].sort();
+
+  const edpColors = {};
+  edpList.forEach((edp, i) => {
+    const t = edpList.length === 1 ? 1 : i / (edpList.length - 1);
+    const lerp = (a, b) => Math.round(a + (b - a) * t);
+    const r = lerp(0x14, 0x86), g = lerp(0x53, 0xef), b = lerp(0x2d, 0xac);
+    edpColors[edp] = `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+  });
+
+  function cellBg(key) {
+    const d = protMap[key];
+    if (!d) return COLORES_MATRIZ_ITO.default;
+    if (verPorEDP && (d.estado === 'enviado' || d.estado === 'enviado_edp') && d.edp && edpColors[d.edp]) {
+      return edpColors[d.edp];
+    }
+    return getColorITO(d.estado);
+  }
 
   const thLabel = {
     padding: '6px 4px',
@@ -121,14 +149,11 @@ function MatrizITO({ protocolos, verPorEDP }) {
     letterSpacing: '0.8px',
     textAlign: 'left',
   };
-
-  function tdCell(estado) {
-    return { width: 34, height: 26, background: getColorITO(estado), border: '1px solid #0a1428' };
-  }
+  const cellStyle = { width: 34, height: 26, border: '1px solid #0a1428' };
 
   return (
     <div style={{ overflowX: 'auto', border: '1px solid #0f3460', borderRadius: 10 }}>
-      <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
+      <table style={{ borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
           <tr>
             <th colSpan={COLUMNAS_ITO.length + 1} style={sectionTh}>TRAMOS</th>
@@ -144,9 +169,10 @@ function MatrizITO({ protocolos, verPorEDP }) {
           {TRAMOS.map(id => (
             <tr key={id}>
               <td style={tdLabel}>{id}</td>
-              {COLUMNAS_ITO.map(col => (
-                <td key={col.id} style={tdCell(protMap[`tramo-${id}-${col.id}`])} />
-              ))}
+              {COLUMNAS_ITO.map(col => {
+                const k = `tramo-${id}-${col.id}`;
+                return <td key={col.id} style={{ ...cellStyle, background: cellBg(k) }} />;
+              })}
             </tr>
           ))}
           <tr>
@@ -155,9 +181,10 @@ function MatrizITO({ protocolos, verPorEDP }) {
           {CAIDAS.map(id => (
             <tr key={id}>
               <td style={tdLabel}>{id}</td>
-              {COLUMNAS_ITO.map(col => (
-                <td key={col.id} style={tdCell(protMap[`caida-${String(id)}-${col.id}`])} />
-              ))}
+              {COLUMNAS_ITO.map(col => {
+                const k = `caida-${String(id)}-${col.id}`;
+                return <td key={col.id} style={{ ...cellStyle, background: cellBg(k) }} />;
+              })}
             </tr>
           ))}
           <tr>
@@ -166,9 +193,10 @@ function MatrizITO({ protocolos, verPorEDP }) {
           {ATRAVIESOS.map(id => (
             <tr key={id}>
               <td style={tdLabel}>AT {id}</td>
-              {COLUMNAS_ITO.map(col => (
-                <td key={col.id} style={tdCell(protMap[`atravieso-${String(id)}-${col.id}`])} />
-              ))}
+              {COLUMNAS_ITO.map(col => {
+                const k = `atravieso-${String(id)}-${col.id}`;
+                return <td key={col.id} style={{ ...cellStyle, background: cellBg(k) }} />;
+              })}
             </tr>
           ))}
         </tbody>
