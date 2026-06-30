@@ -36,6 +36,7 @@ export default function Firma() {
   const [subiendo, setSubiendo]       = useState(false);
   const [itoUsuario, setItoUsuario]   = useState(null);
   const [pdfFirmadoUrl, setPdfFirmadoUrl] = useState(null);
+  const [fechaFirmaITO, setFechaFirmaITO] = useState(() => new Date().toISOString().split('T')[0]);
   const [datosProtocolo, setDatosProtocolo] = useState({});
   const [fotosAdjuntas, setFotosAdjuntas]   = useState([]);
   const fileInputRef = useRef(null);
@@ -144,7 +145,7 @@ export default function Firma() {
       const fotosParaPDF = combinarFotos(datosProto, fotosAdj, data.protocolo_id);
       const kmInicio = (datosProto ?? {}).kmInicio ?? '';
       const kmFin    = (datosProto ?? {}).kmFin    ?? '';
-      const { doc } = await construirDocumentoPDF(protMapeado, fotosParaPDF, kmInicio, kmFin, []);
+      const { doc } = await construirDocumentoPDF(protMapeado, fotosParaPDF, kmInicio, kmFin, [], null, fechaFirmaITO);
       const blob = doc.output('blob');
       setPdfBlobUrl(URL.createObjectURL(blob));
     } catch {
@@ -261,6 +262,7 @@ export default function Firma() {
         kmFin,
         [],
         firmaBase64,
+        fechaFirmaITO,
       );
 
       // 4. Subir PDF a Storage
@@ -457,18 +459,39 @@ export default function Firma() {
           </div>
         </section>
       ) : (
-        <div style={s.accionesRow}>
-          <button style={s.btnRechazar} onClick={() => setVista('rechazar')} disabled={subiendo}>
-            Rechazar con observación
-          </button>
-          <button
-            style={{ ...s.btnFirmar, opacity: !firmaUrl || subiendo ? 0.5 : 1 }}
-            disabled={!firmaUrl || subiendo}
-            onClick={() => setConfirmando('firmar')}
-          >
-            {subiendo ? 'Procesando...' : 'Confirmar firma'}
-          </button>
-        </div>
+        <>
+          <section style={s.seccion}>
+            <h3 style={s.seccionTitulo}>Fecha de firma ITO</h3>
+            <input
+              type="date"
+              value={fechaFirmaITO}
+              min={protocolo?.datos?.fechaProtocolo ?? protocolo?.datos?.fechaControl ?? protocolo?.fecha_creacion?.split('T')[0] ?? '2026-01-01'}
+              onChange={e => setFechaFirmaITO(e.target.value)}
+              style={{
+                background: '#0f172a',
+                border: '1px solid #334155',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                color: '#f1f5f9',
+                fontSize: 14,
+                fontFamily: 'inherit',
+              }}
+            />
+            <p style={s.pdfNote}>Igual o posterior a la fecha del protocolo.</p>
+          </section>
+          <div style={s.accionesRow}>
+            <button style={s.btnRechazar} onClick={() => setVista('rechazar')} disabled={subiendo}>
+              Rechazar con observación
+            </button>
+            <button
+              style={{ ...s.btnFirmar, opacity: !firmaUrl || subiendo ? 0.5 : 1 }}
+              disabled={!firmaUrl || subiendo}
+              onClick={() => setConfirmando('firmar')}
+            >
+              {subiendo ? 'Procesando...' : 'Confirmar firma'}
+            </button>
+          </div>
+        </>
       )}
 
       {/* Modal de confirmación */}

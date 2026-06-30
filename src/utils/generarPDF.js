@@ -562,7 +562,16 @@ function pieFirmaY(finalY) {
   return finalY < PH - 55 ? PH - 52 : finalY + 5;
 }
 
-async function agregarPieFirma(doc, startY, pac = 'Diego Oñate Jorquera', firmaITO = null) {
+async function agregarPieFirma(doc, startY, pac = 'Diego Oñate Jorquera', firmaITO = null, fechaProtocolo = null, fechaFirmaITO = null) {
+  function formatearFecha(fecha) {
+    if (!fecha) return '_______________';
+    const d = new Date(fecha);
+    const utc = new Date(d.getTime() + d.getTimezoneOffset() * 60000);
+    return `${String(utc.getDate()).padStart(2,'0')}/${String(utc.getMonth()+1).padStart(2,'0')}/${utc.getFullYear()}`;
+  }
+  const fechaPACAdmin = formatearFecha(fechaProtocolo);
+  const fechaITO      = formatearFecha(fechaFirmaITO);
+
   const colW = CW / 3;
   const FIRMA_H = 25;
 
@@ -585,9 +594,9 @@ async function agregarPieFirma(doc, startY, pac = 'Diego Oñate Jorquera', firma
         { content: '', styles: { minCellHeight: FIRMA_H, halign: 'center', valign: 'middle' } },
       ],
       [
-        { content: 'fecha: _______________', styles: { halign: 'center', fontSize: 8 } },
-        { content: 'fecha: _______________', styles: { halign: 'center', fontSize: 8 } },
-        { content: 'fecha: _______________', styles: { halign: 'center', fontSize: 8 } },
+        { content: `fecha: ${fechaPACAdmin}`, styles: { halign: 'center', fontSize: 8 } },
+        { content: `fecha: ${fechaITO}`, styles: { halign: 'center', fontSize: 8 } },
+        { content: `fecha: ${fechaPACAdmin}`, styles: { halign: 'center', fontSize: 8 } },
       ],
     ],
     columnStyles: { 0: { cellWidth: colW }, 1: { cellWidth: colW }, 2: { cellWidth: colW } },
@@ -642,7 +651,7 @@ function tituloFotos(protocolo, km) {
   return `REGISTRO FOTOGRÁFICO — ${kmTxt}`;
 }
 
-async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, totalPaginas, kmInicio, kmFin, logoB64, firmaITO = null) {
+async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, totalPaginas, kmInicio, kmFin, logoB64, firmaITO = null, fechaProtocolo = null, fechaFirmaITO = null) {
   let y = agregarEncabezado(doc, protocolo, paginaActual, totalPaginas, kmInicio, kmFin, logoB64);
   const km = resolveKm(protocolo, kmInicio, kmFin);
 
@@ -724,7 +733,7 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
   }
 
   // Pie de firma siempre anclado al fondo de la página
-  await agregarPieFirma(doc, PH - 52, undefined, firmaITO);
+  await agregarPieFirma(doc, PH - 52, undefined, firmaITO, fechaProtocolo, fechaFirmaITO);
 }
 
 // ─── Control H.A. (Radier / Muro) — 2 páginas por camión ─────────────────────
@@ -818,7 +827,7 @@ function agregarEnsayoPesoUnitario(doc, camion, y, escala) {
   return doc.lastAutoTable.finalY + 3;
 }
 
-async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPaginas, logoB64, firmaITO = null) {
+async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPaginas, logoB64, firmaITO = null, fechaProtocolo = null, fechaFirmaITO = null) {
   const escala = ESCALA_NORMAL;
   const datosProtocolo = protocolo.datos ?? {};
   const fotosExcluidas = datosProtocolo.fotosExcluidas ?? [];
@@ -832,7 +841,7 @@ async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, tot
     doc.setTextColor(80, 80, 80);
     doc.text('Sin camiones registrados — usa el módulo Recibir Camión', PW / 2, y + 8, { align: 'center' });
     doc.setFont(undefined, 'normal');
-    await agregarPieFirma(doc, pieFirmaY(y + 16), 'Álvaro Muñoz', firmaITO);
+    await agregarPieFirma(doc, pieFirmaY(y + 16), 'Álvaro Muñoz', firmaITO, fechaProtocolo, fechaFirmaITO);
     return 1;
   }
 
@@ -875,7 +884,7 @@ async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, tot
 
     y = agregarEnsayoPesoUnitario(doc, camion, y, escala);
 
-    await agregarPieFirma(doc, pieFirmaY(y), 'Álvaro Muñoz', firmaITO);
+    await agregarPieFirma(doc, pieFirmaY(y), 'Álvaro Muñoz', firmaITO, fechaProtocolo, fechaFirmaITO);
 
     // ── Página B: fotos (usa agregarPaginaFotos con exclusiones/recortes del protocolo) ──
     const fotosParaPDF = [];
@@ -903,21 +912,21 @@ async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, tot
       const batch = fotosParaPDF.slice(fi, fi + FOTOS_POR_PAGINA_HA);
       doc.addPage();
       pagina++;
-      await agregarPaginaFotos(doc, protocolo, batch, pagina, totalPaginas, kmInicio, kmFin, logoB64, firmaITO);
+      await agregarPaginaFotos(doc, protocolo, batch, pagina, totalPaginas, kmInicio, kmFin, logoB64, firmaITO, fechaProtocolo, fechaFirmaITO);
     }
   }
 
   return pagina;
 }
 
-async function generarPDFControlHA(protocolo, camiones, kmInicio, kmFin, logoB64, firmaITO = null) {
+async function generarPDFControlHA(protocolo, camiones, kmInicio, kmFin, logoB64, firmaITO = null, fechaProtocolo = null, fechaFirmaITO = null) {
   // Primera pasada: contar páginas para "X de Y"
   let doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const totalPaginas = await construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, 1, logoB64, firmaITO);
+  const totalPaginas = await construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, 1, logoB64, firmaITO, fechaProtocolo, fechaFirmaITO);
 
   // Segunda pasada: dibujar con totalPaginas correcto
   doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  await construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPaginas, logoB64, firmaITO);
+  await construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, totalPaginas, logoB64, firmaITO, fechaProtocolo, fechaFirmaITO);
 
   return doc;
 }
@@ -969,7 +978,7 @@ function dibujarFotoConRelleno(doc, imgData, formato, x, y, containerW, containe
 
 // ─── PDF Cotas Topográficas (1 página, 2 si overflow) ────────────────────────
 
-async function construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64, firmaITO = null) {
+async function construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64, firmaITO = null, fechaProtocolo = null, fechaFirmaITO = null) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const datos = protocolo.datos ?? {};
   const esCaida = protocolo.tipo === 'caida';
@@ -1057,7 +1066,7 @@ async function construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64, fir
     y += foto.containerH + GAP;
   }
 
-  await agregarPieFirma(doc, pieFirmaY(y), 'Álvaro Muñoz', firmaITO);
+  await agregarPieFirma(doc, pieFirmaY(y), 'Álvaro Muñoz', firmaITO, fechaProtocolo, fechaFirmaITO);
 
   return doc;
 }
@@ -1073,11 +1082,12 @@ function construirPagina1(doc, protocolo, kmInicio, kmFin, totalPaginas, logoB64
 
 // ─── Función principal ────────────────────────────────────────────────────────
 
-export async function construirDocumentoPDF(protocolo, fotos = [], kmInicio = '', kmFin = '', camiones = [], firmaITO = null) {
+export async function construirDocumentoPDF(protocolo, fotos = [], kmInicio = '', kmFin = '', camiones = [], firmaITO = null, fechaFirmaITO = null) {
   const meta = PROTOCOLOS.find(p => p.id === protocolo.protocoloId);
   const soloFotos = meta?.soloFotos === true;
   const esHA = protocolo.protocoloId === 'HA_RADIER' || protocolo.protocoloId === 'HA_MURO';
   const logoB64 = await loadLogoB64();
+  const fechaProtocolo = protocolo.datos?.fechaProtocolo ?? protocolo.datos?.fechaControl ?? protocolo.fechaCreacion ?? null;
   const fpp = fotosPorPagina(protocolo);
 
   const paginasFotos = Math.ceil(fotos.length / fpp);
@@ -1086,21 +1096,21 @@ export async function construirDocumentoPDF(protocolo, fotos = [], kmInicio = ''
   let doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   if (protocolo.protocoloId === 'COTAS') {
-    const cotasDoc = await construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64, firmaITO);
+    const cotasDoc = await construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64, firmaITO, fechaProtocolo, fechaFirmaITO);
     const entidadStr = String(protocolo.entidadId).replace(/\s+/g, '');
     const fechaStr = fmtArchivo(protocolo.fechaModificacion);
     return { doc: cotasDoc, filename: `COTAS_${entidadStr}_${fechaStr}.pdf` };
   } else if (esHA) {
-    doc = await generarPDFControlHA(protocolo, camiones, kmInicio, kmFin, logoB64, firmaITO);
+    doc = await generarPDFControlHA(protocolo, camiones, kmInicio, kmFin, logoB64, firmaITO, fechaProtocolo, fechaFirmaITO);
   } else if (soloFotos) {
     if (fotos.length === 0) {
       const y = agregarEncabezado(doc, protocolo, 1, totalPaginas, kmInicio, kmFin, logoB64);
-      await agregarPieFirma(doc, pieFirmaY(y), undefined, firmaITO);
+      await agregarPieFirma(doc, pieFirmaY(y), undefined, firmaITO, fechaProtocolo, fechaFirmaITO);
     } else {
       for (let i = 0; i < fotos.length; i += fpp) {
         const paginaActual = i / fpp + 1;
         if (paginaActual > 1) doc.addPage();
-        await agregarPaginaFotos(doc, protocolo, fotos.slice(i, i + fpp), paginaActual, totalPaginas, kmInicio, kmFin, logoB64, firmaITO);
+        await agregarPaginaFotos(doc, protocolo, fotos.slice(i, i + fpp), paginaActual, totalPaginas, kmInicio, kmFin, logoB64, firmaITO, fechaProtocolo, fechaFirmaITO);
       }
     }
   } else {
@@ -1111,12 +1121,12 @@ export async function construirDocumentoPDF(protocolo, fotos = [], kmInicio = ''
       doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       finalY = construirPagina1(doc, protocolo, kmInicio, kmFin, totalPaginas, logoB64, ESCALA_REDUCIDA);
     }
-    await agregarPieFirma(doc, pieFirmaY(finalY), undefined, firmaITO);
+    await agregarPieFirma(doc, pieFirmaY(finalY), undefined, firmaITO, fechaProtocolo, fechaFirmaITO);
 
     for (let i = 0; i < fotos.length; i += fpp) {
       doc.addPage();
       const paginaActual = 1 + i / fpp + 1;
-      await agregarPaginaFotos(doc, protocolo, fotos.slice(i, i + fpp), paginaActual, totalPaginas, kmInicio, kmFin, logoB64, firmaITO);
+      await agregarPaginaFotos(doc, protocolo, fotos.slice(i, i + fpp), paginaActual, totalPaginas, kmInicio, kmFin, logoB64, firmaITO, fechaProtocolo, fechaFirmaITO);
     }
   }
 
