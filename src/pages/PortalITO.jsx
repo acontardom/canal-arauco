@@ -153,7 +153,7 @@ function MatrizITO({ protocolos, verPorEDP }) {
 
   return (
     <div style={{ overflowX: 'auto', border: '1px solid #0f3460', borderRadius: 10 }}>
-      <table style={{ borderCollapse: 'collapse', fontSize: 12 }}>
+      <table style={{ borderCollapse: 'collapse', fontSize: 12, width: '100%', tableLayout: 'fixed' }}>
         <thead>
           <tr>
             <th colSpan={COLUMNAS_ITO.length + 1} style={sectionTh}>TRAMOS</th>
