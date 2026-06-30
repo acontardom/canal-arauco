@@ -1,72 +1,52 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../config/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { PROTOCOLOS, TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
 
-// ─── Constantes ───────────────────────────────────────────────────────────────
+// ─── Constantes de los recuadros ──────────────────────────────────────────────
 
 const COLORES_ITO = {
-  sin_iniciar:       '#1e293b',
   por_firmar:        '#8b5cf6',
   con_observaciones: '#f97316',
   firmado:           '#5b21b6',
-  enviado:           '#16a34a',
 };
 
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 const NOMBRE_PROT = Object.fromEntries(PROTOCOLOS.map(p => [p.id, p.nombre]));
 
-const ITO_IDS_TRAMO = ['PICE1', 'PICE4_RADIER', 'PICE3', 'PICE2_RADIER', 'PICE2_MURO', 'HA_RADIER', 'HA_MURO', 'COTAS'];
-const ITO_IDS_CAIDA = ['PICE1', 'PICE4_RADIER', 'PICE4_MURO', 'PICE3', 'PICE2_RADIER', 'PICE2_MURO', 'HA_RADIER', 'HA_MURO', 'COTAS'];
+// ─── Constantes de la matriz ──────────────────────────────────────────────────
 
-const PROTS_TRAMO = ITO_IDS_TRAMO.map(id => PROTOCOLOS.find(p => p.id === id)).filter(Boolean);
-const PROTS_CAIDA = ITO_IDS_CAIDA.map(id => PROTOCOLOS.find(p => p.id === id)).filter(Boolean);
+const COLUMNAS_ITO = [
+  { id: 'PICE1',        label: 'Excav.'    },
+  { id: 'PICE2_RADIER', label: 'H. Rad.'   },
+  { id: 'PICE2_MURO',   label: 'H. Muro'   },
+  { id: 'PICE3',        label: 'Moldaje'   },
+  { id: 'PICE4_RADIER', label: 'Enfierr.'  },
+  { id: 'HA_RADIER',    label: 'H.A. Rad.' },
+  { id: 'HA_MURO',      label: 'H.A. Muro' },
+  { id: 'COTAS',        label: 'Cotas'     },
+];
 
-const COL_ABR = {
-  PICE1:        'Excav.',
-  PICE4_RADIER: 'Enf.R.',
-  PICE4_MURO:   'Enf.M.',
-  PICE3:        'Mold.',
-  PICE2_RADIER: 'H.Rad.',
-  PICE2_MURO:   'H.Mur.',
-  HA_RADIER:    'HA.R.',
-  HA_MURO:      'HA.M.',
-  COTAS:        'Cotas',
+const COLORES_MATRIZ_ITO = {
+  enviado_ito:       '#8b5cf6',
+  con_observaciones: '#f97316',
+  firmado:           '#5b21b6',
+  enviado:           '#16a34a',
+  enviado_edp:       '#16a34a',
+  default:           '#1e293b',
 };
 
-const LEYENDA_NOMBRE = {
-  por_firmar:        'Por firmar',
-  con_observaciones: 'Observaciones',
-  firmado:           'Firmado',
-  enviado:           'Enviado EDP',
-};
+function getColorITO(estado) {
+  return COLORES_MATRIZ_ITO[estado] ?? COLORES_MATRIZ_ITO.default;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function calcEstadoITO(protEstado) {
-  if (protEstado === 'enviado_ito')       return 'por_firmar';
-  if (protEstado === 'con_observaciones') return 'con_observaciones';
-  if (protEstado === 'firmado')           return 'firmado';
-  if (protEstado === 'enviado' || protEstado === 'enviado_edp') return 'enviado';
-  return 'sin_iniciar';
-}
 
 function fmtFecha(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-}
-
-function buildEdpColorMap(edps) {
-  if (edps.length === 0) return {};
-  if (edps.length === 1) return { [edps[0]]: '#16a34a' };
-  return Object.fromEntries(edps.map((edp, i) => {
-    const t = i / (edps.length - 1);
-    const lerp = (a, b) => Math.round(a + (b - a) * t);
-    const r = lerp(0x14, 0x86), g = lerp(0x53, 0xef), b = lerp(0x2d, 0xac);
-    return [edp, `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`];
-  }));
 }
 
 // ─── RecuadroProtocolos ───────────────────────────────────────────────────────
@@ -102,31 +82,98 @@ function RecuadroProtocolos({ titulo, protocolos, color, renderAccion }) {
   );
 }
 
-// ─── MatrizCeldaITO ──────────────────────────────────────────────────────────
+// ─── MatrizITO ────────────────────────────────────────────────────────────────
 
-function MatrizCeldaITO({ tipo, entidadId, protocolo, protMap, verPorEdp, edpColors, navigate }) {
-  const protData  = protMap[`${tipo}-${String(entidadId)}-${protocolo.id}`];
-  const estadoITO = calcEstadoITO(protData?.estado);
-  const edp       = protData?.edp;
+function MatrizITO({ protocolos, verPorEDP }) {
+  const protMap = {};
+  protocolos.forEach(p => {
+    protMap[`${p.tipo}-${String(p.entidad_id)}-${p.protocolo_id}`] = p.estado;
+  });
 
-  const bg = (verPorEdp && estadoITO === 'enviado' && edp && edpColors[edp])
-    ? edpColors[edp]
-    : COLORES_ITO[estadoITO];
+  const thLabel = {
+    padding: '6px 4px',
+    textAlign: 'center',
+    color: '#8892b0',
+    whiteSpace: 'nowrap',
+    fontSize: 11,
+    fontWeight: 700,
+    borderBottom: '1px solid #0f3460',
+  };
+  const tdLabel = {
+    padding: '3px 8px',
+    fontWeight: 700,
+    fontSize: 12,
+    color: '#ccd6f6',
+    whiteSpace: 'nowrap',
+    background: '#0a1428',
+    position: 'sticky',
+    left: 0,
+    zIndex: 1,
+    borderRight: '1px solid #0f3460',
+  };
+  const sectionTh = {
+    padding: '5px 8px',
+    background: '#0f3460',
+    color: '#8892b0',
+    fontSize: 10,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.8px',
+    textAlign: 'left',
+  };
 
-  const clickable = estadoITO !== 'sin_iniciar' && estadoITO !== 'enviado';
-
-  function handleClick() {
-    if (clickable && protData?.firmaToken) {
-      navigate(`/firma/${protData.firmaToken}`);
-    }
+  function tdCell(estado) {
+    return { width: 34, height: 26, background: getColorITO(estado), border: '1px solid #0a1428' };
   }
 
   return (
-    <td
-      title={`${NOMBRE_TIPO[tipo]} ${entidadId} — ${protocolo.nombre}: ${estadoITO}`}
-      style={{ ...s.celda, background: bg, cursor: clickable ? 'pointer' : 'default' }}
-      onClick={handleClick}
-    />
+    <div style={{ overflowX: 'auto', border: '1px solid #0f3460', borderRadius: 10 }}>
+      <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
+        <thead>
+          <tr>
+            <th colSpan={COLUMNAS_ITO.length + 1} style={sectionTh}>TRAMOS</th>
+          </tr>
+          <tr>
+            <th style={{ ...tdLabel, position: 'sticky', left: 0, zIndex: 2, borderBottom: '1px solid #0f3460', width: 52 }} />
+            {COLUMNAS_ITO.map(col => (
+              <th key={col.id} style={thLabel}>{col.label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {TRAMOS.map(id => (
+            <tr key={id}>
+              <td style={tdLabel}>{id}</td>
+              {COLUMNAS_ITO.map(col => (
+                <td key={col.id} style={tdCell(protMap[`tramo-${id}-${col.id}`])} />
+              ))}
+            </tr>
+          ))}
+          <tr>
+            <th colSpan={COLUMNAS_ITO.length + 1} style={sectionTh}>CAÍDAS</th>
+          </tr>
+          {CAIDAS.map(id => (
+            <tr key={id}>
+              <td style={tdLabel}>{id}</td>
+              {COLUMNAS_ITO.map(col => (
+                <td key={col.id} style={tdCell(protMap[`caida-${String(id)}-${col.id}`])} />
+              ))}
+            </tr>
+          ))}
+          <tr>
+            <th colSpan={COLUMNAS_ITO.length + 1} style={sectionTh}>ATRAVIESOS</th>
+          </tr>
+          {ATRAVIESOS.map(id => (
+            <tr key={id}>
+              <td style={tdLabel}>AT {id}</td>
+              {COLUMNAS_ITO.map(col => (
+                <td key={col.id} style={tdCell(protMap[`atravieso-${String(id)}-${col.id}`])} />
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -139,7 +186,7 @@ export default function PortalITO() {
   const [pendientes,       setPendientes]       = useState([]);
   const [conObservaciones, setConObservaciones] = useState([]);
   const [firmados,         setFirmados]         = useState([]);
-  const [protMap,          setProtMap]          = useState({});
+  const [todos,            setTodos]            = useState([]);
   const [cargando,         setCargando]         = useState(true);
   const [verPorEdp,        setVerPorEdp]        = useState(false);
   const [isMobile,         setIsMobile]         = useState(window.innerWidth < 768);
@@ -175,16 +222,7 @@ export default function PortalITO() {
       setPendientes(       rows.filter(p => p.estado === 'enviado_ito')       );
       setConObservaciones( rows.filter(p => p.estado === 'con_observaciones') );
       setFirmados(         rows.filter(p => p.estado === 'firmado')           );
-
-      const map = {};
-      for (const p of rows) {
-        map[`${p.tipo}-${String(p.entidad_id)}-${p.protocolo_id}`] = {
-          estado:     p.estado,
-          edp:        p.edp ?? null,
-          firmaToken: p.firma_token ?? null,
-        };
-      }
-      setProtMap(map);
+      setTodos(rows);
       setUltimaAct(new Date());
     } catch (err) {
       console.error('[PortalITO]', err?.message ?? err);
@@ -193,18 +231,7 @@ export default function PortalITO() {
     }
   }
 
-  const edpList = useMemo(() => {
-    const set = new Set();
-    for (const { estado, edp } of Object.values(protMap)) {
-      if ((estado === 'enviado' || estado === 'enviado_edp') && edp) set.add(edp);
-    }
-    return [...set].sort();
-  }, [protMap]);
-
-  const edpColors = useMemo(() => buildEdpColorMap(edpList), [edpList]);
-
   const segsDesde = Math.floor((ahora - ultimaAct) / 1000);
-  const cellProps = { protMap, verPorEdp, edpColors, navigate };
 
   return (
     <div style={s.page}>
@@ -227,14 +254,19 @@ export default function PortalITO() {
       </div>
 
       {/* ── Recuadros ── */}
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 16 }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
+        gap: '1rem',
+        marginBottom: '1rem',
+      }}>
         <RecuadroProtocolos
           titulo="Por firmar"
           protocolos={pendientes}
           color={COLORES_ITO.por_firmar}
           renderAccion={p => p.firma_token && (
             <button style={s.btnFirmar} onClick={() => navigate(`/firma/${p.firma_token}`)}>
-              Ver y Firmar →
+              Firmar
             </button>
           )}
         />
@@ -262,94 +294,30 @@ export default function PortalITO() {
       <div>
         <div style={s.matrizHeader}>
           <h2 style={s.matrizTitulo}>Matriz de protocolos</h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-              {Object.entries(COLORES_ITO)
-                .filter(([k]) => k !== 'sin_iniciar')
-                .map(([key, color]) => (
-                  <div key={key} style={s.leyendaItem}>
-                    <div style={{ width: 12, height: 12, borderRadius: 2, background: color, flexShrink: 0 }} />
-                    <span style={s.leyendaLabel}>{LEYENDA_NOMBRE[key]}</span>
-                  </div>
-                ))}
+          <button
+            style={{ ...s.btnToggle, ...(verPorEdp ? s.btnToggleOn : {}) }}
+            onClick={() => setVerPorEdp(v => !v)}
+          >
+            Ver por EDP
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+          {[
+            { label: 'Por firmar',    color: '#8b5cf6' },
+            { label: 'Observaciones', color: '#f97316' },
+            { label: 'Firmado',       color: '#5b21b6' },
+            { label: 'Enviado EDP',   color: '#16a34a' },
+            { label: 'Sin iniciar',   color: '#1e293b', border: '1px solid #475569' },
+          ].map(({ label, color, border }) => (
+            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 12, height: 12, borderRadius: 2, background: color, border, flexShrink: 0 }} />
+              <span style={{ fontSize: 12, color: '#8892b0' }}>{label}</span>
             </div>
-            <button
-              style={{ ...s.btnToggle, ...(verPorEdp ? s.btnToggleOn : {}) }}
-              onClick={() => setVerPorEdp(v => !v)}
-            >
-              Ver por EDP
-            </button>
-          </div>
+          ))}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 20, alignItems: 'flex-start' }}>
-
-          {/* Tramos */}
-          <div style={s.tablaWrap}>
-            <table style={s.tabla}>
-              <thead>
-                <tr>
-                  <th colSpan={PROTS_TRAMO.length + 1} style={s.tituloTabla}>TRAMOS</th>
-                </tr>
-                <tr>
-                  <th style={s.cornerCell} />
-                  {PROTS_TRAMO.map(p => (
-                    <th key={p.id} style={s.colHeader}>{COL_ABR[p.id]}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {TRAMOS.map(id => (
-                  <tr key={id}>
-                    <th style={s.rowHeader}>{id}</th>
-                    {PROTS_TRAMO.map(p => (
-                      <MatrizCeldaITO key={p.id} tipo="tramo" entidadId={id} protocolo={p} {...cellProps} />
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Caídas + Atraviesos */}
-          <div style={s.tablaWrap}>
-            <table style={s.tabla}>
-              <thead>
-                <tr>
-                  <th colSpan={PROTS_CAIDA.length + 1} style={s.tituloTabla}>CAÍDAS</th>
-                </tr>
-                <tr>
-                  <th style={s.cornerCell} />
-                  {PROTS_CAIDA.map(p => (
-                    <th key={p.id} style={s.colHeader}>{COL_ABR[p.id]}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {CAIDAS.map(id => (
-                  <tr key={id}>
-                    <th style={s.rowHeader}>{id}</th>
-                    {PROTS_CAIDA.map(p => (
-                      <MatrizCeldaITO key={p.id} tipo="caida" entidadId={id} protocolo={p} {...cellProps} />
-                    ))}
-                  </tr>
-                ))}
-                <tr>
-                  <th colSpan={PROTS_CAIDA.length + 1} style={s.separadorFila}>ATRAVIESOS</th>
-                </tr>
-                {ATRAVIESOS.map(id => (
-                  <tr key={id}>
-                    <th style={s.rowHeader}>AT {id}</th>
-                    {PROTS_CAIDA.map(p => (
-                      <MatrizCeldaITO key={p.id} tipo="atravieso" entidadId={id} protocolo={p} {...cellProps} />
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-        </div>
+        <MatrizITO protocolos={todos} verPorEDP={verPorEdp} />
       </div>
     </div>
   );
@@ -357,13 +325,11 @@ export default function PortalITO() {
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 
-const CELL = 28;
-
 const s = {
   page: {
     maxWidth: '1200px',
     margin: '0 auto',
-    padding: '1.5rem',
+    padding: '2rem',
     display: 'flex',
     flexDirection: 'column',
     gap: 20,
@@ -377,8 +343,8 @@ const s = {
     gap: 12,
     flexWrap: 'wrap',
   },
-  titulo:     { color: '#ccd6f6', fontSize: 22, fontWeight: 700, margin: 0 },
-  bienvenida: { color: '#8892b0', fontSize: 13, margin: '4px 0 0' },
+  titulo:      { color: '#ccd6f6', fontSize: 22, fontWeight: 700, margin: 0 },
+  bienvenida:  { color: '#8892b0', fontSize: 13, margin: '4px 0 0' },
   headerRight: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
   indicador:   { display: 'flex', alignItems: 'center', gap: 6 },
   indTexto:    { color: '#8892b0', fontSize: 12 },
@@ -405,8 +371,6 @@ const s = {
   },
 
   recuadro: {
-    flex: 1,
-    minWidth: 0,
     background: '#16213e',
     border: '1px solid',
     borderRadius: 12,
@@ -414,6 +378,7 @@ const s = {
     display: 'flex',
     flexDirection: 'column',
     gap: 10,
+    minWidth: 0,
   },
   recuadroHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   recuadroTitulo: { fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.4px' },
@@ -469,8 +434,6 @@ const s = {
     marginBottom: 12,
   },
   matrizTitulo: { color: '#ccd6f6', fontSize: 18, fontWeight: 700, margin: 0 },
-  leyendaItem:  { display: 'flex', alignItems: 'center', gap: 5 },
-  leyendaLabel: { color: '#8892b0', fontSize: 11 },
 
   btnToggle: {
     background: '#16213e',
@@ -487,79 +450,5 @@ const s = {
     background: 'rgba(22,163,74,0.12)',
     border: '1px solid #16a34a',
     color: '#86efac',
-  },
-
-  tablaWrap: {
-    flex: '0 1 auto',
-    overflow: 'auto',
-    maxHeight: 'calc(100vh - 80px)',
-    border: '1px solid #0f3460',
-    borderRadius: 10,
-  },
-  tabla: { borderCollapse: 'collapse', tableLayout: 'fixed' },
-  tituloTabla: {
-    background: '#0f3460',
-    color: '#8892b0',
-    fontSize: 11,
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    letterSpacing: '0.8px',
-    padding: '6px 8px',
-    textAlign: 'left',
-  },
-  cornerCell: {
-    background: '#0a1428',
-    width: 40,
-    minWidth: 40,
-    position: 'sticky',
-    left: 0,
-    zIndex: 2,
-    borderBottom: '1px solid #0f3460',
-  },
-  colHeader: {
-    background: '#0a1428',
-    color: '#8892b0',
-    fontSize: 10,
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    padding: '4px 2px',
-    textAlign: 'center',
-    verticalAlign: 'bottom',
-    writingMode: 'vertical-rl',
-    transform: 'rotate(180deg)',
-    height: 80,
-    width: CELL,
-    minWidth: CELL,
-    letterSpacing: '0.3px',
-    borderBottom: '1px solid #0f3460',
-  },
-  rowHeader: {
-    background: '#0a1428',
-    color: '#ccd6f6',
-    fontSize: 12,
-    fontWeight: 700,
-    padding: '3px 6px',
-    textAlign: 'left',
-    position: 'sticky',
-    left: 0,
-    zIndex: 1,
-    whiteSpace: 'nowrap',
-    borderRight: '1px solid #0f3460',
-  },
-  separadorFila: {
-    background: '#0f3460',
-    color: '#8892b0',
-    fontSize: 10,
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    letterSpacing: '0.8px',
-    padding: '4px 6px',
-    textAlign: 'left',
-  },
-  celda: {
-    width: CELL,
-    height: CELL,
-    minWidth: CELL,
-    border: '1px solid #0a1428',
   },
 };
