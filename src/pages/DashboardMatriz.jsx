@@ -103,13 +103,11 @@ function MatrizCell({ tipo, entidadId, protocolo, protMap, avanceSet, navigate, 
 
   let estado;
   if (protocolo.id === 'COTAS') {
-    const tieneRadier = avanceSet.has(`${tipo}-${String(entidadId)}-hormigon_radier`);
-    if (!tieneRadier) {
-      estado = 'sin_iniciar';
-    } else if (protEstado) {
+    if (protEstado) {
       estado = calcEstado(protEstado, false);
     } else {
-      estado = 'por_protoc';
+      const tieneRadier = avanceSet.has(`${tipo}-${String(entidadId)}-hormigon_radier`);
+      estado = tieneRadier ? 'por_protoc' : 'sin_iniciar';
     }
   } else {
     const partidaId    = PROTOCOLO_A_PARTIDA[protocolo.id];
