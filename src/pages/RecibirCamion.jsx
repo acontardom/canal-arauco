@@ -85,6 +85,8 @@ export default function RecibirCamion() {
   const [toast, setToast] = useState(null);
   const [confirmacion, setConfirmacion] = useState(null);
   const [borradorDisponible, setBorradorDisponible] = useState(null);
+  const [fotosGaleria, setFotosGaleria] = useState([]);
+  const [mostrarSelectorGaleria, setMostrarSelectorGaleria] = useState(false);
 
   const inputGuiaRef = useRef(null);
   const inputCamaraRef = useRef(null);
@@ -132,6 +134,15 @@ export default function RecibirCamion() {
   useEffect(() => {
     guardarBorrador(tipo, entidadId, form);
   }, [form]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!mostrarSelectorGaleria) return;
+    db.fotos_terreno
+      .where('entidadId').equals(entidadIdReal)
+      .filter(f => f.tipo === tipo)
+      .toArray()
+      .then(setFotosGaleria);
+  }, [mostrarSelectorGaleria, entidadIdReal, tipo]);
 
   // Check for existing draft when entity changes
   useEffect(() => {
@@ -265,6 +276,24 @@ export default function RecibirCamion() {
 
   function eliminarFotoEnsayo(idx) {
     setForm(prev => ({ ...prev, fotosEnsayo: prev.fotosEnsayo.filter((_, i) => i !== idx) }));
+  }
+
+  function agregarFotoDesdeGaleria(fotoGaleria) {
+    setForm(prev => ({
+      ...prev,
+      fotosEnsayo: [
+        ...prev.fotosEnsayo,
+        {
+          id: `galeria_${fotoGaleria.id ?? Date.now()}`,
+          url: fotoGaleria.storageUrl,
+          storageUrl: fotoGaleria.storageUrl,
+          dataUrl: fotoGaleria.dataUrl ?? null,
+          descripcion: '',
+          origen: 'galeria',
+        },
+      ],
+    }));
+    setMostrarSelectorGaleria(false);
   }
 
   const puCalculado = calcPU(form.pesoHoyaHormigon);
@@ -586,7 +615,8 @@ export default function RecibirCamion() {
               <input ref={inputGaleriaRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleFotosEnsayo} />
               <div style={s.botonesCaptura}>
                 <button style={s.btnFotoSm} onClick={() => inputCamaraRef.current?.click()}>📷 Foto</button>
-                <button style={{ ...s.btnFotoSm, background: '#0f3460' }} onClick={() => inputGaleriaRef.current?.click()}>🖼 Adjuntar</button>
+                <button style={{ ...s.btnFotoSm, background: '#0f3460', color: '#ccd6f6' }} onClick={() => inputGaleriaRef.current?.click()}>📎 Adjuntar</button>
+                <button style={{ ...s.btnFotoSm, background: '#0f3460', color: '#ccd6f6' }} onClick={() => setMostrarSelectorGaleria(true)}>🖼 Galería</button>
               </div>
               {form.fotosEnsayo.length > 0 && (
                 <div style={s.grid}>
@@ -677,6 +707,32 @@ export default function RecibirCamion() {
             </button>
           )}
         </>
+      )}
+
+      {mostrarSelectorGaleria && (
+        <div style={s.overlay}>
+          <div style={s.galeriaModal}>
+            <div style={s.galeriaHeader}>
+              <span style={s.galeriaTitulo}>Fotos de {NOMBRE_TIPO[tipo]} {entidadId}</span>
+              <button style={s.btnCerrarGaleria} onClick={() => setMostrarSelectorGaleria(false)}>✕</button>
+            </div>
+            {fotosGaleria.length === 0 ? (
+              <p style={s.galeriaSinFotos}>No hay fotos registradas para esta entidad.</p>
+            ) : (
+              <div style={s.galeriaGrid}>
+                {fotosGaleria.map(foto => (
+                  <img
+                    key={foto.id}
+                    src={foto.storageUrl || foto.dataUrl}
+                    onClick={() => agregarFotoDesdeGaleria(foto)}
+                    style={s.galeriaThumb}
+                    alt=""
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {confirmacion && (
@@ -865,6 +921,28 @@ const s = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     padding: '20px', zIndex: 300,
   },
+
+  galeriaModal: {
+    background: '#16213e', border: '1px solid #0f3460', borderRadius: '14px',
+    padding: '20px', width: '100%', maxWidth: '420px', maxHeight: '80vh',
+    display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto',
+  },
+  galeriaHeader: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+  },
+  galeriaTitulo: { color: '#ccd6f6', fontSize: '14px', fontWeight: 700 },
+  btnCerrarGaleria: {
+    background: 'none', border: 'none', color: '#8892b0', fontSize: '18px',
+    cursor: 'pointer', lineHeight: 1, padding: '2px 6px',
+  },
+  galeriaGrid: {
+    display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px',
+  },
+  galeriaThumb: {
+    width: '100%', aspectRatio: '3/4', objectFit: 'cover',
+    cursor: 'pointer', borderRadius: '8px', border: '2px solid transparent',
+  },
+  galeriaSinFotos: { color: '#8892b0', fontSize: '13px', margin: 0, textAlign: 'center' },
   confirmModal: {
     background: '#16213e', border: '1px solid #0f3460', borderRadius: '14px',
     padding: '24px', width: '100%', maxWidth: '400px',
