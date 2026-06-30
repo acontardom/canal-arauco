@@ -969,7 +969,7 @@ function dibujarFotoConRelleno(doc, imgData, formato, x, y, containerW, containe
 
 // ─── PDF Cotas Topográficas (1 página, 2 si overflow) ────────────────────────
 
-async function construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64) {
+async function construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64, firmaITO = null) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const datos = protocolo.datos ?? {};
   const esCaida = protocolo.tipo === 'caida';
@@ -1057,7 +1057,7 @@ async function construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64) {
     y += foto.containerH + GAP;
   }
 
-  await agregarPieFirma(doc, pieFirmaY(y), 'Álvaro Muñoz');
+  await agregarPieFirma(doc, pieFirmaY(y), 'Álvaro Muñoz', firmaITO);
 
   return doc;
 }
@@ -1086,7 +1086,7 @@ export async function construirDocumentoPDF(protocolo, fotos = [], kmInicio = ''
   let doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   if (protocolo.protocoloId === 'COTAS') {
-    const cotasDoc = await construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64);
+    const cotasDoc = await construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64, firmaITO);
     const entidadStr = String(protocolo.entidadId).replace(/\s+/g, '');
     const fechaStr = fmtArchivo(protocolo.fechaModificacion);
     return { doc: cotasDoc, filename: `COTAS_${entidadStr}_${fechaStr}.pdf` };
