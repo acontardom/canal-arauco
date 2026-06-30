@@ -2,6 +2,9 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import logoUrl from '../assets/Logo_ExMaq.jpg';
 import esquemaCaidaUrl from '../assets/esquema_tipo_caida.jpg';
+import firmaAlvaro from '../assets/firmas/firma_alvaro.png';
+import firmaDiego from '../assets/firmas/firma_diego.png';
+import firmaMarcelo from '../assets/firmas/firma_marcelo.png';
 import { PROTOCOLOS, CHECKLISTS, KM_DATA } from '../constants/estructura';
 
 // ─── Nombres de protocolo para el encabezado PICE ─────────────────────────────
@@ -181,6 +184,27 @@ function resolveKm(protocolo, kmInicio, kmFin) {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const FIRMAS_USUARIOS = {
+  'Álvaro Muñoz':             firmaAlvaro,
+  'Diego Oñate Jorquera':     firmaDiego,
+  'Marcelo Contardo Correa':  firmaMarcelo,
+};
+
+async function loadFirmaB64(firmaUrl) {
+  if (!firmaUrl) return null;
+  try {
+    const resp = await fetch(firmaUrl);
+    const blob = await resp.blob();
+    return new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
 
 async function loadLogoB64() {
   try {
@@ -538,72 +562,64 @@ function pieFirmaY(finalY) {
   return finalY < PH - 55 ? PH - 52 : finalY + 5;
 }
 
-function agregarPieFirma(doc, startY, pac = 'Diego Oñate Jorquera', firmaITO = null) {
+async function agregarPieFirma(doc, startY, pac = 'Diego Oñate Jorquera', firmaITO = null) {
   const colW = CW / 3;
-  const FIRMA_H = 25; // mm de alto para el espacio de firma
+  const FIRMA_H = 25;
+
+  const firmaPacB64   = await loadFirmaB64(FIRMAS_USUARIOS[pac] ?? null);
+  const firmaAdminB64 = await loadFirmaB64(FIRMAS_USUARIOS['Marcelo Contardo Correa']);
 
   autoTable(doc, {
     startY,
     margin: { left: ML, right: MR, bottom: 0 },
     tableWidth: CW,
     body: [
-      // Fila 1: rol + nombre
       [
         { content: `PAC\n${pac}`, styles: { fontStyle: 'bold', fillColor: [240, 240, 240], halign: 'center', fontSize: 8 } },
         { content: `ITO\nGonzalo Chavarría Sepúlveda`, styles: { fontStyle: 'bold', fillColor: [240, 240, 240], halign: 'center', fontSize: 8 } },
         { content: `ADMINISTRADOR\nMarcelo Contardo Correa`, styles: { fontStyle: 'bold', fillColor: [240, 240, 240], halign: 'center', fontSize: 8 } },
       ],
-      // Fila 2: espacio para firma
       [
         { content: '', styles: { minCellHeight: FIRMA_H, halign: 'center', valign: 'middle' } },
         { content: '', styles: { minCellHeight: FIRMA_H, halign: 'center', valign: 'middle' } },
         { content: '', styles: { minCellHeight: FIRMA_H, halign: 'center', valign: 'middle' } },
       ],
-      // Fila 3: fecha
       [
         { content: 'fecha: _______________', styles: { halign: 'center', fontSize: 8 } },
         { content: 'fecha: _______________', styles: { halign: 'center', fontSize: 8 } },
         { content: 'fecha: _______________', styles: { halign: 'center', fontSize: 8 } },
       ],
     ],
-    columnStyles: {
-      0: { cellWidth: colW },
-      1: { cellWidth: colW },
-      2: { cellWidth: colW },
-    },
-    styles: {
-      fontSize: 8,
-      cellPadding: 2,
-      lineColor: [120, 120, 120],
-      lineWidth: 0.2,
-      textColor: [30, 30, 30],
-    },
+    columnStyles: { 0: { cellWidth: colW }, 1: { cellWidth: colW }, 2: { cellWidth: colW } },
+    styles: { fontSize: 8, cellPadding: 2, lineColor: [120, 120, 120], lineWidth: 0.2, textColor: [30, 30, 30] },
     theme: 'grid',
     pageBreak: 'avoid',
     didDrawCell: (data) => {
-      // Incrustar firma ITO en fila 2, columna 1
-      if (firmaITO && data.row.index === 1 && data.column.index === 1) {
-        const { x, y, width, height } = data.cell;
+      if (data.row.index !== 1) return;
+      const { x, y, width, height } = data.cell;
+
+      function dibujarFirma(b64) {
+        if (!b64) return;
         try {
-          const fmt = detectFormat(firmaITO);
-          // Mantener proporciones de la firma centrada en la celda
-          const imgProps = doc.getImageProperties(firmaITO);
+          const formato = detectFormat(b64);
+          const imgProps = doc.getImageProperties(b64);
           const imgRatio = imgProps.width / imgProps.height;
           const maxW = width - 8;
           const maxH = height - 6;
           let drawW = maxW;
           let drawH = drawW / imgRatio;
-          if (drawH > maxH) {
-            drawH = maxH;
-            drawW = drawH * imgRatio;
-          }
+          if (drawH > maxH) { drawH = maxH; drawW = drawH * imgRatio; }
           const drawX = x + (width - drawW) / 2;
           const drawY = y + (height - drawH) / 2;
-          doc.addImage(firmaITO, fmt, drawX, drawY, drawW, drawH);
+          doc.addImage(b64, formato, drawX, drawY, drawW, drawH);
         } catch (err) {
-          console.warn('[PDF] Error al incrustar firma ITO:', err?.message ?? err);
+          console.warn('[PDF] Error al incrustar firma:', err?.message ?? err);
         }
       }
+
+      if (data.column.index === 0) dibujarFirma(firmaPacB64);
+      if (data.column.index === 1) dibujarFirma(firmaITO);
+      if (data.column.index === 2) dibujarFirma(firmaAdminB64);
     },
   });
 }
@@ -708,7 +724,7 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
   }
 
   // Pie de firma siempre anclado al fondo de la página
-  agregarPieFirma(doc, PH - 52, undefined, firmaITO);
+  await agregarPieFirma(doc, PH - 52, undefined, firmaITO);
 }
 
 // ─── Control H.A. (Radier / Muro) — 2 páginas por camión ─────────────────────
@@ -816,7 +832,7 @@ async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, tot
     doc.setTextColor(80, 80, 80);
     doc.text('Sin camiones registrados — usa el módulo Recibir Camión', PW / 2, y + 8, { align: 'center' });
     doc.setFont(undefined, 'normal');
-    agregarPieFirma(doc, pieFirmaY(y + 16), 'Álvaro Muñoz', firmaITO);
+    await agregarPieFirma(doc, pieFirmaY(y + 16), 'Álvaro Muñoz', firmaITO);
     return 1;
   }
 
@@ -859,7 +875,7 @@ async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, tot
 
     y = agregarEnsayoPesoUnitario(doc, camion, y, escala);
 
-    agregarPieFirma(doc, pieFirmaY(y), 'Álvaro Muñoz', firmaITO);
+    await agregarPieFirma(doc, pieFirmaY(y), 'Álvaro Muñoz', firmaITO);
 
     // ── Página B: fotos (usa agregarPaginaFotos con exclusiones/recortes del protocolo) ──
     const fotosParaPDF = [];
@@ -1041,7 +1057,7 @@ async function construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64) {
     y += foto.containerH + GAP;
   }
 
-  agregarPieFirma(doc, pieFirmaY(y), 'Álvaro Muñoz');
+  await agregarPieFirma(doc, pieFirmaY(y), 'Álvaro Muñoz');
 
   return doc;
 }
@@ -1079,7 +1095,7 @@ export async function construirDocumentoPDF(protocolo, fotos = [], kmInicio = ''
   } else if (soloFotos) {
     if (fotos.length === 0) {
       const y = agregarEncabezado(doc, protocolo, 1, totalPaginas, kmInicio, kmFin, logoB64);
-      agregarPieFirma(doc, pieFirmaY(y), undefined, firmaITO);
+      await agregarPieFirma(doc, pieFirmaY(y), undefined, firmaITO);
     } else {
       for (let i = 0; i < fotos.length; i += fpp) {
         const paginaActual = i / fpp + 1;
@@ -1095,7 +1111,7 @@ export async function construirDocumentoPDF(protocolo, fotos = [], kmInicio = ''
       doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       finalY = construirPagina1(doc, protocolo, kmInicio, kmFin, totalPaginas, logoB64, ESCALA_REDUCIDA);
     }
-    agregarPieFirma(doc, pieFirmaY(finalY), undefined, firmaITO);
+    await agregarPieFirma(doc, pieFirmaY(finalY), undefined, firmaITO);
 
     for (let i = 0; i < fotos.length; i += fpp) {
       doc.addPage();
