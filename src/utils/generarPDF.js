@@ -2,9 +2,9 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import logoUrl from '../assets/Logo_ExMaq.jpg';
 import esquemaCaidaUrl from '../assets/esquema_tipo_caida.jpg';
-import firmaAlvaro from '../assets/firmas/firma_alvaro.png';
-import firmaDiego from '../assets/firmas/firma_diego.png';
-import firmaMarcelo from '../assets/firmas/firma_marcelo.png';
+import firmaAlvaro from '../assets/firma_alvaro.png';
+import firmaDiego from '../assets/firma_diego.png';
+import firmaMarcelo from '../assets/firma_marcelo.png';
 import { PROTOCOLOS, CHECKLISTS, KM_DATA } from '../constants/estructura';
 
 // ─── Nombres de protocolo para el encabezado PICE ─────────────────────────────
