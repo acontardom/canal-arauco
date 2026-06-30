@@ -128,7 +128,7 @@ export default function Entrada() {
         )}
       </div>
 
-      <BottomNav />
+      {nombreGuardado && <BottomNav />}
     </div>
   );
 }

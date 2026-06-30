@@ -99,10 +99,11 @@ function Layout({ children, cargandoSync }) {
 }
 
 function PublicSubpageLayout({ children }) {
+  const nombreTerreno = localStorage.getItem('nombreTerreno');
   return (
     <>
-      <div style={{ paddingBottom: 60 }}>{children}</div>
-      <BottomNav />
+      <div style={{ paddingBottom: nombreTerreno ? 60 : 0 }}>{children}</div>
+      {nombreTerreno && <BottomNav />}
     </>
   );
 }
@@ -139,9 +140,21 @@ function AppRoutes({ cargandoSync }) {
     return (
       <Routes>
         <Route path="/" element={<Entrada />} />
-        <Route path="/subir-fotos" element={<PublicSubpageLayout><SubirFotos /></PublicSubpageLayout>} />
-        <Route path="/subir-fotos/:tipo/:entidadId" element={<PublicSubpageLayout><SubirFotos /></PublicSubpageLayout>} />
-        <Route path="/recibir-camion" element={<PublicSubpageLayout><RecibirCamion /></PublicSubpageLayout>} />
+        <Route path="/subir-fotos" element={
+          localStorage.getItem('nombreTerreno')
+            ? <PublicSubpageLayout><SubirFotos /></PublicSubpageLayout>
+            : <Navigate to="/" replace />
+        } />
+        <Route path="/subir-fotos/:tipo/:entidadId" element={
+          localStorage.getItem('nombreTerreno')
+            ? <PublicSubpageLayout><SubirFotos /></PublicSubpageLayout>
+            : <Navigate to="/" replace />
+        } />
+        <Route path="/recibir-camion" element={
+          localStorage.getItem('nombreTerreno')
+            ? <PublicSubpageLayout><RecibirCamion /></PublicSubpageLayout>
+            : <Navigate to="/" replace />
+        } />
         <Route path="/login" element={<Login />} />
         <Route path="/firma/:token" element={<Firma />} />
         <Route path="*" element={<Navigate to="/" replace />} />
