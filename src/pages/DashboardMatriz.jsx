@@ -97,7 +97,7 @@ function generarEscalaEdp(edps) {
 const isMobile = window.innerWidth < 768;
 
 function MatrizCell({ tipo, entidadId, protocolo, protMap, avanceSet, navigate, nombreEntidad, verPorEdp, edpColorMap }) {
-  const protData   = protMap[`${tipo}-${entidadId}-${protocolo.id}`];
+  const protData   = protMap[`${tipo}-${String(entidadId)}-${protocolo.id}`];
   const protEstado = protData?.estado;
   const edp        = protData?.edp;
 
@@ -171,7 +171,7 @@ export default function DashboardMatriz() {
     ]).then(([{ data: prots }, { data: avance }]) => {
       const pMap = {};
       for (const p of prots ?? []) {
-        pMap[`${p.tipo}-${p.entidad_id}-${p.protocolo_id}`] = { estado: p.estado, edp: p.edp ?? null };
+        pMap[`${p.tipo}-${String(p.entidad_id)}-${p.protocolo_id}`] = { estado: p.estado, edp: p.edp ?? null };
       }
       setProtMap(pMap);
       setAvanceSet(new Set(
