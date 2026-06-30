@@ -404,6 +404,28 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     [protocolo?.id]
   ) ?? [];
 
+  // Hidrata Dexie con la versión más reciente de Supabase al abrir el protocolo
+  useEffect(() => {
+    if (!protocolo?.supabaseId) return;
+    supabase
+      .from('protocolos')
+      .select('*')
+      .eq('id', protocolo.supabaseId)
+      .single()
+      .then(({ data }) => {
+        if (!data) return;
+        db.protocolos.update(protocolo.id, {
+          estado: data.estado,
+          datos: data.datos,
+          observacionIto: data.observacion_ito ?? null,
+          firmaToken: data.firma_token ?? null,
+          firmaImagenUrl: data.firma_imagen_url ?? null,
+          pdfFirmadoUrl: data.pdf_firmado_url ?? null,
+          sincronizada: true,
+        });
+      });
+  }, [protocolo?.supabaseId]);
+
   const [fotosTerreno, setFotosTerreno] = useState([]);
 
   // Fotos desde la nube de fotos terreno: Supabase es la fuente principal,
@@ -679,6 +701,49 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     });
   }
 
+  // Escribe cambios del protocolo: Supabase primero, Dexie como fallback offline.
+  // datos es opcional — si no se pasa, no se toca el campo datos en ningún lado.
+  async function escribirProtocolo(cambios, datos) {
+    const supabasePayload = { fecha_modificacion: new Date().toISOString() };
+    if (datos !== undefined)               supabasePayload.datos = datos;
+    if (cambios.estado !== undefined)          supabasePayload.estado = cambios.estado;
+    if (cambios.usuarioNombre !== undefined)   supabasePayload.usuario_nombre = cambios.usuarioNombre;
+    if (cambios.edp !== undefined)             supabasePayload.edp = cambios.edp;
+    if (cambios.firmaToken !== undefined)      supabasePayload.firma_token = cambios.firmaToken;
+    if (cambios.observacionIto !== undefined)  supabasePayload.observacion_ito = cambios.observacionIto;
+
+    const dexieCambios = { ...cambios, fechaModificacion: fechaHoy() };
+    if (datos !== undefined) dexieCambios.datos = datos;
+
+    if (navigator.onLine && supabase && protocolo?.supabaseId) {
+      try {
+        const { error } = await supabase
+          .from('protocolos')
+          .update(supabasePayload)
+          .eq('id', protocolo.supabaseId);
+        if (error) throw error;
+        await db.protocolos.update(protocolo.id, {
+          ...dexieCambios,
+          sincronizada: true,
+          pendienteSync: false,
+        });
+      } catch (err) {
+        console.warn('[Protocolo] Error Supabase, guardando en Dexie:', err?.message);
+        await db.protocolos.update(protocolo.id, {
+          ...dexieCambios,
+          sincronizada: false,
+          pendienteSync: true,
+        });
+      }
+    } else {
+      await db.protocolos.update(protocolo.id, {
+        ...dexieCambios,
+        sincronizada: false,
+        pendienteSync: true,
+      });
+    }
+  }
+
   async function obtenerOCrearId() {
     if (protocolo?.id) return protocolo.id;
     const hoy = fechaHoy();
@@ -717,14 +782,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
     const datosActuales = { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fotoAutocad: fotoAutocadFinal, fotoTabla: fotoTablaFinal, fechaProtocolo };
 
-    await db.protocolos.update(protocolo.id, { estado: 'enviado_ito', firmaToken: token, datos: datosActuales, sincronizada: false });
-
-    if (supabase && protocolo.supabaseId) {
-      await supabase
-        .from('protocolos')
-        .update({ estado: 'enviado_ito', firma_token: token, datos: datosActuales })
-        .eq('id', protocolo.supabaseId);
-    }
+    await escribirProtocolo({ estado: 'enviado_ito', firmaToken: token }, datosActuales);
 
     const link = `${window.location.origin}/firma/${token}`;
     await navigator.clipboard.writeText(link).catch(() => {});
@@ -752,14 +810,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
     const datosActuales = { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fotoAutocad: fotoAutocadFinal, fotoTabla: fotoTablaFinal, fechaProtocolo };
 
-    await db.protocolos.update(protocolo.id, { estado: 'enviado_ito', firmaToken: nuevoToken, datos: datosActuales, sincronizada: false });
-
-    if (supabase && protocolo.supabaseId) {
-      await supabase
-        .from('protocolos')
-        .update({ estado: 'enviado_ito', firma_token: nuevoToken, observacion_ito: null, datos: datosActuales })
-        .eq('id', protocolo.supabaseId);
-    }
+    await escribirProtocolo({ estado: 'enviado_ito', firmaToken: nuevoToken, observacionIto: null }, datosActuales);
 
     const link = `${window.location.origin}/firma/${nuevoToken}`;
     await navigator.clipboard.writeText(link).catch(() => {});
@@ -768,11 +819,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   async function guardarEdp(valor) {
     if (!protocolo?.id) return;
-    await db.protocolos.update(protocolo.id, { edp: valor.trim() || null, sincronizada: false });
-    if (supabase && navigator.onLine) {
-      setSincronizando(true);
-      sincronizar().finally(() => setSincronizando(false));
-    }
+    await escribirProtocolo({ edp: valor.trim() || null });
   }
 
   async function subirFotosNubePendientes(fotos) {
@@ -847,29 +894,28 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           : { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fechaProtocolo };
       }
 
-      const campos = {
+      const cambios = {
         estado: nuevoEstado, usuarioNombre: usuario,
-        fechaModificacion: fechaHoy(), datos, sincronizada: false,
         edp: edp.trim() || null,
         ...extra,
       };
 
       if (protocolo) {
-        await db.protocolos.update(protocolo.id, campos);
+        await escribirProtocolo(cambios, datos);
       } else {
         await db.protocolos.add({
           tipo, entidad: tipo, entidadId: entidadIdReal, protocoloId,
-          fechaCreacion: fechaHoy(), ...campos,
+          fechaCreacion: fechaHoy(), fechaModificacion: fechaHoy(),
+          ...cambios, datos, sincronizada: false, pendienteSync: true,
         });
+        if (supabase && navigator.onLine) {
+          setSincronizando(true);
+          sincronizar().finally(() => setSincronizando(false));
+        }
       }
 
       if ('fechaEnvio' in extra) setFechaEnvio(extra.fechaEnvio);
       mostrarToast(mensaje ?? (nuevoEstado === 'completado' ? '✓ Protocolo completado' : '✓ Borrador guardado'));
-
-      if (supabase && navigator.onLine) {
-        setSincronizando(true);
-        sincronizar().finally(() => setSincronizando(false));
-      }
     } catch (err) {
       console.error('Error completo:', err);
       mostrarToast(`Error al guardar: ${err?.message ?? String(err)}`, 'error');

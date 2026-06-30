@@ -90,6 +90,12 @@ db.version(12).stores({
     '++id, tipo, entidad, entidadId, protocoloId, estado, usuarioNombre, fechaCreacion, fechaModificacion, datos, supabaseId, sincronizada, deviceProtocoloId, firmaToken, pdfFirmadoUrl',
 });
 
+// v13: agrega pendienteSync a protocolos (flag para identificar registros pendientes de subir offline)
+db.version(13).stores({
+  protocolos:
+    '++id, tipo, entidad, entidadId, protocoloId, estado, usuarioNombre, fechaCreacion, fechaModificacion, datos, supabaseId, sincronizada, deviceProtocoloId, firmaToken, pdfFirmadoUrl, pendienteSync',
+});
+
 // Hooks: genera UUID permanente al crear cualquier registro nuevo
 db.camiones.hook('creating', (primKey, obj) => {
   if (!obj.deviceCamionId) obj.deviceCamionId = generateUUID();
