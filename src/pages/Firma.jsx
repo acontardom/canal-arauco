@@ -40,7 +40,15 @@ export default function Firma() {
   const [fotosAdjuntas, setFotosAdjuntas]   = useState([]);
   const fileInputRef = useRef(null);
 
-  function combinarFotos(datosProto, fotosAdj) {
+  function combinarFotos(datosProto, fotosAdj, protocoloId) {
+    if (protocoloId === 'COTAS') {
+      const fotos = [];
+      if (datosProto?.fotoAutocad?.storageUrl)
+        fotos.push({ storageUrl: datosProto.fotoAutocad.storageUrl, descripcion: 'AutoCAD' });
+      if (datosProto?.fotoTabla?.storageUrl)
+        fotos.push({ storageUrl: datosProto.fotoTabla.storageUrl, descripcion: 'Tabla de Datos' });
+      return fotos;
+    }
     const fotosNube    = datosProto?.fotosNubeSeleccionadas ?? [];
     const fotosDirectas = (fotosAdj ?? []).map(f => ({
       storageUrl:  f.storage_url,
@@ -133,7 +141,7 @@ export default function Firma() {
         supabaseId:        data.id,
         datos:             datosProto ?? data.datos ?? {},
       };
-      const fotosParaPDF = combinarFotos(datosProto, fotosAdj);
+      const fotosParaPDF = combinarFotos(datosProto, fotosAdj, data.protocolo_id);
       const kmInicio = (datosProto ?? {}).kmInicio ?? '';
       const kmFin    = (datosProto ?? {}).kmFin    ?? '';
       const { doc } = await construirDocumentoPDF(protMapeado, fotosParaPDF, kmInicio, kmFin, []);
@@ -243,7 +251,7 @@ export default function Firma() {
       };
 
       // 3. Combinar fotos y generar PDF con firma incrustada
-      const fotosParaPDF = combinarFotos(datosProtocolo, fotosAdjuntas);
+      const fotosParaPDF = combinarFotos(datosProtocolo, fotosAdjuntas, protocolo.protocolo_id);
       const kmInicio = datosProtocolo?.kmInicio ?? '';
       const kmFin    = datosProtocolo?.kmFin    ?? '';
       const { doc } = await construirDocumentoPDF(
