@@ -138,10 +138,16 @@ export default function RecibirCamion() {
   useEffect(() => {
     if (!mostrarSelectorGaleria) return;
     db.fotos_terreno
-      .where('entidadId').equals(entidadIdReal)
-      .filter(f => f.tipo === tipo)
+      .filter(f => f.tipo === tipo && String(f.entidadId) === String(entidadIdReal))
       .toArray()
-      .then(setFotosGaleria);
+      .then(fotos => {
+        const vistas = new Set();
+        setFotosGaleria(fotos.filter(f => {
+          if (vistas.has(f.id)) return false;
+          vistas.add(f.id);
+          return true;
+        }));
+      });
   }, [mostrarSelectorGaleria, entidadIdReal, tipo]);
 
   // Check for existing draft when entity changes
