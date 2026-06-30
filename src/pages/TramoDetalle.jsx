@@ -1,6 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
+import { supabase } from '../config/supabase';
 import { PROTOCOLOS } from '../constants/estructura';
 
 const ESTADO = {
@@ -17,6 +19,36 @@ export default function TramoDetalle() {
     () => db.protocolos.where('entidadId').equals(tramoId).toArray(),
     [tramoId]
   ) ?? [];
+
+  // Hidrata Dexie con estado fresco desde Supabase al abrir el tramo
+  useEffect(() => {
+    if (!navigator.onLine || !supabase) return;
+    supabase
+      .from('protocolos')
+      .select('id, tipo, entidad_id, protocolo_id, estado, fecha_modificacion, datos, observacion_ito, firma_token, firma_imagen_url, pdf_firmado_url')
+      .eq('entidad_id', tramoId)
+      .eq('tipo', 'tramo')
+      .then(async ({ data }) => {
+        if (!data) return;
+        for (const remoto of data) {
+          const local = await db.protocolos
+            .filter(p => p.protocoloId === remoto.protocolo_id &&
+              String(p.entidadId) === String(remoto.entidad_id) &&
+              p.tipo === remoto.tipo)
+            .first();
+          if (local) {
+            await db.protocolos.update(local.id, {
+              estado:         remoto.estado,
+              datos:          remoto.datos,
+              observacionIto: remoto.observacion_ito ?? null,
+              firmaToken:     remoto.firma_token     ?? null,
+              pdfFirmadoUrl:  remoto.pdf_firmado_url ?? null,
+              sincronizada:   true,
+            });
+          }
+        }
+      });
+  }, [tramoId]);
 
   const estadoPor = Object.fromEntries(protocolos.map(p => [p.protocoloId, p.estado]));
   const completados = PROTOCOLOS.filter(p => estadoPor[p.id] === 'completado').length;

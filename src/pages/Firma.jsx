@@ -324,6 +324,7 @@ export default function Firma() {
   if (vista === 'ya_firmado') {
     return (
       <PageShell>
+        <button onClick={() => navigate('/ito')} style={s.btnVolverPortal}>← Volver al portal</button>
         <Header protocolo={protocolo} entidadLabel={entidadLabel} />
         <div style={s.confirmado}>
           <span style={s.confirmadoIcono}>✅</span>
@@ -373,6 +374,7 @@ export default function Firma() {
 
   return (
     <PageShell>
+      <button onClick={() => navigate('/ito')} style={s.btnVolverPortal}>← Volver al portal</button>
       <Header protocolo={protocolo} entidadLabel={entidadLabel} />
 
       {/* PDF */}

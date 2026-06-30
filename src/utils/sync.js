@@ -487,26 +487,17 @@ export async function descargarDesdeSupabase() {
       if (!local) {
         await db.protocolos.add({ ...dexieData, datos: {} });
       } else {
-        // Actualizar si cualquier campo relevante difiere (fecha, estado, observación, PDF, firma)
-        const fechaRemota       = remoto.fecha_modificacion ?? '';
-        const fechaLocal        = local.fechaModificacion   ?? '';
-        const estadoDifiere     = remoto.estado             !== local.estado;
-        const observacionDifiere = (remoto.observacion_ito   ?? '') !== (local.observacionIto  ?? '');
-        const pdfDifiere        = (remoto.pdf_firmado_url   ?? '') !== (local.pdfFirmadoUrl    ?? '');
-        const firmaDifiere      = (remoto.firma_imagen_url  ?? '') !== (local.firmaImagenUrl   ?? '');
-
-        if (fechaRemota > fechaLocal || estadoDifiere || observacionDifiere || pdfDifiere || firmaDifiere) {
-          await db.protocolos.update(local.id, {
-            estado:            remoto.estado,
-            observacionIto:    remoto.observacion_ito  ?? null,
-            firmaToken:        remoto.firma_token       ?? null,
-            firmaImagenUrl:    remoto.firma_imagen_url  ?? null,
-            firmaFecha:        remoto.firma_fecha        ?? null,
-            pdfFirmadoUrl:     remoto.pdf_firmado_url   ?? null,
-            fechaModificacion: remoto.fecha_modificacion ?? null,
-            sincronizada:      true,
-          });
-        }
+        // Solo actualizar campos de estado — datos lo hidrata cada componente directamente
+        await db.protocolos.update(local.id, {
+          estado:            remoto.estado,
+          observacionIto:    remoto.observacion_ito  ?? null,
+          firmaToken:        remoto.firma_token       ?? null,
+          firmaImagenUrl:    remoto.firma_imagen_url  ?? null,
+          firmaFecha:        remoto.firma_fecha        ?? null,
+          pdfFirmadoUrl:     remoto.pdf_firmado_url   ?? null,
+          fechaModificacion: remoto.fecha_modificacion ?? null,
+          sincronizada:      true,
+        });
       }
     }
 

@@ -5,6 +5,49 @@ import { db } from '../db/database';
 import { supabase } from '../config/supabase';
 import Protocolo from './Protocolo';
 
+async function cargarProtocolo(tipo, entidadId, protocoloId) {
+  if (navigator.onLine && supabase) {
+    try {
+      const { data } = await supabase
+        .from('protocolos')
+        .select('*')
+        .eq('tipo', tipo)
+        .eq('entidad_id', String(entidadId))
+        .eq('protocolo_id', protocoloId)
+        .single();
+
+      if (data) {
+        const local = await db.protocolos
+          .filter(p => p.protocoloId === protocoloId &&
+            String(p.entidadId) === String(entidadId) &&
+            p.tipo === tipo)
+          .first();
+
+        if (local) {
+          await db.protocolos.update(local.id, {
+            estado:         data.estado,
+            datos:          data.datos,
+            observacionIto: data.observacion_ito  ?? null,
+            firmaToken:     data.firma_token       ?? null,
+            firmaImagenUrl: data.firma_imagen_url  ?? null,
+            pdfFirmadoUrl:  data.pdf_firmado_url   ?? null,
+            sincronizada:   true,
+          });
+        }
+        return data;
+      }
+    } catch (err) {
+      console.warn('[GenerarProtocolo] Error Supabase, usando Dexie:', err?.message);
+    }
+  }
+
+  return db.protocolos
+    .filter(p => p.protocoloId === protocoloId &&
+      String(p.entidadId) === String(entidadId) &&
+      p.tipo === tipo)
+    .first();
+}
+
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 const LISTAS = { tramo: TRAMOS, caida: CAIDAS, atravieso: ATRAVIESOS };
 
@@ -33,41 +76,18 @@ export default function GenerarProtocolo() {
 
   useEffect(() => {
     if (!protocoloId) { setProtocoloLocal(null); setEstadoReal(null); setObservacionReal(null); return; }
-    const entidadIdReal = tipo === 'caida' ? Number(entidadId) : entidadId;
-    db.protocolos
-      .where('entidadId').equals(entidadIdReal)
-      .filter(p => p.tipo === tipo && p.protocoloId === protocoloId)
-      .first()
-      .then(p => setProtocoloLocal(p ?? null));
+
+    cargarProtocolo(tipo, entidadId, protocoloId).then(data => {
+      setProtocoloLocal(data ?? null);
+      if (data) {
+        setEstadoReal(data.estado ?? null);
+        setObservacionReal(data.observacion_ito ?? data.observacionIto ?? null);
+      } else {
+        setEstadoReal(null);
+        setObservacionReal(null);
+      }
+    });
   }, [tipo, entidadId, protocoloId]);
-
-  useEffect(() => {
-    if (!protocoloLocal?.supabaseId || !supabase) return;
-
-    supabase
-      .from('protocolos')
-      .select('estado, observacion_ito, firma_token, firma_imagen_url, firma_fecha, pdf_firmado_url')
-      .eq('id', protocoloLocal.supabaseId)
-      .single()
-      .then(async ({ data }) => {
-        if (!data) return;
-
-        setEstadoReal(data.estado);
-        setObservacionReal(data.observacion_ito ?? null);
-
-        if (data.estado !== protocoloLocal.estado) {
-          await db.protocolos.update(protocoloLocal.id, {
-            estado:         data.estado,
-            observacionIto: data.observacion_ito  ?? null,
-            firmaToken:     data.firma_token       ?? null,
-            firmaImagenUrl: data.firma_imagen_url  ?? null,
-            firmaFecha:     data.firma_fecha        ?? null,
-            pdfFirmadoUrl:  data.pdf_firmado_url   ?? null,
-            sincronizada:   true,
-          });
-        }
-      });
-  }, [protocoloLocal?.supabaseId]);
 
   const estadoActual     = estadoReal     ?? protocoloLocal?.estado;
   const observacionActual = observacionReal ?? protocoloLocal?.observacionIto;
