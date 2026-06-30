@@ -701,7 +701,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     const token = crypto.randomUUID();
 
     const fotosSubidas = await subirFotosNubePendientes(fotosNubeSeleccionadas);
-    const datosActuales = { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fechaProtocolo };
+    const datosActuales = { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fotoAutocad, fotoTabla, fechaProtocolo };
 
     await db.protocolos.update(protocolo.id, { estado: 'enviado_ito', firmaToken: token, datos: datosActuales, sincronizada: false });
 
@@ -722,7 +722,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     const nuevoToken = crypto.randomUUID();
 
     const fotosSubidas = await subirFotosNubePendientes(fotosNubeSeleccionadas);
-    const datosActuales = { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fechaProtocolo };
+    const datosActuales = { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fotoAutocad, fotoTabla, fechaProtocolo };
 
     await db.protocolos.update(protocolo.id, { estado: 'enviado_ito', firmaToken: nuevoToken, datos: datosActuales, sincronizada: false });
 
