@@ -137,17 +137,42 @@ export default function RecibirCamion() {
 
   useEffect(() => {
     if (!mostrarSelectorGaleria) return;
-    db.fotos_terreno
-      .filter(f => f.tipo === tipo && String(f.entidadId) === String(entidadIdReal))
-      .toArray()
-      .then(fotos => {
-        const vistas = new Set();
-        setFotosGaleria(fotos.filter(f => {
-          if (vistas.has(f.id)) return false;
-          vistas.add(f.id);
-          return true;
-        }));
-      });
+
+    async function cargarFotosGaleria() {
+      if (supabase && navigator.onLine) {
+        try {
+          const { data, error } = await supabase
+            .from('fotos_terreno')
+            .select('id, tipo, entidad_id, storage_url, descripcion, fecha_captura')
+            .eq('tipo', tipo)
+            .eq('entidad_id', String(entidadIdReal));
+
+          if (!error && data) {
+            setFotosGaleria(data.map(f => ({
+              id: f.id,
+              storageUrl: f.storage_url,
+              descripcion: f.descripcion,
+            })));
+            return;
+          }
+        } catch (err) {
+          console.warn('[RecibirCamion] Error fetch Supabase galería, usando Dexie:', err?.message ?? err);
+        }
+      }
+
+      const fotos = await db.fotos_terreno
+        .filter(f => f.tipo === tipo && String(f.entidadId) === String(entidadIdReal))
+        .toArray();
+
+      const vistas = new Set();
+      setFotosGaleria(fotos.filter(f => {
+        if (vistas.has(f.id)) return false;
+        vistas.add(f.id);
+        return true;
+      }));
+    }
+
+    cargarFotosGaleria();
   }, [mostrarSelectorGaleria, entidadIdReal, tipo]);
 
   // Check for existing draft when entity changes
