@@ -97,6 +97,11 @@ function generarEscalaEdp(edps) {
 const isMobile = window.innerWidth < 768;
 
 function MatrizCell({ tipo, entidadId, protocolo, protMap, avanceSet, navigate, nombreEntidad, verPorEdp, edpColorMap }) {
+  if (protocolo.id === 'COTAS' && tipo === 'tramo' && String(entidadId) === 'A') {
+    console.log('[DEBUG COTAS] tipo:', tipo, 'entidadId:', entidadId, 'typeof entidadId:', typeof entidadId);
+    console.log('[DEBUG COTAS] clave buscada:', `${tipo}-${String(entidadId)}-${protocolo.id}`);
+    console.log('[DEBUG COTAS] protMap keys con COTAS:', Object.keys(protMap).filter(k => k.includes('COTAS')));
+  }
   const protData   = protMap[`${tipo}-${String(entidadId)}-${protocolo.id}`];
   const protEstado = protData?.estado;
   const edp        = protData?.edp;
