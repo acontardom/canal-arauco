@@ -1420,8 +1420,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         </div>
       )}
 
-      {/* Subsección 1: seleccionar desde nube — oculto para COTAS y HA */}
-      {!esCOTAS && !esHA && (
+      {/* Subsección 1: seleccionar desde nube — oculto solo para COTAS */}
+      {!esCOTAS && (
         <>
           <p style={s.subSeccionTitulo}>Seleccionar desde nube 📷</p>
           <div style={s.chipsRow}>
@@ -1640,8 +1640,8 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         </>
       )}
 
-      {/* Fotos seleccionadas — oculto en COTAS editable y en HA (fotos van en la tarjeta de camión) */}
-      {(!esCOTAS || readOnly) && !esHA && (
+      {/* Fotos seleccionadas — oculto en COTAS editable */}
+      {(!esCOTAS || readOnly) && (
         <>
           <p style={s.subSeccionTitulo}>Fotos seleccionadas{fotosCombinadas.length > 0 ? ` (${fotosCombinadas.length})` : ''}</p>
           {fotosCombinadas.length > 0 ? (
