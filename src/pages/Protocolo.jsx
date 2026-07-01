@@ -329,6 +329,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [camionSeleccionado, setCamionSeleccionado] = useState('todos');
   const [fotosExcluidas, setFotosExcluidas] = useState([]);  // array de URLs excluidas del PDF
   const [fotosRecortadas, setFotosRecortadas] = useState({});  // { [url]: dataUrlRecortado }
+  const [fotosGaleriaHA, setFotosGaleriaHA] = useState({});   // { [camionKey]: [{ storageUrl, descripcion }] }
   const [camionesTramo, setCamionesTramo] = useState([]);
   const [fechaEnvio, setFechaEnvio] = useState(null);
   const [guardando, setGuardando] = useState(false);
@@ -632,6 +633,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             setCamionSeleccionado(d.camionId ?? 'todos');
             setFotosExcluidas(d.fotosExcluidas ?? []);
             setFotosRecortadas(d.fotosRecortadas ?? {});
+            setFotosGaleriaHA(d.fotosGaleriaHA ?? {});
             setObservaciones(d.observaciones ?? '');
           } else {
             setChecklist(normalizeChecklist(d.checklist, itemsChecklist));
@@ -665,10 +667,10 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   useEffect(() => {
     if (!esHA || !protocolo?.id || !cargadoRef.current) return;
     db.protocolos.update(protocolo.id, {
-      datos: { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadas, fotosNubeSeleccionadas, observaciones, fechaProtocolo },
+      datos: { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadas, fotosGaleriaHA, observaciones, fechaProtocolo },
       sincronizada: false,
     });
-  }, [camionSeleccionado, fotosExcluidas, fotosRecortadas, fotosNubeSeleccionadas, observaciones, fechaProtocolo]);
+  }, [camionSeleccionado, fotosExcluidas, fotosRecortadas, fotosGaleriaHA, observaciones, fechaProtocolo]);
 
   // Si la imagen ya estaba cacheada con CORS, onLoad no re-dispara; inicializar crop manualmente
   useEffect(() => {
@@ -903,7 +905,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         if (fotosRecortadasUrls !== fotosRecortadas) setFotosRecortadas(fotosRecortadasUrls);
         const fotosSubidas = await subirFotosNubePendientes(fotosNubeSeleccionadas);
         if (fotosSubidas !== fotosNubeSeleccionadas) setFotosNubeSeleccionadas(fotosSubidas);
-        datos = { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadasUrls, fotosNubeSeleccionadas: fotosSubidas, observaciones, fechaProtocolo };
+        datos = { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadasUrls, fotosGaleriaHA, observaciones, fechaProtocolo };
       } else {
         const fotosSubidas = await subirFotosNubePendientes(fotosNubeSeleccionadas);
         if (fotosSubidas !== fotosNubeSeleccionadas) setFotosNubeSeleccionadas(fotosSubidas);
@@ -1219,6 +1221,20 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   }
 
   function toggleFotoNube(foto, index) {
+    if (esHA) {
+      if (camionSeleccionado === 'todos') {
+        alert('Selecciona un camión primero para asociar la foto de galería.');
+        return;
+      }
+      const key = foto.storageUrl || foto.dataUrl;
+      setFotosGaleriaHA(prev => {
+        const actuales = prev[camionSeleccionado] ?? [];
+        const yaEsta = actuales.some(f => f.storageUrl === key);
+        if (yaEsta) return { ...prev, [camionSeleccionado]: actuales.filter(f => f.storageUrl !== key) };
+        return { ...prev, [camionSeleccionado]: [...actuales, { storageUrl: key, descripcion: foto.descripcion ?? '' }] };
+      });
+      return;
+    }
     const key = foto.storageUrl || foto.dataUrl;
     const yaSeleccionada = fotosNubeSeleccionadas.some(f => (f.storageUrl || f.dataUrl) === key);
     if (yaSeleccionada) {
@@ -1332,7 +1348,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         ? camionesRegistrados
         : camionesRegistrados.filter(c => c.key === camionSeleccionado);
       const protocoloParaPDF = esHA
-        ? { ...protocolo, datos: { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadasUrls: fotosRecortadas, observaciones } }
+        ? { ...protocolo, datos: { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadasUrls: fotosRecortadas, fotosGaleriaHA, observaciones } }
         : protocolo;
       const { doc, filename } = await construirDocumentoPDF(protocoloParaPDF, fotosCombinadas, kmInicio, kmFin, camionesParaPDF);
       const url = doc.output('bloburl');
@@ -1496,7 +1512,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             <div style={s.fotosGrid}>
               {fotosTerrenoFiltradas.map((foto, index) => {
                 const key = foto.storageUrl || foto.dataUrl;
-                const seleccionada = fotosNubeSeleccionadas.some(f => (f.storageUrl || f.dataUrl) === key);
+                const seleccionada = esHA
+                  ? (fotosGaleriaHA[camionSeleccionado] ?? []).some(f => f.storageUrl === key)
+                  : fotosNubeSeleccionadas.some(f => (f.storageUrl || f.dataUrl) === key);
                 return (
                   <div
                     key={foto.id}
@@ -1520,7 +1538,12 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             </p>
           )}
           <div style={s.badgeSeleccion}>
-            {fotosNubeSeleccionadas.length} {fotosNubeSeleccionadas.length === 1 ? 'foto seleccionada' : 'fotos seleccionadas'}
+            {(() => {
+              const n = esHA
+                ? (fotosGaleriaHA[camionSeleccionado] ?? []).length
+                : fotosNubeSeleccionadas.length;
+              return `${n} ${n === 1 ? 'foto seleccionada' : 'fotos seleccionadas'}`;
+            })()}
           </div>
         </>
       )}

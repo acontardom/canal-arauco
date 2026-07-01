@@ -907,6 +907,15 @@ async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, tot
       }
     }
 
+    const galeriaHA = (datosProtocolo.fotosGaleriaHA ?? {})[camion.key] ?? [];
+    for (const foto of galeriaHA) {
+      fotosParaPDF.push({
+        storageUrl: foto.storageUrl,
+        storageUrlRecortado: null,
+        descripcion: foto.descripcion || 'Foto de galería',
+      });
+    }
+
     const FOTOS_POR_PAGINA_HA = 4;
     for (let fi = 0; fi < fotosParaPDF.length; fi += FOTOS_POR_PAGINA_HA) {
       const batch = fotosParaPDF.slice(fi, fi + FOTOS_POR_PAGINA_HA);
