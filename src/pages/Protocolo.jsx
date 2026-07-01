@@ -784,6 +784,14 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
     await escribirProtocolo({ estado: 'enviado_ito', firmaToken: token }, datosActuales);
 
+    try {
+      await supabase.functions.invoke('notificar-firma', {
+        body: { protocolo_id: protocolo.supabaseId, accion: 'enviado_ito' },
+      });
+    } catch (err) {
+      console.warn('[Notificacion] Error al enviar email:', err?.message ?? err);
+    }
+
     const link = `${window.location.origin}/firma/${token}`;
     await navigator.clipboard.writeText(link).catch(() => {});
     alert(`Protocolo enviado al ITO.\nLink copiado al portapapeles:\n${link}`);
@@ -811,6 +819,14 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     const datosActuales = { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fotoAutocad: fotoAutocadFinal, fotoTabla: fotoTablaFinal, fechaProtocolo };
 
     await escribirProtocolo({ estado: 'enviado_ito', firmaToken: nuevoToken, observacionIto: null }, datosActuales);
+
+    try {
+      await supabase.functions.invoke('notificar-firma', {
+        body: { protocolo_id: protocolo.supabaseId, accion: 'enviado_ito' },
+      });
+    } catch (err) {
+      console.warn('[Notificacion] Error al enviar email:', err?.message ?? err);
+    }
 
     const link = `${window.location.origin}/firma/${nuevoToken}`;
     await navigator.clipboard.writeText(link).catch(() => {});

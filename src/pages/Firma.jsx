@@ -193,6 +193,13 @@ export default function Firma() {
         fecha_modificacion: new Date().toISOString(),
       })
       .eq('firma_token', token);
+    try {
+      await supabase.functions.invoke('notificar-firma', {
+        body: { protocolo_id: protocolo.id, accion: 'con_observaciones', observacion },
+      });
+    } catch (err) {
+      console.warn('[Notificacion] Error al enviar email:', err?.message ?? err);
+    }
     setSubiendo(false);
     setVista('confirmado');
   }
@@ -290,6 +297,14 @@ export default function Firma() {
           fecha_modificacion: new Date().toISOString(),
         })
         .eq('firma_token', token);
+
+      try {
+        await supabase.functions.invoke('notificar-firma', {
+          body: { protocolo_id: protocolo.id, accion: 'firmado' },
+        });
+      } catch (err) {
+        console.warn('[Notificacion] Error al enviar email:', err?.message ?? err);
+      }
 
       setPdfFirmadoUrl(pdfData.publicUrl);
       setVista('confirmado');
