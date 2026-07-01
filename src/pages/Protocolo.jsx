@@ -2254,7 +2254,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                 crop={crop}
                 onChange={c => setCrop(c)}
                 onComplete={c => setCompletedCrop(c)}
-                aspect={cropModal.tipo === 'cotas-autocad' || cropModal.tipo === 'cotas-tabla' ? undefined : esHA ? 4/3 : 3/4}
+                aspect={cropModal.tipo === 'cotas-autocad' || cropModal.tipo === 'cotas-tabla' ? undefined : 3/4}
                 keepSelection
               >
                 <img
