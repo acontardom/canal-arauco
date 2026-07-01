@@ -733,7 +733,8 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
   }
 
   // Pie de firma siempre anclado al fondo de la página
-  await agregarPieFirma(doc, PH - 52, undefined, firmaITO, fechaProtocolo, fechaFirmaITO);
+  const pac = protocolo.protocoloId === 'PICE1' ? 'Álvaro Muñoz' : undefined;
+  await agregarPieFirma(doc, PH - 52, pac, firmaITO, fechaProtocolo, fechaFirmaITO);
 }
 
 // ─── Control H.A. (Radier / Muro) — 2 páginas por camión ─────────────────────
@@ -841,7 +842,7 @@ async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, tot
     doc.setTextColor(80, 80, 80);
     doc.text('Sin camiones registrados — usa el módulo Recibir Camión', PW / 2, y + 8, { align: 'center' });
     doc.setFont(undefined, 'normal');
-    await agregarPieFirma(doc, pieFirmaY(y + 16), 'Álvaro Muñoz', firmaITO, fechaProtocolo, fechaFirmaITO);
+    await agregarPieFirma(doc, pieFirmaY(y + 16), 'Diego Oñate Jorquera', firmaITO, fechaProtocolo, fechaFirmaITO);
     return 1;
   }
 
@@ -884,7 +885,7 @@ async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, tot
 
     y = agregarEnsayoPesoUnitario(doc, camion, y, escala);
 
-    await agregarPieFirma(doc, pieFirmaY(y), 'Álvaro Muñoz', firmaITO, fechaProtocolo, fechaFirmaITO);
+    await agregarPieFirma(doc, pieFirmaY(y), 'Diego Oñate Jorquera', firmaITO, fechaProtocolo, fechaFirmaITO);
 
     // ── Página B: fotos (usa agregarPaginaFotos con exclusiones/recortes del protocolo) ──
     const fotosParaPDF = [];
@@ -1097,6 +1098,7 @@ export async function construirDocumentoPDF(protocolo, fotos = [], kmInicio = ''
   const esHA = protocolo.protocoloId === 'HA_RADIER' || protocolo.protocoloId === 'HA_MURO';
   const logoB64 = await loadLogoB64();
   const fechaProtocolo = protocolo.datos?.fechaProtocolo ?? protocolo.datos?.fechaControl ?? protocolo.fechaCreacion ?? null;
+  const pacNombre = protocolo.protocoloId === 'PICE1' ? 'Álvaro Muñoz' : undefined;
   const fpp = fotosPorPagina(protocolo);
 
   const paginasFotos = Math.ceil(fotos.length / fpp);
@@ -1114,7 +1116,7 @@ export async function construirDocumentoPDF(protocolo, fotos = [], kmInicio = ''
   } else if (soloFotos) {
     if (fotos.length === 0) {
       const y = agregarEncabezado(doc, protocolo, 1, totalPaginas, kmInicio, kmFin, logoB64);
-      await agregarPieFirma(doc, pieFirmaY(y), undefined, firmaITO, fechaProtocolo, fechaFirmaITO);
+      await agregarPieFirma(doc, pieFirmaY(y), pacNombre, firmaITO, fechaProtocolo, fechaFirmaITO);
     } else {
       for (let i = 0; i < fotos.length; i += fpp) {
         const paginaActual = i / fpp + 1;
@@ -1130,7 +1132,7 @@ export async function construirDocumentoPDF(protocolo, fotos = [], kmInicio = ''
       doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       finalY = construirPagina1(doc, protocolo, kmInicio, kmFin, totalPaginas, logoB64, ESCALA_REDUCIDA);
     }
-    await agregarPieFirma(doc, pieFirmaY(finalY), undefined, firmaITO, fechaProtocolo, fechaFirmaITO);
+    await agregarPieFirma(doc, pieFirmaY(finalY), pacNombre, firmaITO, fechaProtocolo, fechaFirmaITO);
 
     for (let i = 0; i < fotos.length; i += fpp) {
       doc.addPage();
