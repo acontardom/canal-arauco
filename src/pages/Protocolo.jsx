@@ -1307,10 +1307,23 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       const cropped = aplicarCropNube(guardado);
       if (cropped) imagenFinal = cropped;
     }
-    setFotosNubeSeleccionadas(prev => [
-      ...prev,
-      { storageUrl: foto.storageUrl ?? null, dataUrl: foto.dataUrl ?? null, dataUrlRecortado: imagenFinal, descripcion: descModalTexto },
-    ]);
+    if (esHA) {
+      if (camionSeleccionado === 'todos') {
+        alert('Selecciona un camión primero para asociar la foto.');
+        return;
+      }
+      const key = foto.storageUrl || foto.dataUrl;
+      setFotosGaleriaHA(prev => {
+        const actuales = prev[camionSeleccionado] ?? [];
+        if (actuales.some(f => f.storageUrl === key)) return prev;
+        return { ...prev, [camionSeleccionado]: [...actuales, { storageUrl: key, descripcion: descModalTexto }] };
+      });
+    } else {
+      setFotosNubeSeleccionadas(prev => [
+        ...prev,
+        { storageUrl: foto.storageUrl ?? null, dataUrl: foto.dataUrl ?? null, dataUrlRecortado: imagenFinal, descripcion: descModalTexto },
+      ]);
+    }
     cerrarFotoNubeModal();
   }
 
@@ -1409,6 +1422,17 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         ...(tipo !== 'caida' && (fotoAutocad?.dataUrl || fotoAutocad?.storageUrl) ? [{ id: 'cotas-autocad', dataUrl: fotoAutocad.dataUrl ?? null, storageUrl: fotoAutocad.storageUrl ?? null, descripcion: 'AutoCAD', origen: 'cotas' }] : []),
         ...((fotoTabla?.dataUrl || fotoTabla?.storageUrl) ? [{ id: 'cotas-tabla', dataUrl: fotoTabla.dataUrl ?? null, storageUrl: fotoTabla.storageUrl ?? null, descripcion: 'Tabla de cotas', origen: 'cotas' }] : []),
       ]
+    : esHA
+    ? (fotosGaleriaHA[camionSeleccionado] ?? []).map(f => ({
+        id: `galeria-${f.storageUrl}`,
+        key: f.storageUrl,
+        storageUrl: f.storageUrl,
+        dataUrl: null,
+        dataUrlRecortado: null,
+        storageUrlRecortado: null,
+        descripcion: f.descripcion ?? '',
+        origen: 'galeria-ha',
+      }))
     : [
         ...fotos.map(f => ({ id: `nueva-${f.id}`, fotoId: f.id, dataUrl: f.dataUrl, storageUrl: f.storageUrl ?? null, descripcion: f.descripcion ?? '', origen: 'nueva' })),
         ...fotosNubeData,
@@ -1689,7 +1713,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                     {!readOnly && (
                       <button
                         style={s.btnEliminarFoto}
-                        onClick={e => { e.stopPropagation(); foto.origen === 'nueva' ? eliminarFoto(foto.fotoId) : quitarFotoNube(foto.key); }}
+                        onClick={e => { e.stopPropagation(); if (foto.origen === 'nueva') { eliminarFoto(foto.fotoId); } else if (foto.origen === 'galeria-ha') { setFotosGaleriaHA(prev => ({ ...prev, [camionSeleccionado]: (prev[camionSeleccionado] ?? []).filter(f => f.storageUrl !== foto.key) })); } else { quitarFotoNube(foto.key); } }}
                         title="Quitar de la selección"
                       >
                         ×
