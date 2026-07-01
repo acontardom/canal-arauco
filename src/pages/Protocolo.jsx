@@ -1524,9 +1524,14 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                     <img src={key} alt="" loading="lazy" style={{ ...s.fotoImg, backgroundColor: '#2a2a3e' }} onError={e => { e.target.style.opacity = '0.3'; }} />
                     <div
                       style={{ ...s.checkOverlay, cursor: readOnly ? 'default' : 'pointer' }}
-                      onClick={(e) => { e.stopPropagation(); if (!readOnly) toggleFotoNube(foto, index); }}
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <input type="checkbox" checked={seleccionada} readOnly style={s.checkboxNube} />
+                      <input
+                        type="checkbox"
+                        checked={seleccionada}
+                        onChange={(e) => { e.stopPropagation(); if (!readOnly) toggleFotoNube(foto, index); }}
+                        style={s.checkboxNube}
+                      />
                     </div>
                   </div>
                 );
