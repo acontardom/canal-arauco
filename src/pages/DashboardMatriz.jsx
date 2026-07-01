@@ -49,6 +49,7 @@ const PROTOCOLO_A_PARTIDA = {
 
 const ESTADOS = {
   sin_iniciar:       { label: 'Sin iniciar',       color: '#1e293b' },
+  borrador:          { label: 'Borrador',           color: '#78716c' },
   por_protoc:        { label: 'Por protocolizar',   color: '#f59e0b' },
   listo:             { label: 'Protocolo listo',    color: '#3b82f6' },
   enviado:           { label: 'Enviado EDP',        color: '#16a34a' },
@@ -68,6 +69,7 @@ function calcEstado(protEstado, recepcionada) {
   if (protEstado === 'enviado_ito')       return 'enviado_ito';
   if (protEstado === 'con_observaciones') return 'con_observaciones';
   if (protEstado === 'firmado')           return 'firmado';
+  if (protEstado === 'borrador')          return 'borrador';
   if (recepcionada)                       return 'por_protoc';
   return 'sin_iniciar';
 }
@@ -202,6 +204,11 @@ export default function DashboardMatriz() {
           <div style={s.leyendaItem}>
             <div style={{ ...s.swatch, border: '1px solid #475569' }} />
             <span>Sin iniciar</span>
+          </div>
+
+          <div style={s.leyendaItem}>
+            <div style={{ ...s.swatch, background: ESTADOS.borrador.color }} />
+            <span>Borrador</span>
           </div>
 
           <div style={s.leyendaGrupo}>
