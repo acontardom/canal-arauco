@@ -665,10 +665,10 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   useEffect(() => {
     if (!esHA || !protocolo?.id || !cargadoRef.current) return;
     db.protocolos.update(protocolo.id, {
-      datos: { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadas, observaciones },
+      datos: { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadas, fotosNubeSeleccionadas, observaciones, fechaProtocolo },
       sincronizada: false,
     });
-  }, [camionSeleccionado, fotosExcluidas, fotosRecortadas, observaciones]);
+  }, [camionSeleccionado, fotosExcluidas, fotosRecortadas, fotosNubeSeleccionadas, observaciones, fechaProtocolo]);
 
   // Si la imagen ya estaba cacheada con CORS, onLoad no re-dispara; inicializar crop manualmente
   useEffect(() => {
@@ -901,7 +901,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       if (esHA) {
         const fotosRecortadasUrls = await subirFotosRecortadasHA(fotosRecortadas);
         if (fotosRecortadasUrls !== fotosRecortadas) setFotosRecortadas(fotosRecortadasUrls);
-        datos = { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadasUrls, observaciones, fechaProtocolo };
+        const fotosSubidas = await subirFotosNubePendientes(fotosNubeSeleccionadas);
+        if (fotosSubidas !== fotosNubeSeleccionadas) setFotosNubeSeleccionadas(fotosSubidas);
+        datos = { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadasUrls, fotosNubeSeleccionadas: fotosSubidas, observaciones, fechaProtocolo };
       } else {
         const fotosSubidas = await subirFotosNubePendientes(fotosNubeSeleccionadas);
         if (fotosSubidas !== fotosNubeSeleccionadas) setFotosNubeSeleccionadas(fotosSubidas);
@@ -1782,7 +1784,10 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                     <button
                       key={c.key}
                       style={{ ...s.haCamionChip, ...(activo ? s.haCamionChipActivo : {}), borderColor: activo ? color : undefined }}
-                      onClick={() => setCamionSeleccionado(c.key)}
+                      onClick={() => {
+                        setCamionSeleccionado(c.key);
+                        if (c.fechaRecepcion) setFechaProtocolo(c.fechaRecepcion.split('T')[0]);
+                      }}
                     >
                       <span style={{ ...s.haCamionChipNum, color }}>{`#${c.numeroGuia || (idx + 1)}`}</span>
                       <span style={s.haCamionChipSub}>{c.tipoHormigon || '—'}</span>
