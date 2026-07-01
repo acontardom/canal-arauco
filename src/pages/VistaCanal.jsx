@@ -120,13 +120,14 @@ export default function VistaCanal() {
 
   function exportarExcel() {
     const TIPO_LABEL = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
-    const header = ['Entidad', 'Tipo', ...PARTIDAS_DISPLAY.map(p => p.nombre)];
+    const header = ['Entidad', 'Tipo', 'Largo (m)', ...PARTIDAS_DISPLAY.map(p => p.nombre)];
     const filas = ORDEN_CANAL.map(({ tipo, id }) => {
       const label = cardLabel(tipo, id);
+      const largo = largoMetros(tipo, id) ?? '';
       const celdas = PARTIDAS_DISPLAY.map(p =>
         avanceSet.has(`${tipo}-${id}-${p.id}`) ? 'Listo' : 'Pendiente'
       );
-      return [label, TIPO_LABEL[tipo], ...celdas];
+      return [label, TIPO_LABEL[tipo], largo, ...celdas];
     });
     const csvContent = [header, ...filas]
       .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';'))
