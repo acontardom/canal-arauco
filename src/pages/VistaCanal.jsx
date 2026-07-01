@@ -118,6 +118,29 @@ export default function VistaCanal() {
     return PARTIDAS_DISPLAY.filter(p => avanceSet.has(`${tipo}-${id}-${p.id}`)).length;
   }
 
+  function exportarExcel() {
+    const TIPO_LABEL = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
+    const header = ['Entidad', 'Tipo', ...PARTIDAS_DISPLAY.map(p => p.nombre)];
+    const filas = ORDEN_CANAL.map(({ tipo, id }) => {
+      const label = cardLabel(tipo, id);
+      const celdas = PARTIDAS_DISPLAY.map(p =>
+        avanceSet.has(`${tipo}-${id}-${p.id}`) ? 'Listo' : 'Pendiente'
+      );
+      return [label, TIPO_LABEL[tipo], ...celdas];
+    });
+    const csvContent = [header, ...filas]
+      .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';'))
+      .join('\n');
+    const bom = '﻿';
+    const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `avance_canal_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function navAvance(tipo, id, partida = null) {
     const params = new URLSearchParams({ tipo, entidad: id });
     if (partida) params.set('partida', partida);
@@ -132,8 +155,15 @@ export default function VistaCanal() {
       <style>{GRID_CSS}</style>
 
       <div style={s.header}>
-        <h1 style={s.titulo}>Vista Canal</h1>
-        <p className="canal-subtitle" style={s.subtitulo}>Avance por partida a lo largo del canal</p>
+        <div>
+          <h1 style={s.titulo}>Vista Canal</h1>
+          <p className="canal-subtitle" style={s.subtitulo}>Avance por partida a lo largo del canal</p>
+        </div>
+        {!cargando && (
+          <button style={s.btnExportar} onClick={exportarExcel} title="Exportar matriz a Excel (CSV)">
+            ↓ Excel
+          </button>
+        )}
       </div>
 
       {cargando ? (
@@ -269,7 +299,13 @@ function Tarjeta({ tipo, id, avanceSet, onClick, onDotClick }) {
 
 const s = {
   page: { padding: '0 0 48px' },
-  header: { marginBottom: '14px' },
+  header: { marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
+  btnExportar: {
+    padding: '7px 14px', background: '#166534', color: '#bbf7d0',
+    border: '1px solid #16a34a', borderRadius: '8px',
+    fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+    flexShrink: 0, marginTop: '2px',
+  },
   titulo: { color: '#64ffda', fontWeight: 800, margin: '0 0 4px', fontSize: '22px' },
   subtitulo: { color: '#8892b0', fontSize: '13px', margin: 0 },
   cargandoTxt: { color: '#8892b0', fontSize: '14px' },
