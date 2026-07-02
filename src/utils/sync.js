@@ -157,7 +157,7 @@ async function sincronizarProtocolos() {
 
 async function subirFotosPendientes() {
   const pendientes = await db.fotos
-    .filter(f => !f.subidaStorage)
+    .filter(f => !f.subidaStorage && Boolean(f.dataUrl))
     .toArray();
 
   for (const foto of pendientes) {
@@ -182,7 +182,7 @@ async function subirFotosPendientes() {
 
 async function subirFotosTerrenoPendientes() {
   const pendientes = await db.fotos_terreno
-    .filter(f => !f.subidaStorage)
+    .filter(f => !f.subidaStorage && Boolean(f.dataUrl))
     .toArray();
 
   for (const foto of pendientes) {
@@ -311,7 +311,7 @@ async function subirFotosCamionesPendientes() {
     let fotosEnsayo = camion.fotosEnsayo ?? [];
     let fotosEnsayoUrls = camion.fotosEnsayoUrls ?? [];
 
-    if (fotoGuia && !fotoGuiaUrl) {
+    if (fotoGuia?.dataUrl && !fotoGuiaUrl) {
       const storageUrl = await conReintentos(() => uploadFoto(fotoGuia.dataUrl, {
         tipo: 'camiones', entidadId: entidadPath, archivo: `guia_${Date.now()}.jpg`,
       }));

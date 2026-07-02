@@ -22,6 +22,7 @@ function sanitizarNombre(nombre) {
 // `archivo`, si se especifica, fija el nombre completo del archivo (ej. "guia_169...jpg").
 export async function uploadFoto(dataUrl, { tipo, entidadId, nombre, carpeta, archivo }) {
   if (!supabase) return null;
+  if (!dataUrl) return null;
 
   const blob = dataUrlToBlob(dataUrl);
   const carpetaParte = carpeta ? `${carpeta}/` : '';
