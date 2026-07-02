@@ -47,6 +47,7 @@ function calcPU(pesoTotal) {
 }
 
 const initialForm = {
+  fechaRecepcion: fechaHoy(),
   tipoHormigon: '',
   volumen: '',
   numeroGuia: '',
@@ -374,7 +375,7 @@ export default function RecibirCamion() {
         puCalculado: calcPU(form.pesoHoyaHormigon),
         observaciones: form.observaciones,
         usuarioNombre: nombreUsuario,
-        fechaRecepcion: fechaHoy(),
+        fechaRecepcion: form.fechaRecepcion || fechaHoy(),
         sincronizado: false,
         supabaseId: null,
         fotoGuia,
@@ -482,6 +483,16 @@ export default function RecibirCamion() {
             ))}
           </select>
         </div>
+      </div>
+
+      <div style={s.campo}>
+        <label style={s.label}>Fecha de recepción</label>
+        <input
+          style={s.input}
+          type="date"
+          value={form.fechaRecepcion}
+          onChange={e => set('fechaRecepcion', e.target.value)}
+        />
       </div>
 
       <div style={s.tiposGridHorizontal}>

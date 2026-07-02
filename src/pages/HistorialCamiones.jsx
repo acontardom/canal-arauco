@@ -186,6 +186,7 @@ export default function HistorialCamiones() {
           estado_calidad: cambios.estadoCalidad,
           tipo_especificacion: cambios.tipoEspecificacion ?? null,
           valor_total: cambios.valorTotal ? Number(cambios.valorTotal) : null,
+          fecha_recepcion: cambios.fechaRecepcion || null,
         };
         const { error: err } = await supabase.from('camiones').update(payload).eq('id', camion.supabaseId);
         if (err) throw err;
@@ -557,6 +558,7 @@ function CamionCard({ camion: c, expandido, onToggle, onEditar, onEliminar }) {
 
 function EditarCamionModal({ camion: c, guardando, onGuardar, onCancelar }) {
   const [form, setForm] = useState(() => ({
+    fechaRecepcion: c.fechaRecepcion?.substring(0, 10) ?? '',
     tipoEntidad: c.tipoEntidad,
     entidadId: String(c.entidadId ?? ''),
     involucraSecundaria: Boolean(c.entidadSecundariaTipo),
@@ -603,6 +605,7 @@ function EditarCamionModal({ camion: c, guardando, onGuardar, onCancelar }) {
       : null;
 
     onGuardar({
+      fechaRecepcion: form.fechaRecepcion || null,
       tipoEntidad: form.tipoEntidad,
       entidadId: entidadIdFinal,
       entidadSecundariaTipo: entidadSecundariaTipoFinal,
@@ -633,6 +636,13 @@ function EditarCamionModal({ camion: c, guardando, onGuardar, onCancelar }) {
         <h2 style={s.modalTitulo}>Editar camión</h2>
 
         <div style={s.modalBody}>
+          <div style={s.filaCampos}>
+            <div style={s.campo}>
+              <label style={s.label}>Fecha de recepción</label>
+              <input style={s.input} type="date" value={form.fechaRecepcion} onChange={e => campo('fechaRecepcion', e.target.value)} />
+            </div>
+          </div>
+
           <div style={s.filaCampos}>
             <div style={s.campo}>
               <label style={s.label}>Tipo de entidad</label>
