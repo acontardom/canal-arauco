@@ -171,7 +171,16 @@ async function subirFotosPendientes() {
     }));
 
     if (storageUrl) {
-      await db.fotos.update(foto.id, { storageUrl, subidaStorage: true });
+      await db.fotos.update(foto.id, { storageUrl, subidaStorage: true, dataUrl: null });
+      if (foto.deviceFotoId) {
+        try {
+          await supabase.from('fotos')
+            .update({ storage_url: storageUrl, subida_storage: true, data_url: null })
+            .eq('device_foto_id', foto.deviceFotoId);
+        } catch (err) {
+          console.warn(`[Sync] Foto ${foto.id} — no se pudo limpiar data_url en Supabase:`, err?.message ?? err);
+        }
+      }
     } else {
       console.warn(`[Sync] Foto ${foto.id} no se pudo subir tras 3 intentos — se reintentará en el próximo ciclo`);
     }
@@ -193,7 +202,16 @@ async function subirFotosTerrenoPendientes() {
     }));
 
     if (storageUrl) {
-      await db.fotos_terreno.update(foto.id, { storageUrl, subidaStorage: true });
+      await db.fotos_terreno.update(foto.id, { storageUrl, subidaStorage: true, dataUrl: null });
+      if (foto.deviceFotoTerrenoId) {
+        try {
+          await supabase.from('fotos_terreno')
+            .update({ storage_url: storageUrl, subida_storage: true, data_url: null })
+            .eq('device_foto_terreno_id', foto.deviceFotoTerrenoId);
+        } catch (err) {
+          console.warn(`[Sync] FotoTerreno ${foto.id} — no se pudo limpiar data_url en Supabase:`, err?.message ?? err);
+        }
+      }
     } else {
       console.warn(`[Sync] FotoTerreno ${foto.id} no se pudo subir tras 3 intentos — se reintentará en el próximo ciclo`);
     }
