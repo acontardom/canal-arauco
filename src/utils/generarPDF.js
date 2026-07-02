@@ -674,6 +674,10 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
   // cellW: ancho de celda completo (foto centrada + texto más ancho)
   const cellW = Math.round((CW - GAP_COL) / COLS);
 
+  // Fijar font antes de splitTextToSize para que el cálculo de wrap use el mismo tamaño que el render
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(7.5);
+
   // Calcular descH compartido usando cellW para que el texto tenga máximo espacio
   const maxLineas = Math.max(1, ...fotosBatch.map(foto => {
     if (!foto.descripcion) return 1;
