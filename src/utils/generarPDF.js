@@ -671,15 +671,13 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
   // Espacio disponible para fotos + descripciones (reservar pie de firma al fondo)
   const espacioDisponible = PH - 52 - y;
 
-  // imgW base según tipo
-  const imgWBase = esG5
-    ? Math.round((CW - GAP_COL) / COLS)
-    : Math.round(100 * 3 / 4); // proporción 3:4 de imgH=100
+  // cellW: ancho de celda completo (foto centrada + texto más ancho)
+  const cellW = Math.round((CW - GAP_COL) / COLS);
 
-  // Calcular descH compartido: descripción más larga del batch
+  // Calcular descH compartido usando cellW para que el texto tenga máximo espacio
   const maxLineas = Math.max(1, ...fotosBatch.map(foto => {
     if (!foto.descripcion) return 1;
-    return doc.splitTextToSize(foto.descripcion, imgWBase - DESC_PAD * 2).length;
+    return doc.splitTextToSize(foto.descripcion, cellW - DESC_PAD * 2).length;
   }));
   const descH = Math.max(7, maxLineas * DESC_LINE_H + DESC_PAD * 2);
 
@@ -689,38 +687,40 @@ async function agregarPaginaFotos(doc, protocolo, fotosBatch, paginaActual, tota
   const imgHMax = (espacioDisponible - alturaTotal) / numRows;
   const imgH = esG5 ? Math.min(117, imgHMax) : Math.min(100, imgHMax);
 
+  // La foto mantiene su proporción/tamaño; para G5 ocupa toda la celda
   const imgW = esG5
-    ? Math.round((CW - GAP_COL) / COLS)
+    ? cellW
     : Math.round(imgH * 3 / 4);
 
   const cellH = imgH + descH + GAP_ROW;
-  const offsetX = ML + (CW - (COLS * imgW + GAP_COL)) / 2;
+  const offsetX = ML;
 
   for (let i = 0; i < fotosBatch.length; i++) {
     const foto = fotosBatch[i];
     const col = i % COLS;
     const row = Math.floor(i / COLS);
-    const x = offsetX + col * (imgW + GAP_COL);
+    const x = offsetX + col * (cellW + GAP_COL);
     const cellY = y + row * cellH;
+    const photoX = x + Math.round((cellW - imgW) / 2);
 
     doc.setDrawColor(120, 120, 120);
     doc.setLineWidth(0.2);
-    doc.rect(x, cellY, imgW, imgH);
+    doc.rect(photoX, cellY, imgW, imgH);
 
     const img = await obtenerImagenBase64(foto);
     if (img) {
-      try { doc.addImage(img.dataUrl, img.formato, x + 1, cellY + 1, imgW - 2, imgH - 2); }
+      try { doc.addImage(img.dataUrl, img.formato, photoX + 1, cellY + 1, imgW - 2, imgH - 2); }
       catch (err) { console.warn('[PDF] Error al incrustar imagen:', err?.message ?? err); }
     }
 
-    // Recuadro descripción — altura compartida por todo el batch
+    // Recuadro descripción — ancho de celda completo para mayor espacio de texto
     const lineas = foto.descripcion
-      ? doc.splitTextToSize(foto.descripcion, imgW - DESC_PAD * 2)
+      ? doc.splitTextToSize(foto.descripcion, cellW - DESC_PAD * 2)
       : [];
 
     doc.setDrawColor(120, 120, 120);
     doc.setLineWidth(0.2);
-    doc.rect(x, cellY + imgH, imgW, descH);
+    doc.rect(x, cellY + imgH, cellW, descH);
 
     if (lineas.length > 0) {
       doc.setFont(undefined, 'normal');
