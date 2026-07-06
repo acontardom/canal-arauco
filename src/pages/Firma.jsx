@@ -166,6 +166,12 @@ export default function Firma() {
           fotoGuiaUrl:      r.foto_guia_url ?? null,
           fotosEnsayoUrls:  r.fotos_ensayo_urls ?? [],
         }));
+
+        // Filtrar al camión seleccionado al momento de enviar (igual que Protocolo.jsx)
+        const camionId = datosProto?.camionId;
+        if (camionId && camionId !== 'todos') {
+          camiones = camiones.filter(c => c.key === camionId);
+        }
       }
 
       const protMapeado = {
