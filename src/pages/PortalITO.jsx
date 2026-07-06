@@ -85,13 +85,43 @@ function RecuadroProtocolos({ titulo, protocolos, color, renderAccion }) {
 
 // ─── MatrizITO ────────────────────────────────────────────────────────────────
 
+function CeldaMatrizITO({ proto, cellStyle, cellBg }) {
+  const navigate = useNavigate();
+  const estado = proto?.estado;
+  const clickable = estado === 'enviado_ito' || estado === 'firmado';
+
+  function handleClick() {
+    if (estado === 'enviado_ito' && proto?.firma_token) {
+      navigate(`/firma/${proto.firma_token}`);
+    } else if (estado === 'firmado' && proto?.pdf_firmado_url) {
+      window.open(proto.pdf_firmado_url, '_blank');
+    }
+  }
+
+  return (
+    <td
+      onClick={clickable ? handleClick : undefined}
+      style={{
+        ...cellStyle,
+        background: cellBg,
+        cursor: clickable ? 'pointer' : 'default',
+        transition: 'opacity 0.15s',
+      }}
+      onMouseEnter={e => { if (clickable) e.currentTarget.style.opacity = '0.7'; }}
+      onMouseLeave={e => { if (clickable) e.currentTarget.style.opacity = '1'; }}
+    />
+  );
+}
+
 function MatrizITO({ protocolos, verPorEDP }) {
-  // Mapa clave → { estado, edp }
+  // Mapa clave → { estado, edp, firma_token, pdf_firmado_url }
   const protMap = {};
   protocolos.forEach(p => {
     protMap[`${p.tipo}-${String(p.entidad_id)}-${p.protocolo_id}`] = {
-      estado: p.estado,
-      edp:    p.edp ?? null,
+      estado:          p.estado,
+      edp:             p.edp ?? null,
+      firma_token:     p.firma_token ?? null,
+      pdf_firmado_url: p.pdf_firmado_url ?? null,
     };
   });
 
@@ -172,7 +202,7 @@ function MatrizITO({ protocolos, verPorEDP }) {
               <td style={tdLabel}>{id}</td>
               {COLUMNAS_ITO.map(col => {
                 const k = `tramo-${id}-${col.id}`;
-                return <td key={col.id} style={{ ...cellStyle, background: cellBg(k) }} />;
+                return <CeldaMatrizITO key={col.id} proto={protMap[k]} cellStyle={cellStyle} cellBg={cellBg(k)} />;
               })}
             </tr>
           ))}
@@ -184,7 +214,7 @@ function MatrizITO({ protocolos, verPorEDP }) {
               <td style={tdLabel}>{id}</td>
               {COLUMNAS_ITO.map(col => {
                 const k = `caida-${String(id)}-${col.id}`;
-                return <td key={col.id} style={{ ...cellStyle, background: cellBg(k) }} />;
+                return <CeldaMatrizITO key={col.id} proto={protMap[k]} cellStyle={cellStyle} cellBg={cellBg(k)} />;
               })}
             </tr>
           ))}
@@ -196,7 +226,7 @@ function MatrizITO({ protocolos, verPorEDP }) {
               <td style={tdLabel}>AT {id}</td>
               {COLUMNAS_ITO.map(col => {
                 const k = `atravieso-${String(id)}-${col.id}`;
-                return <td key={col.id} style={{ ...cellStyle, background: cellBg(k) }} />;
+                return <CeldaMatrizITO key={col.id} proto={protMap[k]} cellStyle={cellStyle} cellBg={cellBg(k)} />;
               })}
             </tr>
           ))}
