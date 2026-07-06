@@ -405,25 +405,31 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     [protocolo?.id]
   ) ?? [];
 
-  // Hidrata Dexie con la versión más reciente de Supabase al abrir el protocolo
+  // Hidrata Dexie con la versión más reciente de Supabase al abrir el protocolo.
+  // datos solo se sobreescribe si el registro local no tiene datos propios — evitar
+  // pisar cambios locales pendientes de guardar (ej: fotos eliminadas).
   useEffect(() => {
     if (!protocolo?.supabaseId) return;
+    const localId = protocolo.id;
     supabase
       .from('protocolos')
       .select('*')
       .eq('id', protocolo.supabaseId)
       .single()
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         if (!data) return;
-        db.protocolos.update(protocolo.id, {
+        const localRecord = await db.protocolos.get(localId);
+        const datosLocalesVacios = !localRecord?.datos || Object.keys(localRecord.datos).length === 0;
+        const updates = {
           estado: data.estado,
-          datos: data.datos,
           observacionIto: data.observacion_ito ?? null,
           firmaToken: data.firma_token ?? null,
           firmaImagenUrl: data.firma_imagen_url ?? null,
           pdfFirmadoUrl: data.pdf_firmado_url ?? null,
           sincronizada: true,
-        });
+        };
+        if (datosLocalesVacios) updates.datos = data.datos;
+        db.protocolos.update(localId, updates);
       });
   }, [protocolo?.supabaseId]);
 
@@ -671,6 +677,16 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       sincronizada: false,
     });
   }, [camionSeleccionado, fotosExcluidas, fotosRecortadas, fotosGaleriaHA, observaciones, fechaProtocolo]);
+
+  // Persistir fotosNubeSeleccionadas en Dexie para PICE (no-HA, no-COTAS) al cambiar,
+  // igual que el efecto HA anterior. Evita que fotos eliminadas reaparezcan al volver a la vista.
+  useEffect(() => {
+    if (esHA || esCOTAS || !protocolo?.id || !cargadoRef.current) return;
+    db.protocolos.update(protocolo.id, {
+      datos: { checklist, observaciones, fotosNubeSeleccionadas, fechaProtocolo },
+      sincronizada: false,
+    });
+  }, [fotosNubeSeleccionadas]);
 
   // Si la imagen ya estaba cacheada con CORS, onLoad no re-dispara; inicializar crop manualmente
   useEffect(() => {
@@ -1329,10 +1345,11 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         return { ...prev, [camionSeleccionado]: [...actuales, { storageUrl: key, descripcion: descModalTexto }] };
       });
     } else {
-      setFotosNubeSeleccionadas(prev => [
-        ...prev,
-        { storageUrl: foto.storageUrl ?? null, dataUrl: foto.dataUrl ?? null, dataUrlRecortado: imagenFinal, descripcion: descModalTexto },
-      ]);
+      const key = foto.storageUrl || foto.dataUrl;
+      setFotosNubeSeleccionadas(prev => {
+        if (prev.some(f => (f.storageUrl || f.dataUrl) === key)) return prev;
+        return [...prev, { storageUrl: foto.storageUrl ?? null, dataUrl: foto.dataUrl ?? null, dataUrlRecortado: imagenFinal, descripcion: descModalTexto }];
+      });
     }
     cerrarFotoNubeModal();
   }
