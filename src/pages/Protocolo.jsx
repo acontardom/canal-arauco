@@ -767,22 +767,27 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     if (!protocolo?.id) return;
     const token = crypto.randomUUID();
 
-    const fotosSubidas = await subirFotosNubePendientes(fotosNubeSeleccionadas);
-
-    let fotoAutocadFinal = fotoAutocad;
-    let fotoTablaFinal = fotoTabla;
-    if (esCOTAS) {
-      if (fotoAutocad?.dataUrl && !fotoAutocad?.storageUrl) {
-        const url = await uploadFoto(fotoAutocad.dataUrl, { tipo, entidadId, carpeta: 'protocolos/COTAS', archivo: `autocad_${Date.now()}.jpg` });
-        if (url) fotoAutocadFinal = { storageUrl: url };
+    let datosActuales;
+    if (esHA) {
+      const fotosRecortadasUrls = await subirFotosRecortadasHA(fotosRecortadas);
+      if (fotosRecortadasUrls !== fotosRecortadas) setFotosRecortadas(fotosRecortadasUrls);
+      datosActuales = { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadasUrls, fotosGaleriaHA, observaciones, fechaProtocolo };
+    } else {
+      const fotosSubidas = await subirFotosNubePendientes(fotosNubeSeleccionadas);
+      let fotoAutocadFinal = fotoAutocad;
+      let fotoTablaFinal = fotoTabla;
+      if (esCOTAS) {
+        if (fotoAutocad?.dataUrl && !fotoAutocad?.storageUrl) {
+          const url = await uploadFoto(fotoAutocad.dataUrl, { tipo, entidadId, carpeta: 'protocolos/COTAS', archivo: `autocad_${Date.now()}.jpg` });
+          if (url) fotoAutocadFinal = { storageUrl: url };
+        }
+        if (fotoTabla?.dataUrl && !fotoTabla?.storageUrl) {
+          const url = await uploadFoto(fotoTabla.dataUrl, { tipo, entidadId, carpeta: 'protocolos/COTAS', archivo: `tabla_${Date.now()}.jpg` });
+          if (url) fotoTablaFinal = { storageUrl: url };
+        }
       }
-      if (fotoTabla?.dataUrl && !fotoTabla?.storageUrl) {
-        const url = await uploadFoto(fotoTabla.dataUrl, { tipo, entidadId, carpeta: 'protocolos/COTAS', archivo: `tabla_${Date.now()}.jpg` });
-        if (url) fotoTablaFinal = { storageUrl: url };
-      }
+      datosActuales = { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fotoAutocad: fotoAutocadFinal, fotoTabla: fotoTablaFinal, fechaProtocolo };
     }
-
-    const datosActuales = { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fotoAutocad: fotoAutocadFinal, fotoTabla: fotoTablaFinal, fechaProtocolo };
 
     await escribirProtocolo({ estado: 'enviado_ito', firmaToken: token }, datosActuales);
 
@@ -803,22 +808,27 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     if (!protocolo?.id) return;
     const nuevoToken = crypto.randomUUID();
 
-    const fotosSubidas = await subirFotosNubePendientes(fotosNubeSeleccionadas);
-
-    let fotoAutocadFinal = fotoAutocad;
-    let fotoTablaFinal = fotoTabla;
-    if (esCOTAS) {
-      if (fotoAutocad?.dataUrl && !fotoAutocad?.storageUrl) {
-        const url = await uploadFoto(fotoAutocad.dataUrl, { tipo, entidadId, carpeta: 'protocolos/COTAS', archivo: `autocad_${Date.now()}.jpg` });
-        if (url) fotoAutocadFinal = { storageUrl: url };
+    let datosActuales;
+    if (esHA) {
+      const fotosRecortadasUrls = await subirFotosRecortadasHA(fotosRecortadas);
+      if (fotosRecortadasUrls !== fotosRecortadas) setFotosRecortadas(fotosRecortadasUrls);
+      datosActuales = { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadasUrls, fotosGaleriaHA, observaciones, fechaProtocolo };
+    } else {
+      const fotosSubidas = await subirFotosNubePendientes(fotosNubeSeleccionadas);
+      let fotoAutocadFinal = fotoAutocad;
+      let fotoTablaFinal = fotoTabla;
+      if (esCOTAS) {
+        if (fotoAutocad?.dataUrl && !fotoAutocad?.storageUrl) {
+          const url = await uploadFoto(fotoAutocad.dataUrl, { tipo, entidadId, carpeta: 'protocolos/COTAS', archivo: `autocad_${Date.now()}.jpg` });
+          if (url) fotoAutocadFinal = { storageUrl: url };
+        }
+        if (fotoTabla?.dataUrl && !fotoTabla?.storageUrl) {
+          const url = await uploadFoto(fotoTabla.dataUrl, { tipo, entidadId, carpeta: 'protocolos/COTAS', archivo: `tabla_${Date.now()}.jpg` });
+          if (url) fotoTablaFinal = { storageUrl: url };
+        }
       }
-      if (fotoTabla?.dataUrl && !fotoTabla?.storageUrl) {
-        const url = await uploadFoto(fotoTabla.dataUrl, { tipo, entidadId, carpeta: 'protocolos/COTAS', archivo: `tabla_${Date.now()}.jpg` });
-        if (url) fotoTablaFinal = { storageUrl: url };
-      }
+      datosActuales = { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fotoAutocad: fotoAutocadFinal, fotoTabla: fotoTablaFinal, fechaProtocolo };
     }
-
-    const datosActuales = { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fotoAutocad: fotoAutocadFinal, fotoTabla: fotoTablaFinal, fechaProtocolo };
 
     await escribirProtocolo({ estado: 'enviado_ito', firmaToken: nuevoToken, observacionIto: null }, datosActuales);
 
