@@ -127,6 +127,47 @@ export default function Firma() {
 
   async function generarBlobPDF(data, datosProto, fotosAdj) {
     try {
+      const esHA = data.protocolo_id === 'HA_RADIER' || data.protocolo_id === 'HA_MURO';
+
+      let camiones = [];
+      if (esHA && supabase) {
+        const uso = data.protocolo_id === 'HA_RADIER' ? 'radier' : 'muro';
+        const { data: camionesData } = await supabase
+          .from('camiones')
+          .select('*')
+          .eq('tipo_entidad', data.tipo)
+          .eq('entidad_id', String(data.entidad_id))
+          .eq('uso_hormigon', uso)
+          .in('tipo_hormigon', ['G20', 'G25', 'G30']);
+        camiones = (camionesData ?? []).map(r => ({
+          key:              `sb-${r.id}`,
+          supabaseId:       r.id,
+          localId:          r.local_id ?? null,
+          tipoEntidad:      r.tipo_entidad,
+          entidadId:        r.entidad_id,
+          tipoHormigon:     r.tipo_hormigon,
+          volumen:          r.volumen,
+          numeroGuia:       r.numero_guia,
+          planta:           r.planta,
+          cono:             r.cono,
+          tempHormigon:     r.temp_hormigon,
+          tempAmbiente:     r.temp_ambiente,
+          horaCarga:        r.hora_carga,
+          horaDescarga:     r.hora_descarga,
+          tiempoTraslado:   r.tiempo_traslado,
+          puCalculado:      r.pu_calculado,
+          observaciones:    r.observaciones,
+          usuarioNombre:    r.usuario_nombre,
+          fechaRecepcion:   r.fecha_recepcion,
+          fotoGuia:         r.foto_guia,
+          fotosEnsayo:      r.fotos_ensayo ?? [],
+          pesoHoyaHormigon: r.peso_hoya_hormigon,
+          estadoCalidad:    r.estado_calidad ?? null,
+          fotoGuiaUrl:      r.foto_guia_url ?? null,
+          fotosEnsayoUrls:  r.fotos_ensayo_urls ?? [],
+        }));
+      }
+
       const protMapeado = {
         id:                data.id,
         protocoloId:       data.protocolo_id,
@@ -145,7 +186,7 @@ export default function Firma() {
       const fotosParaPDF = combinarFotos(datosProto, fotosAdj, data.protocolo_id);
       const kmInicio = (datosProto ?? {}).kmInicio ?? '';
       const kmFin    = (datosProto ?? {}).kmFin    ?? '';
-      const { doc } = await construirDocumentoPDF(protMapeado, fotosParaPDF, kmInicio, kmFin, [], null, fechaFirmaITO);
+      const { doc } = await construirDocumentoPDF(protMapeado, fotosParaPDF, kmInicio, kmFin, camiones, null, fechaFirmaITO);
       const blob = doc.output('blob');
       setPdfBlobUrl(URL.createObjectURL(blob));
     } catch {

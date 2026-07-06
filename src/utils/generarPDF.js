@@ -999,7 +999,7 @@ async function construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64, fir
   const entidad = `${NOMBRES_TIPO[protocolo.tipo] ?? protocolo.tipo} ${protocolo.entidadId}`;
 
   const H_AUTOCAD = CW * 4 / 16;  // ~45mm
-  const H_TABLA   = CW * 6 / 16;  // ~68mm
+  const H_TABLA   = CW * 10 / 16; // ~114mm
   const GAP = 4;
 
   // Precargar fotos antes de dibujar (para poder estimar la altura total)
@@ -1019,7 +1019,6 @@ async function construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64, fir
   const totalPaginas = (90 + fotosTotalH + PIE_FIRMA_H < PH) ? 1 : 2;
 
   // ── Tabla info compacta en 2 columnas ────────────────────────────────────────
-  const cotaPRStr = datos.cotaPR != null && datos.cotaPR !== '' ? `${datos.cotaPR} m` : '';
   const LW = 35; // ancho columna label
   const VW = CW / 2 - LW; // ancho columna valor
 
@@ -1032,7 +1031,6 @@ async function construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64, fir
     body: [
       ['Ítem',         entidad,                    'Fecha Control',   datos.fechaControl || ''],
       ['N° Control',   String(datos.nControl ?? ''),'Instrumento N/S', datos.instrumentoNS || ''],
-      ['Nombre PR',    datos.nombrePR || '',        'Cota PR',         cotaPRStr],
       ['Comuna',       'Yungay',                   'Responsable',     'Álvaro Muñoz'],
     ],
     columnStyles: {
