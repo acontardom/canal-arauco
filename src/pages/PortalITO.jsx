@@ -19,6 +19,7 @@ const NOMBRE_PROT = Object.fromEntries(PROTOCOLOS.map(p => [p.id, p.nombre]));
 
 const COLUMNAS_ITO = [
   { id: 'PICE1',        label: 'Excav.'    },
+  { id: 'G5',           label: 'Emplant.'  },
   { id: 'PICE2_RADIER', label: 'H. Rad.'   },
   { id: 'PICE2_MURO',   label: 'H. Muro'   },
   { id: 'PICE3',        label: 'Moldaje'   },
