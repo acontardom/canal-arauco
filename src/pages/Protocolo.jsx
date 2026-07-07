@@ -434,6 +434,29 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   }, [protocolo?.supabaseId]);
 
   const [fotosTerreno, setFotosTerreno] = useState([]);
+  const [fotosProtocoloNube, setFotosProtocoloNube] = useState([]);
+
+  // Fotos subidas directo al protocolo por otro dispositivo (tabla fotos de Supabase).
+  // Solo lectura — Firma.jsx las incluye en el PDF; aquí solo se muestran para revisión.
+  useEffect(() => {
+    if (!protocolo?.supabaseId) return;
+    let cancelado = false;
+    supabase
+      .from('fotos')
+      .select('id, storage_url, descripcion')
+      .eq('protocolo_id', protocolo.supabaseId)
+      .then(({ data }) => {
+        if (cancelado || !data) return;
+        setFotosProtocoloNube(data.map(f => ({
+          id: `nube-proto-${f.id}`,
+          storageUrl: f.storage_url ?? null,
+          dataUrl: null,
+          descripcion: f.descripcion ?? '',
+          origen: 'nube-protocolo',
+        })));
+      });
+    return () => { cancelado = true; };
+  }, [protocolo?.supabaseId]);
 
   // Fotos desde la nube de fotos terreno: Supabase es la fuente principal,
   // Dexie local es solo fallback si no hay conexión.
@@ -627,7 +650,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         function aplicarDatos(d) {
           if (d.fechaProtocolo) setFechaProtocolo(d.fechaProtocolo);
           if (esCOTAS) {
-            setCotasFechaControl(d.fechaControl ?? fechaHoy());
+            setCotasFechaControl(d.fechaControl ?? d.fechaProtocolo ?? fechaHoy());
             setCotasNControl(d.nControl ?? '');
             setCotasInstrumento(d.instrumentoNS ?? 'WP209485');
             setCotasNombrePR(d.nombrePR ?? '');
@@ -783,6 +806,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     if (!protocolo?.id) return;
     const token = crypto.randomUUID();
 
+    // Sincronizar fotos de cámara a Supabase antes de enviar, para que el ITO las vea en el PDF
+    try { await sincronizar(); } catch (err) { console.warn('[enviarAlITO] sincronizar falló:', err?.message ?? err); }
+
     let datosActuales;
     if (esHA) {
       const fotosRecortadasUrls = await subirFotosRecortadasHA(fotosRecortadas);
@@ -802,7 +828,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           if (url) fotoTablaFinal = { storageUrl: url };
         }
       }
-      datosActuales = { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fotoAutocad: fotoAutocadFinal, fotoTabla: fotoTablaFinal, fechaProtocolo };
+      datosActuales = esCOTAS
+        ? { fechaControl: cotasFechaControl, nControl: cotasNControl, instrumentoNS: cotasInstrumento, nombrePR: cotasNombrePR, cotaPR: cotasCotaPR, observacionCotas: cotasObs, fotoAutocad: fotoAutocadFinal, fotoTabla: fotoTablaFinal, fechaProtocolo }
+        : { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fotoAutocad: fotoAutocadFinal, fotoTabla: fotoTablaFinal, fechaProtocolo };
     }
 
     await escribirProtocolo({ estado: 'enviado_ito', firmaToken: token }, datosActuales);
@@ -824,6 +852,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     if (!protocolo?.id) return;
     const nuevoToken = crypto.randomUUID();
 
+    // Sincronizar fotos de cámara a Supabase antes de enviar, para que el ITO las vea en el PDF
+    try { await sincronizar(); } catch (err) { console.warn('[marcarListoParaRevision] sincronizar falló:', err?.message ?? err); }
+
     let datosActuales;
     if (esHA) {
       const fotosRecortadasUrls = await subirFotosRecortadasHA(fotosRecortadas);
@@ -843,7 +874,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           if (url) fotoTablaFinal = { storageUrl: url };
         }
       }
-      datosActuales = { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fotoAutocad: fotoAutocadFinal, fotoTabla: fotoTablaFinal, fechaProtocolo };
+      datosActuales = esCOTAS
+        ? { fechaControl: cotasFechaControl, nControl: cotasNControl, instrumentoNS: cotasInstrumento, nombrePR: cotasNombrePR, cotaPR: cotasCotaPR, observacionCotas: cotasObs, fotoAutocad: fotoAutocadFinal, fotoTabla: fotoTablaFinal, fechaProtocolo }
+        : { checklist, observaciones, fotosNubeSeleccionadas: fotosSubidas, fotoAutocad: fotoAutocadFinal, fotoTabla: fotoTablaFinal, fechaProtocolo };
     }
 
     await escribirProtocolo({ estado: 'enviado_ito', firmaToken: nuevoToken, observacionIto: null }, datosActuales);
@@ -1463,6 +1496,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     : [
         ...fotos.map(f => ({ id: `nueva-${f.id}`, fotoId: f.id, dataUrl: f.dataUrl, storageUrl: f.storageUrl ?? null, descripcion: f.descripcion ?? '', origen: 'nueva' })),
         ...fotosNubeData,
+        ...fotosProtocoloNube,
       ];
 
   const fotosSugeridas = defaultsDef?.fotos_sugeridas ?? [];
@@ -1727,17 +1761,19 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           <p style={s.subSeccionTitulo}>Fotos seleccionadas{fotosCombinadas.length > 0 ? ` (${fotosCombinadas.length})` : ''}</p>
           {fotosCombinadas.length > 0 ? (
             <div style={s.fotosGrid}>
-              {fotosCombinadas.map(foto => (
+              {fotosCombinadas.map(foto => {
+                const esSoloLectura = readOnly || foto.origen === 'nube-protocolo';
+                return (
                 <div key={foto.id} style={s.fotoCard}>
                   <div
-                    style={{ ...s.fotoThumb, cursor: readOnly ? 'default' : 'pointer' }}
-                    onClick={() => abrirEditarFoto(foto)}
+                    style={{ ...s.fotoThumb, cursor: esSoloLectura ? 'default' : 'pointer' }}
+                    onClick={() => !esSoloLectura && abrirEditarFoto(foto)}
                   >
                     <img src={foto.dataUrlRecortado || foto.storageUrlRecortado || foto.dataUrl || foto.storageUrl} alt="" style={s.fotoImg} />
-                    {!readOnly && (
+                    {!esSoloLectura && (
                       <div style={s.fotoThumbOverlay}>✏️</div>
                     )}
-                    {!readOnly && (
+                    {!esSoloLectura && (
                       <button
                         style={s.btnEliminarFoto}
                         onClick={e => { e.stopPropagation(); if (foto.origen === 'nueva') { eliminarFoto(foto.fotoId); } else if (foto.origen === 'galeria-ha') { setFotosGaleriaHA(prev => ({ ...prev, [camionSeleccionado]: (prev[camionSeleccionado] ?? []).filter(f => f.storageUrl !== foto.key) })); } else { quitarFotoNube(foto.key); } }}
@@ -1746,19 +1782,26 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                         ×
                       </button>
                     )}
+                    {foto.origen === 'nube-protocolo' && (
+                      <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.55)', color: '#fff', fontSize: 9, padding: '1px 5px', borderRadius: 4 }}>terreno</div>
+                    )}
                   </div>
                   <input
                     type="text"
                     defaultValue={foto.descripcion}
                     placeholder="Descripción..."
                     style={s.fotoDescInput}
-                    readOnly={readOnly}
-                    onBlur={e => foto.origen === 'nueva'
-                      ? db.fotos.update(foto.fotoId, { descripcion: e.target.value })
-                      : setDescFotoNube(foto.key, e.target.value)}
+                    readOnly={esSoloLectura}
+                    onBlur={e => {
+                      if (esSoloLectura) return;
+                      foto.origen === 'nueva'
+                        ? db.fotos.update(foto.fotoId, { descripcion: e.target.value })
+                        : setDescFotoNube(foto.key, e.target.value);
+                    }}
                   />
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <p style={s.sinFotos}>Sin fotos seleccionadas</p>

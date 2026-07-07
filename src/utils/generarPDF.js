@@ -1047,17 +1047,23 @@ async function construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64, fir
     theme: 'grid',
   });
 
-  y = doc.lastAutoTable.finalY;
+  y = doc.lastAutoTable.finalY + 3;
 
+  doc.setFont(undefined, 'bold'); doc.setFontSize(8); doc.setTextColor(30, 30, 30);
+  doc.text('Observación:', ML, y);
+  y += 4;
+  doc.setFont(undefined, 'normal'); doc.setFontSize(7.5); doc.setTextColor(30, 30, 30);
   if (datos.observacionCotas) {
-    y += 3;
-    doc.setFont(undefined, 'bold'); doc.setFontSize(8); doc.setTextColor(30, 30, 30);
-    doc.text('Observación:', ML, y);
-    y += 4;
-    doc.setFont(undefined, 'normal'); doc.setFontSize(7.5);
-    const lines = doc.splitTextToSize(datos.observacionCotas, CW);
+    const lines = doc.splitTextToSize(datos.observacionCotas, CW - 4);
     doc.text(lines, ML, y);
-    y += lines.length * 4 + 2;
+    const obsH = Math.max(10, lines.length * 4 + 4);
+    doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.2);
+    doc.rect(ML, y - 3, CW, obsH);
+    y += obsH + 1;
+  } else {
+    doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.2);
+    doc.rect(ML, y - 3, CW, 10);
+    y += 11;
   }
 
   // ── Fotos: misma página si caben, página nueva si no ─────────────────────────
