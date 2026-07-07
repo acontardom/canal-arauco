@@ -267,7 +267,7 @@ async function sincronizarFotosTerreno() {
 
 // ─── Sincronización de fotos ──────────────────────────────────────────────────
 
-async function sincronizarFotos() {
+export async function sincronizarFotos() {
   const pendientes = await db.fotos
     .filter(f => !f.sincronizada)
     .toArray();

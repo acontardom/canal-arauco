@@ -9,7 +9,7 @@ import { PROTOCOLOS, CHECKLISTS, CHECKLIST_DEFAULTS, TRAMOS, CAIDAS, ATRAVIESOS 
 import { generarPDF, construirDocumentoPDF } from '../utils/generarPDF';
 import { useKm } from '../hooks/useKm';
 import { useAuth } from '../hooks/useAuth';
-import { sincronizar } from '../utils/sync';
+import { sincronizar, sincronizarFotos } from '../utils/sync';
 import { supabase } from '../config/supabase';
 import { fechaHoy, formatearFecha } from '../utils/fecha';
 import { comprimirFoto } from '../utils/comprimirFoto';
@@ -809,7 +809,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     try {
 
     // Sincronizar fotos de cámara a Supabase antes de enviar, para que el ITO las vea en el PDF
-    try { await sincronizar(); } catch (err) { console.warn('[enviarAlITO] sincronizar falló:', err?.message ?? err); }
+    try { await sincronizarFotos(); } catch (err) { console.warn('[enviarAlITO] sincronizarFotos falló:', err?.message ?? err); }
 
     let datosActuales;
     if (esHA) {
@@ -858,7 +858,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     try {
 
     // Sincronizar fotos de cámara a Supabase antes de enviar, para que el ITO las vea en el PDF
-    try { await sincronizar(); } catch (err) { console.warn('[marcarListoParaRevision] sincronizar falló:', err?.message ?? err); }
+    try { await sincronizarFotos(); } catch (err) { console.warn('[marcarListoParaRevision] sincronizarFotos falló:', err?.message ?? err); }
 
     let datosActuales;
     if (esHA) {
