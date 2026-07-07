@@ -803,8 +803,10 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   }
 
   async function enviarAlITO() {
-    if (!protocolo?.id) return;
+    if (!protocolo?.id || guardando) return;
+    setGuardando(true);
     const token = crypto.randomUUID();
+    try {
 
     // Sincronizar fotos de cámara a Supabase antes de enviar, para que el ITO las vea en el PDF
     try { await sincronizar(); } catch (err) { console.warn('[enviarAlITO] sincronizar falló:', err?.message ?? err); }
@@ -846,11 +848,14 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     const link = `${window.location.origin}/firma/${token}`;
     await navigator.clipboard.writeText(link).catch(() => {});
     alert(`Protocolo enviado al ITO.\nLink copiado al portapapeles:\n${link}`);
+    } finally { setGuardando(false); }
   }
 
   async function marcarListoParaRevision() {
-    if (!protocolo?.id) return;
+    if (!protocolo?.id || guardando) return;
+    setGuardando(true);
     const nuevoToken = crypto.randomUUID();
+    try {
 
     // Sincronizar fotos de cámara a Supabase antes de enviar, para que el ITO las vea en el PDF
     try { await sincronizar(); } catch (err) { console.warn('[marcarListoParaRevision] sincronizar falló:', err?.message ?? err); }
@@ -892,6 +897,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     const link = `${window.location.origin}/firma/${nuevoToken}`;
     await navigator.clipboard.writeText(link).catch(() => {});
     alert(`Protocolo reenviado al ITO.\nNuevo link copiado al portapapeles:\n${link}`);
+    } finally { setGuardando(false); }
   }
 
   async function guardarEdp(valor) {
@@ -2173,7 +2179,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                   onClick={enviarAlITO}
                   disabled={guardando}
                 >
-                  📨 Enviar al ITO
+                  {guardando ? 'Enviando...' : '📨 Enviar al ITO'}
                 </button>
               )}
             </>
