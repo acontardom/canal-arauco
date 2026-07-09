@@ -15,17 +15,29 @@ const NOMBRES_PROTOCOLO_EDP = {
   HA_RADIER: 'Control_HA_Radier', HA_MURO: 'Control_HA_Muro', COTAS: 'Cotas_Topograficas',
 };
 
-const COLUMNAS_EDP = [
-  { id: 'PICE1',       label: 'Excav.'  },
-  { id: 'G5',          label: 'Empl.'   },
-  { id: 'PICE4_RADIER',label: 'Enf.R'  },
-  { id: 'PICE4_MURO',  label: 'Enf.M'  },
-  { id: 'PICE3',       label: 'Mold.'   },
-  { id: 'PICE2_RADIER',label: 'H.Rad.' },
-  { id: 'PICE2_MURO',  label: 'H.Muro' },
-  { id: 'HA_RADIER',   label: 'HA.R'   },
-  { id: 'HA_MURO',     label: 'HA.M'   },
-  { id: 'COTAS',       label: 'Cotas'  },
+const COLUMNAS_EDP_TRAMO = [
+  { id: 'PICE1',        label: 'Excav.'   },
+  { id: 'G5',           label: 'Empl.'    },
+  { id: 'PICE4_RADIER', label: 'Enfierr.' },
+  { id: 'PICE3',        label: 'Mold.'    },
+  { id: 'PICE2_RADIER', label: 'H.Rad.'  },
+  { id: 'PICE2_MURO',   label: 'H.Muro'  },
+  { id: 'HA_RADIER',    label: 'HA.R'    },
+  { id: 'HA_MURO',      label: 'HA.M'    },
+  { id: 'COTAS',        label: 'Cotas'   },
+];
+
+const COLUMNAS_EDP_CAIDA = [
+  { id: 'PICE1',        label: 'Excav.'  },
+  { id: 'G5',           label: 'Empl.'   },
+  { id: 'PICE4_RADIER', label: 'Enf.R'  },
+  { id: 'PICE4_MURO',   label: 'Enf.M'  },
+  { id: 'PICE3',        label: 'Mold.'   },
+  { id: 'PICE2_RADIER', label: 'H.Rad.' },
+  { id: 'PICE2_MURO',   label: 'H.Muro' },
+  { id: 'HA_RADIER',    label: 'HA.R'   },
+  { id: 'HA_MURO',      label: 'HA.M'   },
+  { id: 'COTAS',        label: 'Cotas'  },
 ];
 
 const COLORES_EDP = {
@@ -79,7 +91,7 @@ function MatrizEDP({ protocolos, seleccionados, onToggle, esAdmin }) {
   const thSt  = { padding: '4px 3px', textAlign: 'center', color: '#8892b0', fontWeight: 400, whiteSpace: 'nowrap', fontSize: 10 };
   const tdLbl = { padding: '2px 8px', fontWeight: 500, fontSize: 12, whiteSpace: 'nowrap', color: '#ccd6f6' };
 
-  function Tabla({ titulo, filas, tipoEntidad }) {
+  function Tabla({ titulo, filas, tipoEntidad, columnas }) {
     return (
       <>
         <div style={ms.secLabel}>{titulo}</div>
@@ -87,14 +99,14 @@ function MatrizEDP({ protocolos, seleccionados, onToggle, esAdmin }) {
           <thead>
             <tr>
               <th style={{ ...thSt, textAlign: 'left' }} />
-              {COLUMNAS_EDP.map(col => <th key={col.id} style={thSt}>{col.label}</th>)}
+              {columnas.map(col => <th key={col.id} style={thSt}>{col.label}</th>)}
             </tr>
           </thead>
           <tbody>
             {filas.map(id => (
               <tr key={id}>
                 <td style={tdLbl}>{id}</td>
-                {COLUMNAS_EDP.map(col => renderCelda(tipoEntidad, id, col))}
+                {columnas.map(col => renderCelda(tipoEntidad, id, col))}
               </tr>
             ))}
           </tbody>
@@ -105,9 +117,9 @@ function MatrizEDP({ protocolos, seleccionados, onToggle, esAdmin }) {
 
   return (
     <div style={{ overflowX: 'auto' }}>
-      <Tabla titulo="TRAMOS"    filas={TRAMOS}     tipoEntidad="tramo"     />
-      <Tabla titulo="CAÍDAS"    filas={CAIDAS}     tipoEntidad="caida"     />
-      <Tabla titulo="ATRAVIESOS" filas={ATRAVIESOS} tipoEntidad="atravieso" />
+      <Tabla titulo="TRAMOS"     filas={TRAMOS}     tipoEntidad="tramo"     columnas={COLUMNAS_EDP_TRAMO} />
+      <Tabla titulo="CAÍDAS"     filas={CAIDAS}     tipoEntidad="caida"     columnas={COLUMNAS_EDP_CAIDA} />
+      <Tabla titulo="ATRAVIESOS" filas={ATRAVIESOS} tipoEntidad="atravieso" columnas={COLUMNAS_EDP_CAIDA} />
     </div>
   );
 }
