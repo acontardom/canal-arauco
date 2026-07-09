@@ -142,7 +142,7 @@ export default function GeneradorEDP() {
   const [numeroEdp,   setNumeroEdp]   = useState(null);
   const [generando,    setGenerando]   = useState(false);
   const [edpGenerado,  setEdpGenerado] = useState(null);
-  const [descargando,  setDescargando] = useState(false);
+  const [descargandoId, setDescargandoId] = useState(null);
 
   useEffect(() => { cargar(); }, []);
 
@@ -205,7 +205,6 @@ export default function GeneradorEDP() {
   }
 
   async function descargarZIP(edp, protocolosEDP) {
-    setDescargando(true);
     const zip = new JSZip();
     const TIPOS       = { tramo: 'Tramos',  caida: 'Caidas',  atravieso: 'Atraviesos' };
     const TIPOS_NOMBRE = { tramo: 'Tramo',  caida: 'Caida',   atravieso: 'Atravieso'  };
@@ -238,11 +237,10 @@ export default function GeneradorEDP() {
     a.download = `EDP_${String(edp.numero).padStart(3, '0')}_Canal_Siberia.zip`;
     a.click();
     URL.revokeObjectURL(url);
-    setDescargando(false);
   }
 
   async function descargarEDPAnterior(edp) {
-    setDescargando(true);
+    setDescargandoId(edp.id);
     try {
       const { data } = await supabase
         .from('edp_protocolos')
@@ -254,12 +252,12 @@ export default function GeneradorEDP() {
       console.error('[EDP] Error al descargar EDP anterior:', err);
       alert('Error al descargar. Intenta nuevamente.');
     } finally {
-      setDescargando(false);
+      setDescargandoId(null);
     }
   }
 
   async function descargarEDPActual(edp) {
-    setDescargando(true);
+    setDescargandoId(edp.id);
     try {
       const { data } = await supabase
         .from('edp_protocolos')
@@ -271,7 +269,7 @@ export default function GeneradorEDP() {
       console.error('[EDP] Error al descargar EDP:', err);
       alert('Error al descargar. Intenta nuevamente.');
     } finally {
-      setDescargando(false);
+      setDescargandoId(null);
     }
   }
 
@@ -344,8 +342,8 @@ export default function GeneradorEDP() {
               </button>
 
               {edpGenerado && (
-                <button onClick={() => descargarEDPActual(edpGenerado)} disabled={descargando} style={s.btnDescargar}>
-                  {descargando ? 'Descargando...' : `↓ Descargar ZIP EDP ${String(edpGenerado.numero).padStart(3, '0')}`}
+                <button onClick={() => descargarEDPActual(edpGenerado)} disabled={descargandoId === edpGenerado.id} style={s.btnDescargar}>
+                  {descargandoId === edpGenerado.id ? 'Descargando...' : `↓ Descargar ZIP EDP ${String(edpGenerado.numero).padStart(3, '0')}`}
                 </button>
               )}
             </div>
@@ -367,8 +365,8 @@ export default function GeneradorEDP() {
                 {edp.fecha_generacion ? ` · ${new Date(edp.fecha_generacion).toLocaleDateString('es-CL')}` : ''}
               </div>
             </div>
-            <button onClick={() => descargarEDPAnterior(edp)} disabled={descargando} style={s.btnDescargarEdp}>
-              {descargando ? 'Descargando...' : '↓ Descargar ZIP'}
+            <button onClick={() => descargarEDPAnterior(edp)} disabled={descargandoId === edp.id} style={s.btnDescargarEdp}>
+              {descargandoId === edp.id ? 'Descargando...' : '↓ Descargar ZIP'}
             </button>
           </div>
         ))}
