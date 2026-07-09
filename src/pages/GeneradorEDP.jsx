@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import JSZip from 'jszip';
 import { supabase } from '../config/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
@@ -139,8 +140,9 @@ export default function GeneradorEDP() {
   const [edps,        setEdps]        = useState([]);
   const [seleccionados, setSeleccionados] = useState([]);
   const [numeroEdp,   setNumeroEdp]   = useState(null);
-  const [generando,   setGenerando]   = useState(false);
-  const [edpGenerado, setEdpGenerado] = useState(null);
+  const [generando,    setGenerando]   = useState(false);
+  const [edpGenerado,  setEdpGenerado] = useState(null);
+  const [descargando,  setDescargando] = useState(false);
 
   useEffect(() => { cargar(); }, []);
 
@@ -202,12 +204,75 @@ export default function GeneradorEDP() {
     }
   }
 
-  async function descargarZIP(edp) {
-    alert('Descarga ZIP — se implementa en el siguiente paso');
+  async function descargarZIP(edp, protocolosEDP) {
+    setDescargando(true);
+    const zip = new JSZip();
+    const TIPOS       = { tramo: 'Tramos',  caida: 'Caidas',  atravieso: 'Atraviesos' };
+    const TIPOS_NOMBRE = { tramo: 'Tramo',  caida: 'Caida',   atravieso: 'Atravieso'  };
+
+    for (const proto of protocolosEDP) {
+      if (!proto.pdf_firmado_url) {
+        console.warn(`[EDP] Sin PDF firmado: ${proto.protocolo_id} ${proto.entidad_id}`);
+        continue;
+      }
+      try {
+        const resp = await fetch(proto.pdf_firmado_url);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const blob = await resp.blob();
+        const tipoCarpeta    = TIPOS[proto.tipo]       ?? proto.tipo;
+        const entidadCarpeta = `${TIPOS_NOMBRE[proto.tipo] ?? proto.tipo}_${proto.entidad_id}`;
+        const carpeta        = `${tipoCarpeta}/${entidadCarpeta}`;
+        const orden          = String(ORDEN_PROTOCOLO[proto.protocolo_id] ?? 99).padStart(2, '0');
+        const nombre         = NOMBRES_PROTOCOLO_EDP[proto.protocolo_id] ?? proto.protocolo_id;
+        const nombreArchivo  = `${orden}_${proto.protocolo_id}_${nombre}.pdf`;
+        zip.folder(carpeta).file(nombreArchivo, blob);
+      } catch (err) {
+        console.warn(`[EDP] Error descargando PDF ${proto.protocolo_id} ${proto.entidad_id}:`, err?.message);
+      }
+    }
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `EDP_${String(edp.numero).padStart(3, '0')}_Canal_Siberia.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setDescargando(false);
   }
 
   async function descargarEDPAnterior(edp) {
-    alert('Descarga EDP anterior — se implementa en el siguiente paso');
+    setDescargando(true);
+    try {
+      const { data } = await supabase
+        .from('edp_protocolos')
+        .select('protocolo:protocolo_id(id, tipo, entidad_id, protocolo_id, pdf_firmado_url)')
+        .eq('edp_id', edp.id);
+      const protocolos = data?.map(r => r.protocolo).filter(Boolean) ?? [];
+      await descargarZIP(edp, protocolos);
+    } catch (err) {
+      console.error('[EDP] Error al descargar EDP anterior:', err);
+      alert('Error al descargar. Intenta nuevamente.');
+    } finally {
+      setDescargando(false);
+    }
+  }
+
+  async function descargarEDPActual(edp) {
+    setDescargando(true);
+    try {
+      const { data } = await supabase
+        .from('edp_protocolos')
+        .select('protocolo:protocolo_id(id, tipo, entidad_id, protocolo_id, pdf_firmado_url)')
+        .eq('edp_id', edp.id);
+      const protocolos = data?.map(r => r.protocolo).filter(Boolean) ?? [];
+      await descargarZIP(edp, protocolos);
+    } catch (err) {
+      console.error('[EDP] Error al descargar EDP:', err);
+      alert('Error al descargar. Intenta nuevamente.');
+    } finally {
+      setDescargando(false);
+    }
   }
 
   const numStr = numeroEdp != null ? String(numeroEdp).padStart(3, '0') : '...';
@@ -279,8 +344,8 @@ export default function GeneradorEDP() {
               </button>
 
               {edpGenerado && (
-                <button onClick={() => descargarZIP(edpGenerado)} style={s.btnDescargar}>
-                  ↓ Descargar ZIP EDP {String(edpGenerado.numero).padStart(3, '0')}
+                <button onClick={() => descargarEDPActual(edpGenerado)} disabled={descargando} style={s.btnDescargar}>
+                  {descargando ? 'Descargando...' : `↓ Descargar ZIP EDP ${String(edpGenerado.numero).padStart(3, '0')}`}
                 </button>
               )}
             </div>
@@ -302,8 +367,8 @@ export default function GeneradorEDP() {
                 {edp.fecha_generacion ? ` · ${new Date(edp.fecha_generacion).toLocaleDateString('es-CL')}` : ''}
               </div>
             </div>
-            <button onClick={() => descargarEDPAnterior(edp)} style={s.btnDescargarEdp}>
-              ↓ Descargar ZIP
+            <button onClick={() => descargarEDPAnterior(edp)} disabled={descargando} style={s.btnDescargarEdp}>
+              {descargando ? 'Descargando...' : '↓ Descargar ZIP'}
             </button>
           </div>
         ))}
