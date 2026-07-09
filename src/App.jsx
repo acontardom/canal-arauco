@@ -31,6 +31,7 @@ import PortalITO from './pages/PortalITO';
 import Firma from './pages/Firma';
 import Protocolo from './pages/Protocolo';
 import GenerarProtocolo from './pages/GenerarProtocolo';
+import GeneradorEDP from './pages/GeneradorEDP';
 import Configuracion from './pages/Configuracion';
 import VistaCanal from './pages/VistaCanal';
 import { descargarDesdeSupabase, iniciarSyncAutomatico } from './utils/sync';
@@ -180,6 +181,7 @@ function AppRoutes({ cargandoSync }) {
         <Route path="/galeria" element={<Galeria />} />
         <Route path="/recepcionar-avance" element={<RecepcionarAvance />} />
         <Route path="/generar-protocolo" element={<GenerarProtocolo />} />
+        <Route path="/generar-edp" element={<GeneradorEDP />} />
         <Route path="/protocolo/:tipo/:entidadId/:protocoloId" element={<Protocolo />} />
         <Route path="/tramos" element={<Tramos />} />
         <Route path="/tramos/:tramoId" element={<TramoDetalle />} />

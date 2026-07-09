@@ -40,6 +40,8 @@ const SECCIONES = [
     titulo: 'Acciones',
     items: [
       { to: '/generar-protocolo', label: 'Generar Protocolo', icono: '📋' },
+      { to: '/generar-edp', label: 'Generar EDP',    icono: '📄', soloAdmin: true },
+      { to: '/generar-edp', label: 'Estado de Pagos', icono: '📄', noAdmin: true  },
     ],
   },
 ];
@@ -85,8 +87,11 @@ export default function Sidebar() {
           <div key={seccion.titulo} style={s.seccion}>
             <p style={s.seccionTitulo}>{seccion.titulo}</p>
             {seccion.items
-              .filter(item => !item.soloAdmin || usuario?.rol === 'admin')
-              .map(item => <Item key={item.to} {...item} />)
+              .filter(item =>
+                (!item.soloAdmin || usuario?.rol === 'admin') &&
+                (!item.noAdmin   || usuario?.rol !== 'admin')
+              )
+              .map(item => <Item key={item.to + item.label} {...item} />)
             }
           </div>
         ))}
