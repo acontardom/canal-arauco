@@ -144,6 +144,9 @@ export default function GeneradorEDP() {
       .from('edp')
       .select('*, edp_protocolos(protocolo_id)')
       .order('numero', { ascending: false });
+    console.log('[EDP] edpsData:', edpsData);
+    console.log('[EDP] maxEdp:', edpsData?.[0]?.numero);
+    console.log('[EDP] numeroEdp calculado:', (edpsData?.[0]?.numero ?? 0) + 1);
     setEdps(edpsData ?? []);
 
     const maxEdp = edpsData?.[0]?.numero ?? 0;
