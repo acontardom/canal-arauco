@@ -143,6 +143,7 @@ export default function GeneradorEDP() {
   const [generando,    setGenerando]   = useState(false);
   const [edpGenerado,  setEdpGenerado] = useState(null);
   const [descargandoId, setDescargandoId] = useState(null);
+  const [progreso, setProgreso] = useState({ actual: 0, total: 0, fallidos: [] });
 
   useEffect(() => { cargar(); }, []);
 
@@ -204,30 +205,50 @@ export default function GeneradorEDP() {
     }
   }
 
+  async function fetchConReintentos(url, intentos = 3) {
+    for (let i = 0; i < intentos; i++) {
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        return await resp.blob();
+      } catch (err) {
+        if (i === intentos - 1) throw err;
+        await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+      }
+    }
+  }
+
   async function descargarZIP(edp, protocolosEDP) {
+    setDescargandoId(edp.id);
+    const conPDF = protocolosEDP.filter(p => p.pdf_firmado_url);
+    setProgreso({ actual: 0, total: conPDF.length, fallidos: [] });
+
     const zip = new JSZip();
-    const TIPOS       = { tramo: 'Tramos',  caida: 'Caidas',  atravieso: 'Atraviesos' };
+    const TIPOS        = { tramo: 'Tramos', caida: 'Caidas',  atravieso: 'Atraviesos' };
     const TIPOS_NOMBRE = { tramo: 'Tramo',  caida: 'Caida',   atravieso: 'Atravieso'  };
 
-    for (const proto of protocolosEDP) {
-      if (!proto.pdf_firmado_url) {
-        console.warn(`[EDP] Sin PDF firmado: ${proto.protocolo_id} ${proto.entidad_id}`);
-        continue;
-      }
-      try {
-        const resp = await fetch(proto.pdf_firmado_url);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const blob = await resp.blob();
-        const tipoCarpeta    = TIPOS[proto.tipo]       ?? proto.tipo;
-        const entidadCarpeta = `${TIPOS_NOMBRE[proto.tipo] ?? proto.tipo}_${proto.entidad_id}`;
-        const carpeta        = `${tipoCarpeta}/${entidadCarpeta}`;
-        const orden          = String(ORDEN_PROTOCOLO[proto.protocolo_id] ?? 99).padStart(2, '0');
-        const nombre         = NOMBRES_PROTOCOLO_EDP[proto.protocolo_id] ?? proto.protocolo_id;
-        const nombreArchivo  = `${orden}_${proto.protocolo_id}_${nombre}.pdf`;
-        zip.folder(carpeta).file(nombreArchivo, blob);
-      } catch (err) {
-        console.warn(`[EDP] Error descargando PDF ${proto.protocolo_id} ${proto.entidad_id}:`, err?.message);
-      }
+    const fallidos = [];
+    const LOTE = 5;
+    for (let i = 0; i < conPDF.length; i += LOTE) {
+      const lote = conPDF.slice(i, i + LOTE);
+      await Promise.all(lote.map(async (proto) => {
+        try {
+          const blob = await fetchConReintentos(proto.pdf_firmado_url);
+          const tipoCarpeta    = TIPOS[proto.tipo]        ?? proto.tipo;
+          const entidadCarpeta = `${TIPOS_NOMBRE[proto.tipo] ?? proto.tipo}_${proto.entidad_id}`;
+          const carpeta        = `${tipoCarpeta}/${entidadCarpeta}`;
+          const orden          = String(ORDEN_PROTOCOLO[proto.protocolo_id] ?? 99).padStart(2, '0');
+          const nombre         = NOMBRES_PROTOCOLO_EDP[proto.protocolo_id] ?? proto.protocolo_id;
+          const nombreArchivo  = `${orden}_${proto.protocolo_id}_${nombre}.pdf`;
+          zip.folder(carpeta).file(nombreArchivo, blob);
+          setProgreso(prev => ({ ...prev, actual: prev.actual + 1 }));
+        } catch (err) {
+          console.warn(`[EDP] Falló: ${proto.protocolo_id} ${proto.entidad_id}`, err?.message);
+          const etiqueta = `${proto.tipo} ${proto.entidad_id} — ${proto.protocolo_id}`;
+          fallidos.push(etiqueta);
+          setProgreso(prev => ({ ...prev, actual: prev.actual + 1, fallidos: [...prev.fallidos, etiqueta] }));
+        }
+      }));
     }
 
     const zipBlob = await zip.generateAsync({ type: 'blob' });
@@ -237,6 +258,13 @@ export default function GeneradorEDP() {
     a.download = `EDP_${String(edp.numero).padStart(3, '0')}_Canal_Siberia.zip`;
     a.click();
     URL.revokeObjectURL(url);
+
+    if (fallidos.length > 0) {
+      alert(`ZIP descargado con ${conPDF.length - fallidos.length} de ${conPDF.length} PDFs.\n\nFallaron:\n${fallidos.join('\n')}`);
+    }
+
+    setDescargandoId(null);
+    setProgreso({ actual: 0, total: 0, fallidos: [] });
   }
 
   async function descargarEDPAnterior(edp) {
@@ -345,6 +373,28 @@ export default function GeneradorEDP() {
                 <button onClick={() => descargarEDPActual(edpGenerado)} disabled={descargandoId === edpGenerado.id} style={s.btnDescargar}>
                   {descargandoId === edpGenerado.id ? 'Descargando...' : `↓ Descargar ZIP EDP ${String(edpGenerado.numero).padStart(3, '0')}`}
                 </button>
+              )}
+
+              {progreso.total > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 12, color: '#8892b0', marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Descargando PDFs...</span>
+                    <span>{progreso.actual} / {progreso.total}</span>
+                  </div>
+                  <div style={{ background: '#0f3460', borderRadius: 4, height: 6, overflow: 'hidden' }}>
+                    <div style={{
+                      background: '#60a5fa',
+                      height: '100%',
+                      width: `${(progreso.actual / progreso.total) * 100}%`,
+                      transition: 'width 0.3s ease',
+                    }} />
+                  </div>
+                  {progreso.fallidos.length > 0 && (
+                    <div style={{ fontSize: 11, color: '#fbbf24', marginTop: 4 }}>
+                      {progreso.fallidos.length} fallidos — se incluirán los disponibles
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>
