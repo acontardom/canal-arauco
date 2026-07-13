@@ -1215,10 +1215,47 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   async function guardarFotoNueva(croppedDataUrl, nombre, tipoMime) {
     if (!croppedDataUrl) return;
-    if (!protocolo?.supabaseId) {
-      mostrarToast('El protocolo no está sincronizado aún', 'error');
-      return;
+
+    let protocoloSupabaseId = protocolo?.supabaseId;
+
+    // Si el protocolo aún no existe en Supabase, crearlo ahora como borrador vacío.
+    // Esto ocurre solo la primera vez que el usuario adjunta una foto.
+    if (!protocoloSupabaseId) {
+      const localId = await obtenerOCrearId();
+      const localRecord = await db.protocolos.get(localId);
+      if (!localRecord) { mostrarToast('Error al preparar protocolo', 'error'); return; }
+
+      const hoy = fechaHoy();
+      const payload = {
+        device_protocolo_id: localRecord.deviceProtocoloId,
+        local_id:            localRecord.id,
+        tipo:                localRecord.tipo,
+        entidad:             localRecord.entidad ?? localRecord.tipo,
+        entidad_id:          String(localRecord.entidadId),
+        protocolo_id:        localRecord.protocoloId,
+        estado:              localRecord.estado ?? 'borrador',
+        usuario_nombre:      localRecord.usuarioNombre ?? null,
+        fecha_creacion:      localRecord.fechaCreacion ?? hoy,
+        fecha_modificacion:  hoy,
+        datos:               localRecord.datos ?? {},
+      };
+
+      const { data: protData, error: protError } = await supabase
+        .from('protocolos')
+        .upsert(payload, { onConflict: 'device_protocolo_id' })
+        .select('id')
+        .single();
+
+      if (protError || !protData) {
+        console.warn('[Foto] Error al crear protocolo en Supabase:', protError?.message);
+        mostrarToast('Error al crear protocolo en servidor', 'error');
+        return;
+      }
+
+      await db.protocolos.update(localId, { supabaseId: protData.id, sincronizada: true });
+      protocoloSupabaseId = protData.id;
     }
+
     try {
       const storageUrl = await uploadFoto(croppedDataUrl, {
         tipo, entidadId: entidadIdReal, carpeta: 'protocolos', archivo: nombre,
@@ -1228,9 +1265,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       const { data: fotoSupabase } = await supabase
         .from('fotos')
         .insert({
-          protocolo_id: protocolo.supabaseId,
-          storage_url: storageUrl,
-          descripcion: '',
+          protocolo_id:   protocoloSupabaseId,
+          storage_url:    storageUrl,
+          descripcion:    '',
           device_foto_id: crypto.randomUUID(),
         })
         .select()
