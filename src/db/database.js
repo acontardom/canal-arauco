@@ -100,6 +100,7 @@ db.version(13).stores({
 db.camiones.hook('creating', (primKey, obj) => {
   if (!obj.deviceCamionId) obj.deviceCamionId = generateUUID();
 });
+// protocolos: tabla legacy — ya no se usa activamente, Supabase es la fuente de verdad
 db.protocolos.hook('creating', (primKey, obj) => {
   if (!obj.deviceProtocoloId) obj.deviceProtocoloId = generateUUID();
 });

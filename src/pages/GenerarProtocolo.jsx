@@ -1,51 +1,24 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TRAMOS, CAIDAS, ATRAVIESOS, PROTOCOLOS } from '../constants/estructura';
-import { db } from '../db/database';
 import { supabase } from '../config/supabase';
 import Protocolo from './Protocolo';
 
 async function cargarProtocolo(tipo, entidadId, protocoloId) {
-  if (navigator.onLine && supabase) {
-    try {
-      const { data } = await supabase
-        .from('protocolos')
-        .select('*')
-        .eq('tipo', tipo)
-        .eq('entidad_id', String(entidadId))
-        .eq('protocolo_id', protocoloId)
-        .single();
-
-      if (data) {
-        const local = await db.protocolos
-          .filter(p => p.protocoloId === protocoloId &&
-            String(p.entidadId) === String(entidadId) &&
-            p.tipo === tipo)
-          .first();
-
-        if (local) {
-          await db.protocolos.update(local.id, {
-            estado:         data.estado,
-            datos:          data.datos,
-            observacionIto: data.observacion_ito  ?? null,
-            firmaToken:     data.firma_token       ?? null,
-            firmaImagenUrl: data.firma_imagen_url  ?? null,
-            pdfFirmadoUrl:  data.pdf_firmado_url   ?? null,
-            sincronizada:   true,
-          });
-        }
-        return data;
-      }
-    } catch (err) {
-      console.warn('[GenerarProtocolo] Error Supabase, usando Dexie:', err?.message);
-    }
+  if (!navigator.onLine || !supabase) return null;
+  try {
+    const { data } = await supabase
+      .from('protocolos')
+      .select('*')
+      .eq('tipo', tipo)
+      .eq('entidad_id', String(entidadId))
+      .eq('protocolo_id', protocoloId)
+      .maybeSingle();
+    return data ?? null;
+  } catch (err) {
+    console.warn('[GenerarProtocolo] Error Supabase:', err?.message);
+    return null;
   }
-
-  return db.protocolos
-    .filter(p => p.protocoloId === protocoloId &&
-      String(p.entidadId) === String(entidadId) &&
-      p.tipo === tipo)
-    .first();
 }
 
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };

@@ -1,7 +1,5 @@
-import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { db } from '../db/database';
 import { supabase } from '../config/supabase';
 import { PROTOCOLOS } from '../constants/estructura';
 
@@ -15,38 +13,17 @@ export default function AtraviesoDetalle() {
   const { atraviesoId } = useParams();
   const navigate = useNavigate();
 
-  const protocolos = useLiveQuery(
-    () => db.protocolos.where('entidadId').equals(atraviesoId).toArray(),
-    [atraviesoId]
-  ) ?? [];
+  const [protocolos, setProtocolos] = useState([]);
 
-  // Hidrata Dexie con estado fresco desde Supabase al abrir el atravieso
   useEffect(() => {
-    if (!navigator.onLine || !supabase) return;
+    if (!supabase) return;
     supabase
       .from('protocolos')
-      .select('id, tipo, entidad_id, protocolo_id, estado, fecha_modificacion, datos, observacion_ito, firma_token, firma_imagen_url, pdf_firmado_url')
+      .select('protocolo_id, estado')
       .eq('entidad_id', atraviesoId)
       .eq('tipo', 'atravieso')
-      .then(async ({ data }) => {
-        if (!data) return;
-        for (const remoto of data) {
-          const local = await db.protocolos
-            .filter(p => p.protocoloId === remoto.protocolo_id &&
-              String(p.entidadId) === String(remoto.entidad_id) &&
-              p.tipo === remoto.tipo)
-            .first();
-          if (local) {
-            await db.protocolos.update(local.id, {
-              estado:         remoto.estado,
-              datos:          remoto.datos,
-              observacionIto: remoto.observacion_ito ?? null,
-              firmaToken:     remoto.firma_token     ?? null,
-              pdfFirmadoUrl:  remoto.pdf_firmado_url ?? null,
-              sincronizada:   true,
-            });
-          }
-        }
+      .then(({ data }) => {
+        if (data) setProtocolos(data.map(p => ({ protocoloId: p.protocolo_id, estado: p.estado })));
       });
   }, [atraviesoId]);
 
