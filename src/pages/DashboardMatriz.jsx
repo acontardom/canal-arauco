@@ -222,14 +222,13 @@ export default function DashboardMatriz() {
             <span>Sin iniciar</span>
           </div>
 
-          <div style={s.leyendaItem}>
-            <div style={{ ...s.swatch, background: ESTADOS.borrador.color }} />
-            <span>Borrador</span>
-          </div>
-
           <div style={s.leyendaGrupo}>
             <div style={s.leyendaGrupoTitulo}>Nuestra parte</div>
             <div style={s.leyendaGrupoItems}>
+              <div style={s.leyendaItem}>
+                <div style={{ ...s.swatch, background: ESTADOS.borrador.color }} />
+                <span>Borrador</span>
+              </div>
               <div style={s.leyendaItem}>
                 <div style={{ ...s.swatch, background: ESTADOS.por_protoc.color }} />
                 <span>Por protocolizar</span>
