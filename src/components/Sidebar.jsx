@@ -18,7 +18,8 @@ const SECCIONES = [
       { to: '/matriz', label: 'Matriz', icono: '📊' },
       { to: '/dashboard', label: 'Dashboard', icono: '📈' },
       { to: '/galeria', label: 'Galería de Fotos', icono: '📁' },
-      { to: '/camiones', label: 'Historial Camiones', icono: '🚛' },
+      { to: '/camiones',           label: 'Historial Camiones', icono: '🚛' },
+      { to: '/dashboard-camiones', label: 'Control HA',         icono: '🧪' },
     ],
   },
   {

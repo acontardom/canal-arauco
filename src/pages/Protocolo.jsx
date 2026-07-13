@@ -1442,7 +1442,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     try {
       const camionesParaPDF = camionSeleccionado === 'todos'
         ? camionesRegistrados
-        : camionesRegistrados.filter(c => c.key === camionSeleccionado);
+        : camionesRegistrados.filter(c => c.supabaseId === camionSeleccionado);
       const protocoloParaPDF = esHA
         ? { ...protocolo, datos: { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadasUrls: fotosRecortadas, fotosGaleriaHA, observaciones } }
         : protocolo;
@@ -1941,7 +1941,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                       key={c.key}
                       style={{ ...s.haCamionChip, ...(activo ? s.haCamionChipActivo : {}), borderColor: activo ? color : undefined }}
                       onClick={() => {
-                        setCamionSeleccionado(c.key);
+                        setCamionSeleccionado(c.supabaseId);
                         if (c.fechaRecepcion) setFechaProtocolo(c.fechaRecepcion.split('T')[0]);
                       }}
                     >

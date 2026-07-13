@@ -13,6 +13,7 @@ import Gestion from './pages/Gestion';
 import Perfil from './pages/Perfil';
 import Galeria from './pages/Galeria';
 import HistorialCamiones from './pages/HistorialCamiones';
+import DashboardCamiones from './pages/DashboardCamiones';
 import Proximamente from './pages/Proximamente';
 import SubirFotos from './pages/SubirFotos';
 import RecibirCamion from './pages/RecibirCamion';
@@ -144,6 +145,7 @@ function AppRoutes() {
         <Route path="/perfil" element={<Perfil />} />
         <Route path="/galeria" element={<Galeria />} />
         <Route path="/camiones" element={<HistorialCamiones />} />
+        <Route path="/dashboard-camiones" element={<DashboardCamiones />} />
         <Route path="/control" element={<CentroControl />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/matriz" element={<DashboardMatriz />} />
