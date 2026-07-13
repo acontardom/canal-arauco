@@ -1226,6 +1226,12 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       if (!localRecord) { mostrarToast('Error al preparar protocolo', 'error'); return; }
 
       const hoy = fechaHoy();
+      const datosActuales = esHA
+        ? { camionId: camionSeleccionado, fotosExcluidas, fotosRecortadas, fotosGaleriaHA, observaciones, fechaProtocolo }
+        : esCOTAS
+        ? { fechaControl: cotasFechaControl, nControl: cotasNControl, instrumentoNS: cotasInstrumento, nombrePR: cotasNombrePR, cotaPR: cotasCotaPR, observacionCotas: cotasObs, fotoAutocad, fotoTabla, fechaProtocolo }
+        : { checklist, observaciones, fotosNubeSeleccionadas, fechaProtocolo };
+
       const payload = {
         device_protocolo_id: localRecord.deviceProtocoloId,
         local_id:            localRecord.id,
@@ -1237,7 +1243,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         usuario_nombre:      localRecord.usuarioNombre ?? null,
         fecha_creacion:      localRecord.fechaCreacion ?? hoy,
         fecha_modificacion:  hoy,
-        datos:               localRecord.datos ?? {},
+        datos:               datosActuales,
       };
 
       const { data: protData, error: protError } = await supabase
@@ -1252,7 +1258,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         return;
       }
 
-      await db.protocolos.update(localId, { supabaseId: protData.id, sincronizada: true });
+      await db.protocolos.update(localId, { supabaseId: protData.id, sincronizada: true, datos: datosActuales });
       protocoloSupabaseId = protData.id;
     }
 
