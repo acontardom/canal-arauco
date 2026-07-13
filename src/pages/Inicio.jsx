@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useUser } from '../context/UserContext';
+import { useAuth } from '../hooks/useAuth';
 import { db } from '../db/database';
 import { USUARIOS } from '../constants/estructura';
 import { fechaHoy } from '../utils/fecha';
@@ -9,6 +10,7 @@ const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 
 export default function Inicio() {
   const { usuario, seleccionarUsuario } = useUser();
+  const { session } = useAuth();
   const navigate = useNavigate();
 
   const hoy = fechaHoy();
@@ -32,9 +34,9 @@ export default function Inicio() {
 
   return (
     <div style={s.page}>
-      {usuario ? (
+      {(usuario || session) ? (
         <div style={s.saludo}>
-          <h1 style={s.saludoTexto}>Hola, {usuario.split(' ')[0]} 👋</h1>
+          <h1 style={s.saludoTexto}>Hola, {usuario?.split(' ')[0] ?? ''} 👋</h1>
         </div>
       ) : (
         <div style={s.selector}>
@@ -50,7 +52,7 @@ export default function Inicio() {
         </div>
       )}
 
-      {usuario && (
+      {(usuario || session) && (
         <>
           <section style={s.bloqueTerreno}>
             <h2 style={s.bloqueTitulo}>Terreno</h2>
