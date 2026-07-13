@@ -328,3 +328,23 @@ Los protocolos ya no viven en Dexie. Supabase es la única fuente de verdad.
 **Archivos modificados:** `Protocolo.jsx`, `TramoDetalle.jsx`, `CaidaDetalle.jsx`, `AtraviesoDetalle.jsx`, `GenerarProtocolo.jsx`, `sync.js`, `useSyncStatus.js`, `Perfil.jsx`, `database.js`
 
 **Páginas fuera de alcance** (aún leen `db.protocolos` para conteos/actividad, no para el flujo de edición): `Atraviesos.jsx`, `Entrada.jsx`, `Inicio.jsx`, `SubirFotos.jsx`.
+
+---
+
+### Fix crítico — camionId sb- prefix en protocolos HA (completado)
+
+Los protocolos HA guardaban el ID local de Dexie (`sb-uuid`) en `datos.camionId` y como keys de `datos.fotosGaleriaHA` en vez del UUID real de Supabase. Esto causó que el portal ITO no encontrara los camiones y los PDFs se generaran sin datos ni fotos.
+
+**Causa raíz:** `normalizarCamionRemoto` en `Protocolo.jsx` asigna `key: 'sb-${remoto.id}'` a cada camión. El selector de camión guardaba `c.key` (con prefijo) en `camionSeleccionado`, que luego se persistía como `datos.camionId` en Supabase. Las keys de `fotosGaleriaHA` se formaban del mismo valor contaminado.
+
+**Solución aplicada:**
+
+1. UPDATE masivo en Supabase para quitar el prefijo `sb-` de `camionId` en los 34 protocolos HA afectados.
+2. UPDATE masivo para corregir las keys de `fotosGaleriaHA` en los mismos registros.
+3. Script `scripts/regenerar-pdfs-ha.js` para regenerar los 34 PDFs firmados con los datos correctos (camiones reales + fotos de galería).
+4. Fix en `Protocolo.jsx` línea 1944: `setCamionSeleccionado` ahora usa `c.supabaseId` en vez de `c.key`.
+5. Fix en `Protocolo.jsx` línea 1445: el filtro de camiones para generar PDF usa `c.supabaseId === camionSeleccionado`.
+
+**Nota:** `fotosGaleriaHA` se indexa siempre por `camionSeleccionado`, por lo que al corregir ese estado todos los reads/writes del objeto heredan automáticamente el UUID puro sin cambios adicionales.
+
+**Archivos modificados:** `Protocolo.jsx`, `scripts/regenerar-pdfs-ha.js` (nuevo)

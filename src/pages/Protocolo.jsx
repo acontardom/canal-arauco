@@ -2162,6 +2162,10 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         <div style={{ ...s.enviadoBox, borderColor: '#10b981', background: '#061a14' }}>
           <span style={{ ...s.enviadoBadge, color: '#34d399' }}>✅ Firmado por ITO</span>
         </div>
+      ) : estado === 'enviado_edp' ? (
+        <div style={{ ...s.enviadoBox, borderColor: '#7c3aed', background: '#0d0a1a' }}>
+          <span style={{ ...s.enviadoBadge, color: '#a78bfa' }}>📋 Enviado a EDP</span>
+        </div>
       ) : (
         <div style={s.acciones}>
           {estado === 'con_observaciones' ? (
