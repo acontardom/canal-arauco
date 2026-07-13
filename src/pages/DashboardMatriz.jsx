@@ -64,6 +64,7 @@ const COLOR_EDP_CLARO    = '#86efac';
 
 function calcEstado(protEstado, recepcionada) {
   if (protEstado === 'enviado')           return 'enviado';
+  if (protEstado === 'enviado_edp')       return 'enviado';
   if (protEstado === 'completado')        return 'listo';
   if (protEstado === 'listo')             return 'listo';
   if (protEstado === 'enviado_ito')       return 'enviado_ito';
@@ -84,6 +85,13 @@ function lerpColor(hex1, hex2, t) {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
+// Normaliza el campo edp a string: número 5 → '5', 'EDP-1' → '1', null → null
+function normalizeEdp(edp) {
+  if (edp == null) return null;
+  const s = String(edp).trim();
+  return s.startsWith('EDP-') ? s.slice(4) : s;
+}
+
 // Genera un mapa { edp: color } para la lista de EDPs ordenados
 function generarEscalaEdp(edps) {
   const n = edps.length;
@@ -98,7 +106,7 @@ function generarEscalaEdp(edps) {
 
 const isMobile = window.innerWidth < 768;
 
-function MatrizCell({ tipo, entidadId, protocolo, protMap, avanceSet, navigate, nombreEntidad, verPorEdp, edpColorMap }) {
+function MatrizCell({ tipo, entidadId, protocolo, protMap, avanceSet, navigate, nombreEntidad, verPorEdp, edpColorMap, edpSeleccionado }) {
   const protData   = protMap[`${tipo}-${String(entidadId)}-${protocolo.id}`];
   const protEstado = protData?.estado;
   const edp        = protData?.edp;
@@ -119,9 +127,16 @@ function MatrizCell({ tipo, entidadId, protocolo, protMap, avanceSet, navigate, 
   const { label, color } = ESTADOS[estado];
 
   // En modo EDP, las celdas enviadas toman el color del EDP correspondiente
-  const cellColor = (verPorEdp && estado === 'enviado')
-    ? (edp && edpColorMap[edp] ? edpColorMap[edp] : COLOR_ENVIADO_BASE)
-    : color;
+  let cellColor = color;
+  if (verPorEdp && estado === 'enviado') {
+    if (edpSeleccionado) {
+      cellColor = String(edp) === String(edpSeleccionado)
+        ? (edpColorMap[edp] ?? COLOR_ENVIADO_BASE)
+        : '#1e293b';
+    } else {
+      cellColor = edp && edpColorMap[edp] ? edpColorMap[edp] : COLOR_ENVIADO_BASE;
+    }
+  }
 
   const tooltip = (estado === 'listo' || estado === 'enviado') && edp
     ? `${nombreEntidad} — ${protocolo.nombre}: ${label} — ${edp}`
@@ -163,7 +178,8 @@ export default function DashboardMatriz() {
 
   const [protMap, setProtMap]       = useState({});
   const [avanceSet, setAvanceSet]   = useState(new Set());
-  const [verPorEdp, setVerPorEdp]   = useState(false);
+  const [verPorEdp, setVerPorEdp]         = useState(false);
+  const [edpSeleccionado, setEdpSeleccionado] = useState(null);
 
   useEffect(() => {
     if (!supabase) return;
@@ -173,7 +189,7 @@ export default function DashboardMatriz() {
     ]).then(([{ data: prots }, { data: avance }]) => {
       const pMap = {};
       for (const p of prots ?? []) {
-        pMap[`${p.tipo}-${String(p.entidad_id)}-${p.protocolo_id}`] = { estado: p.estado, edp: p.edp ?? null };
+        pMap[`${p.tipo}-${String(p.entidad_id)}-${p.protocolo_id}`] = { estado: p.estado, edp: normalizeEdp(p.edp) };
       }
       setProtMap(pMap);
       setAvanceSet(new Set(
@@ -186,14 +202,14 @@ export default function DashboardMatriz() {
   const edpList = useMemo(() => {
     const edps = new Set();
     for (const { estado, edp } of Object.values(protMap)) {
-      if (estado === 'enviado' && edp) edps.add(edp);
+      if ((estado === 'enviado' || estado === 'enviado_edp') && edp) edps.add(edp);
     }
     return [...edps].sort();
   }, [protMap]);
 
   const edpColorMap = useMemo(() => generarEscalaEdp(edpList), [edpList]);
 
-  const cellProps = { protMap, avanceSet, navigate, verPorEdp, edpColorMap };
+  const cellProps = { protMap, avanceSet, navigate, verPorEdp, edpColorMap, edpSeleccionado };
 
   return (
     <div style={s.page}>
@@ -261,12 +277,26 @@ export default function DashboardMatriz() {
           </div>
         </div>
 
-        <button
-          style={{ ...s.btnToggle, ...(verPorEdp ? s.btnToggleActivo : {}) }}
-          onClick={() => setVerPorEdp(v => !v)}
-        >
-          {verPorEdp ? '🟢 Ver por EDP: ON' : '⬜ Ver por EDP: OFF'}
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+          <button
+            style={{ ...s.btnToggle, ...(verPorEdp ? s.btnToggleActivo : {}) }}
+            onClick={() => { if (verPorEdp) setEdpSeleccionado(null); setVerPorEdp(v => !v); }}
+          >
+            {verPorEdp ? '🟢 Ver por EDP: ON' : '⬜ Ver por EDP: OFF'}
+          </button>
+          {verPorEdp && edpList.length > 0 && (
+            <select
+              style={s.selectEdp}
+              value={edpSeleccionado ?? ''}
+              onChange={e => setEdpSeleccionado(e.target.value || null)}
+            >
+              <option value="">Todos</option>
+              {edpList.map(edp => (
+                <option key={edp} value={edp}>EDP {edp}</option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       <div style={s.contenedor}>
@@ -382,6 +412,11 @@ const s = {
   },
   btnToggleActivo: {
     background: 'rgba(39,174,96,0.12)', border: '1px solid #27ae60', color: '#82e0aa',
+  },
+  selectEdp: {
+    background: '#16213e', border: '1px solid #27ae60', color: '#82e0aa',
+    borderRadius: '8px', padding: '7px 10px', fontSize: '12px', fontWeight: 700,
+    cursor: 'pointer', outline: 'none', fontFamily: 'inherit',
   },
 
   contenedor: {

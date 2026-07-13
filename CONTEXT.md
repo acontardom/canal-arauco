@@ -7,7 +7,7 @@ Sistema de gestión de protocolos de calidad para la construcción del Canal Ara
 
 ### Stack
 - **Frontend:** React 19 + Vite 8, PWA con service worker (vite-plugin-pwa / Workbox)
-- **Almacenamiento local:** Dexie 4 (IndexedDB) — caché de respaldo offline (Supabase es la fuente de verdad)
+- **Almacenamiento local:** Dexie 4 (IndexedDB) — solo para `camiones` y `fotos_terreno` (ambos necesitan funcionar offline en terreno sin señal). `protocolos` y `fotos` van directo a Supabase.
 - **Backend:** Supabase (Postgres + Storage + Auth)
 - **PDF:** jsPDF + jsPDF-AutoTable
 - **ZIP:** JSZip
@@ -58,7 +58,7 @@ src/
 │   ├── SyncBadge.jsx             Indicador visual de sincronización
 │   └── UsuarioSelector.jsx       Selector de usuario activo en terreno
 ├── utils/
-│   ├── sync.js                   Lógica completa de sincronización Dexie ↔ Supabase
+│   ├── sync.js                   Sincronización de fotos_terreno y camiones a Supabase (protocolos ya no pasan por Dexie)
 │   ├── generarPDF.js             Generación de PDFs por tipo de protocolo
 │   ├── uploadFoto.js             Subida de fotos a Supabase Storage
 │   ├── comprimirFoto.js          Compresión de imágenes antes de subir
@@ -186,14 +186,14 @@ Tabla de unión entre EDPs y protocolos.
 
 | Módulo | Estado | Notas |
 |--------|--------|-------|
-| **Protocolo.jsx** | Estable | COTAS, PICE, HA funcionan. Fixes recientes: fotos PICE reaparecían al editar; datos COTAS no se guardaban en marcarListoParaRevision. |
+| **Protocolo.jsx** | Estable | Sin Dexie para protocolos ni fotos. Carga directo desde Supabase, autosave debounced cada 5s, fotos adjuntas van directo a tabla `fotos`. |
 | **Firma.jsx** | Estable | Carga fotos desde tabla `fotos` + `fotosNubeSeleccionadas`. Genera PDF firmado y lo sube a Storage. |
 | **PortalITO.jsx** | Estable | Celdas `enviado_ito` navegan a `/firma/:token`; celdas `firmado` abren el PDF. Auto-refresco cada 60s. |
 | **GeneradorEDP.jsx** | Nuevo, sin validar en prod | Genera EDP, descarga ZIP con PDFs firmados en lotes de 5 con reintentos. Requiere tablas `edp` y `edp_protocolos` en Supabase. |
 | **DashboardMatriz.jsx** | Estable | Vista general de todos los protocolos. Toggle "Ver por EDP" con gradiente de color por número de EDP. |
-| **SubirFotos.jsx** | Estable | Sube fotos a `fotos_terreno`. Funciona offline con Dexie. |
+| **SubirFotos.jsx** | Estable | Sube fotos a `fotos_terreno`. Funciona offline con Dexie (única tabla activa además de `camiones`). |
 | **RecibirCamion.jsx** | Estable | Recepción offline. Sincroniza al recuperar señal o cada 30s. |
-| **sync.js** | Bugs conocidos | Ver sección 6 (Backlog). `descargarDesdeSupabase` puede fallar para fotos sin `device_foto_id`. `sincronizarFotos` no guarda `supabaseId` de vuelta. |
+| **sync.js** | Estable | Sincroniza solo `fotos_terreno` y `camiones`. Protocolos y fotos de protocolo ya no pasan por `sync.js`. |
 | **generarPDF.js** | Estable | Genera PDFs para todos los tipos de protocolo. COTAS muestra espacio de observaciones aunque esté vacío. |
 
 ---
@@ -212,25 +212,24 @@ Con posible rechazo: `enviado_ito` ↔ `con_observaciones` (el ITO rechaza y dev
 - **firmado:** ITO firmó; `pdf_firmado_url` y `firma_imagen_url` disponibles; celda púrpura en matriz EDP
 - **enviado_edp:** incluido en un EDP; celda verde en todas las matrices
 
-### Tres fuentes de fotos en un protocolo PICE/G5
-1. **Fotos de cámara** (tabla `fotos`): subidas dentro del protocolo, vinculadas a `protocolo_id`. Se sincronizan a Supabase mediante `sincronizarFotos()`.
+### Dos fuentes de fotos en un protocolo PICE/G5
+1. **Fotos adjuntas al protocolo** (tabla `fotos`, estado `fotosProtocolo`): subidas directamente desde el formulario. Van inmediatamente a Supabase Storage + tabla `fotos`. Al abrir un protocolo existente se cargan con `select` a Supabase. Son editables (descripción) y eliminables.
 2. **Fotos de galería seleccionadas** (`fotosNubeSeleccionadas` en `datos`): fotos de `fotos_terreno` que el usuario eligió incluir. Se guardan como array de objetos `{ storageUrl, dataUrl, descripcion }` dentro del JSON `datos`.
-3. **Fotos de otros dispositivos** (`fotosProtocoloNube` en estado local): al abrir un protocolo existente, se consultan registros de `fotos` en Supabase para mostrarlos en el editor. Son solo lectura (badge "terreno"), no afectan `datos`.
 
 ### `datos` es variable por tipo de protocolo
 No hay schema fijo. El tipo de protocolo (`esCOTAS`, `esHA`, o PICE) determina qué campos existen. Guardar con la estructura equivocada (ej. rama PICE cuando debería ser COTAS) sobreescribe y pierde los datos específicos del tipo. El campo `esCOTAS = protocoloId === 'COTAS'` gobierna la lógica de guardado en `enviarAlITO` y `marcarListoParaRevision`.
 
 ### Rol de Dexie en la arquitectura
-Supabase es la fuente de verdad. Dexie actúa como caché de respaldo offline y solo es imprescindible para dos flujos: recepción de camiones y fotos de terreno (ambos ocurren en campo sin señal). Para protocolos, Dexie es un buffer temporal que se sincroniza cuando hay conexión.
-
-### Regla de hidratación Dexie ↔ Supabase
-Al abrir un protocolo, el efecto de hidratación solo sobreescribe el campo `datos` en Dexie si los datos locales están vacíos (`Object.keys(datos).length === 0`). Esto protege cambios locales no sincronizados. Los campos de metadatos (`estado`, `firmaToken`, `pdfFirmadoUrl`, `observacionIto`) siempre se actualizan desde Supabase.
+Supabase es la fuente de verdad. Dexie solo es activo para dos tablas: `camiones` y `fotos_terreno`, ambas con flujos que ocurren en campo sin señal. Las tablas `protocolos` y `fotos` siguen existiendo en el schema de Dexie (no se borran para no romper IndexedDB en dispositivos existentes) pero ya no se escriben activamente desde la app.
 
 ### Guard `cargadoRef`
-`cargadoRef.current` se activa una sola vez, al finalizar `aplicarDatos` (carga inicial del formulario). Todo `useEffect` que persista datos a Dexie debe verificar `cargadoRef.current` para no dispararse antes de que el formulario se haya hidratado.
+`cargadoRef.current` se activa con `setTimeout(..., 0)` tras finalizar la carga inicial desde Supabase (`cargarDesdeSupabase`). Los `useEffect` de autosave verifican `cargadoRef.current` para no disparar un save a Supabase con los datos que acaban de ser hidratados.
 
-### Sincronización de fotos de cámara
-Las fotos de cámara llegan a Supabase Storage inmediatamente via `guardarFotoNueva`. Pero solo llegan a la tabla `fotos` de Supabase cuando corre `sincronizarFotos()` (parte del ciclo `sincronizar()`). El sync automático corre cada 30 segundos en producción. Para garantizar que el ITO vea las fotos, `enviarAlITO` y `marcarListoParaRevision` llaman `sincronizarFotos()` explícitamente antes de continuar.
+### Autosave debounced en Protocolo.jsx
+Los cambios en el formulario (checklist, observaciones, fotos seleccionadas, campos HA) se persisten automáticamente en Supabase con un debounce de 5 segundos via `programarAutosave`. Un indicador en el header muestra `⏳ guardando...` / `☁️ guardado` / `⚠️ error`. Si hay cambios pendientes al cerrar la ventana, `beforeunload` muestra advertencia nativa.
+
+### Fotos de cámara adjuntas al protocolo
+`guardarFotoNueva` sube la foto directo a Supabase Storage e inserta en la tabla `fotos`. Si el protocolo aún no existe en Supabase, llama `obtenerOCrearProtocolo` que lo crea primero con `upsert` usando `device_protocolo_id` como clave de deduplicación. No hay cola ni Dexie de por medio.
 
 ### `fotosNubeSeleccionadas` solo para protocolos PICE y G5
 - **HA:** usa `fotosGaleriaHA` (objeto keyed por `camionId`)
@@ -248,39 +247,84 @@ Al agregar una foto desde `fotosTerreno` al protocolo, se verifica que su `stora
 
 ### Alta
 
-**1. Reducir Dexie al mínimo** *(en progreso)*
-Mantener Dexie solo para camiones y fotos de terreno. El resto de los flujos (protocolos, estado, datos) debe operar directo contra Supabase cuando hay conexión. Actualmente Protocolo.jsx depende fuertemente de Dexie para estado local y persistencia; refactorizar gradualmente para leer desde Supabase en el montaje y escribir directo cuando hay señal.
+**1. Sync de borrados Dexie ↔ Supabase**
+Si un registro se elimina en Supabase no se refleja en Dexie local, y viceversa. No hay lógica de borrado en `sync.js`. Puede causar que fotos de terreno eliminadas reaparezcan tras sincronizar.
 
-**2. Sync de borrados Dexie ↔ Supabase**
-Si un registro se elimina en Supabase no se refleja en Dexie local, y viceversa. No hay lógica de borrado en `sync.js`. Puede causar que protocolos o fotos eliminadas reaparezcan tras sincronizar.
-
-**3. Service Worker con aviso de actualización**
+**2. Service Worker con aviso de actualización**
 Cuando se despliega una nueva versión, el SW en background no avisa al usuario. El operador puede estar usando una versión desactualizada sin saberlo. Implementar un aviso visible con botón "Actualizar" que fuerce el reload con el nuevo SW.
 
 ### Media
 
-**4. Refactorización `actualizarProtocolo()`**
+**3. Refactorización `actualizarProtocolo()`**
 `enviarAlITO`, `marcarListoParaRevision` y `guardar` comparten lógica duplicada para construir `datosActuales` y llamar a `escribirProtocolo`. Extraer en una función central `actualizarProtocolo(nuevoEstado, extra)` que maneje el branch HA/COTAS/PICE en un solo lugar.
 
-**5. Control calidad camiones — marcar Sí por defecto**
+**4. Control calidad camiones — marcar Sí por defecto**
 En el formulario de recepción de camiones, los campos de control de calidad (cono, temperatura, etc.) no tienen valor por defecto. El operador debe marcar manualmente. Cambiar a "Sí" por defecto para agilizar el flujo en terreno.
 
-**6. Foto terreno 20489 con error persistente**
+**5. Foto terreno 20489 con error persistente**
 Una foto específica (id o referencia 20489) tiene un error que persiste en la interfaz o en Supabase. Investigar si es un registro corrupto en `fotos_terreno` o un problema de Storage.
 
-**7. Zoom fotos al editar camión**
+**6. Zoom fotos al editar camión**
 Al revisar o editar un camión en HistorialCamiones, las fotos adjuntas (guía, ensayos) no tienen zoom. Agregar tap/click para ver en grande, igual que en el modal de fotos de protocolo.
 
 ### Baja
 
-**8. Exportar Excel de camiones**
+**7. Exportar Excel de camiones**
 `generarExcel.js` existe pero no está conectado al historial de camiones. Agregar botón de exportación en `HistorialCamiones.jsx` con los registros filtrados por entidad y rango de fechas.
 
-**9. Importar PDFs de protocolos históricos**
+**8. Importar PDFs de protocolos históricos**
 Protocolos firmados en papel antes del sistema no tienen registro digital. Crear un flujo para subir un PDF ya firmado y marcarlo como `firmado` en Supabase, sin pasar por el flujo de firma digital.
 
-**10. Script respaldo Storage → Google Drive**
+**9. Script respaldo Storage → Google Drive**
 Los PDFs firmados en Supabase Storage no tienen respaldo externo. Crear script periódico (cron o Edge Function) que copie los archivos de Storage a Google Drive como respaldo ante pérdida de datos.
 
-**11. README del código**
+**10. README del código**
 Documentar para desarrolladores externos: cómo levantar el entorno, variables de entorno requeridas, estructura de Supabase, convenciones del proyecto.
+
+---
+
+## 7. Cambios recientes
+
+### Fase 1 — Eliminar `db.fotos` (completada)
+
+Las fotos adjuntas dentro del editor de protocolo ya no pasan por Dexie.
+
+**Qué cambió:**
+- `guardarFotoNueva` sube directo a Supabase Storage e inserta en tabla `fotos`. Si el protocolo no tiene `id` en Supabase, se crea primero vía `upsert`.
+- `eliminarFoto` hace `delete` en tabla `fotos` + elimina de Storage, sin tocar Dexie.
+- `fotosProtocoloNube` (read-only desde Supabase) y `fotos` (desde Dexie) se unifican en un solo estado `fotosProtocolo` (fuente única: Supabase).
+- Eliminados de `sync.js`: `subirFotosPendientes()` y `sincronizarFotos()`.
+- Eliminado de `descargarDesdeSupabase()`: el bloque que descargaba `fotos` → Dexie.
+- `useSyncStatus.js`: el contador de pendientes ya no incluye `db.fotos`.
+- `Perfil.jsx`: `forzarResync` ya no resetea `db.fotos`.
+- `db.fotos` permanece en el schema de Dexie (v3/v10) con comentario legacy para no romper IndexedDB existente.
+
+**Archivos modificados:** `Protocolo.jsx`, `sync.js`, `useSyncStatus.js`, `Perfil.jsx`, `database.js`
+
+---
+
+### Fase 2 — Eliminar `db.protocolos` (completada)
+
+Los protocolos ya no viven en Dexie. Supabase es la única fuente de verdad.
+
+**Qué cambió:**
+- `useLiveQuery` (dexie-react-hooks) eliminado de `Protocolo.jsx`. Reemplazado con `useState(null)` + `useEffect` que hace `select('*').maybeSingle()` a Supabase al montar.
+- Nueva función `normalizarProtocolo(raw)` mapea snake_case → camelCase para mantener las referencias existentes (`protocolo.estado`, `protocolo.firmaToken`, etc.) sin cambios en el resto del componente.
+- `protocolo.id` ahora ES el UUID de Supabase (antes era el ID local de Dexie; `supabaseId` se eliminó).
+- Hidratación Dexie ↔ Supabase eliminada (ya no hay nada que hidratar).
+- `escribirProtocolo` simplificada a solo Supabase + `setProtocolo` para actualizar estado local.
+- `obtenerOCrearId` (creaba en Dexie) → `obtenerOCrearProtocolo` (crea directo en Supabase con `upsert` + `device_protocolo_id`).
+- `guardar()` caso `!protocolo`: llama `obtenerOCrearProtocolo()` en vez de `db.protocolos.add`.
+- Autosave a Dexie (2 `useEffect`) → `programarAutosave` con debounce 5s a Supabase.
+- `beforeunload` advertencia si hay autosave pendiente.
+- Indicador de guardado en header: `⏳ guardando...` / `☁️ guardado` / `⚠️ error`.
+- `TramoDetalle`, `CaidaDetalle`, `AtraviesoDetalle`: `useLiveQuery + hidratación` → `useState + useEffect` con `select('protocolo_id, estado')` directo a Supabase.
+- `GenerarProtocolo.jsx`: `cargarProtocolo` simplificada a Supabase-only con `maybeSingle()`, sin fallback Dexie.
+- `sync.js`: eliminados `sincronizarProtocolos()`, `subirFotosNubeEnSync()`, y el bloque `// ── Protocolos ──` de `descargarDesdeSupabase()`.
+- `useSyncStatus.js`: contador de pendientes ya no incluye `db.protocolos`.
+- `Perfil.jsx`: `forzarResync` ya no resetea `db.protocolos`.
+- `db.protocolos` permanece en el schema de Dexie (v13) con comentario legacy.
+
+**Archivos modificados:** `Protocolo.jsx`, `TramoDetalle.jsx`, `CaidaDetalle.jsx`, `AtraviesoDetalle.jsx`, `GenerarProtocolo.jsx`, `sync.js`, `useSyncStatus.js`, `Perfil.jsx`, `database.js`
+
+**Páginas fuera de alcance** (aún leen `db.protocolos` para conteos/actividad, no para el flujo de edición): `Atraviesos.jsx`, `Entrada.jsx`, `Inicio.jsx`, `SubirFotos.jsx`.
