@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { UserProvider } from './context/UserContext';
 import Navbar from './components/Navbar';
@@ -46,32 +46,6 @@ function LoadingScreen() {
   );
 }
 
-function BannerSync() {
-  return (
-    <div style={bs.banner}>
-      <span style={bs.spinner}>🔄</span>
-      Sincronizando datos desde servidor...
-    </div>
-  );
-}
-
-const bs = {
-  banner: {
-    background: '#0f3460',
-    color: '#64ffda',
-    fontSize: '12px',
-    fontWeight: 600,
-    padding: '7px 24px',
-    textAlign: 'center',
-    letterSpacing: '0.4px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '8px',
-  },
-  spinner: { display: 'inline-block', animation: 'spin 1s linear infinite' },
-};
-
 function esFlujoInterno(pathname) {
   return pathname.startsWith('/subir-fotos')
     || pathname.startsWith('/recibir-camion')
@@ -80,13 +54,12 @@ function esFlujoInterno(pathname) {
     || pathname.startsWith('/protocolo');
 }
 
-function Layout({ children, cargandoSync }) {
+function Layout({ children }) {
   const location = useLocation();
   const mostrarBottomNav = !esFlujoInterno(location.pathname);
 
   return (
     <div style={{ minHeight: '100vh', background: '#1a1a2e' }}>
-      {cargandoSync && <BannerSync />}
       <Navbar />
       <div className="app-body">
         <Sidebar />
@@ -109,7 +82,7 @@ function PublicSubpageLayout({ children }) {
   );
 }
 
-function AppRoutes({ cargandoSync }) {
+function AppRoutes() {
   const { usuario, loading } = useAuth();
 
   if (loading) return <LoadingScreen />;
@@ -164,7 +137,7 @@ function AppRoutes({ cargandoSync }) {
   }
 
   return (
-    <Layout cargandoSync={cargandoSync}>
+    <Layout>
       <Routes>
         <Route path="/" element={<Inicio />} />
         <Route path="/gestion" element={<Gestion />} />
@@ -208,26 +181,19 @@ function AppRoutes({ cargandoSync }) {
 }
 
 export default function App() {
-  const [cargandoSync, setCargandoSync] = useState(
-    () => !!supabase && navigator.onLine
-  );
-
   useEffect(() => {
     iniciarSyncAutomatico();
   }, []);
 
   useEffect(() => {
-    if (!supabase || !navigator.onLine) {
-      setCargandoSync(false);
-      return;
-    }
-    descargarDesdeSupabase().finally(() => setCargandoSync(false));
+    if (!supabase || !navigator.onLine) return;
+    descargarDesdeSupabase();
   }, []);
 
   return (
     <BrowserRouter>
       <UserProvider>
-        <AppRoutes cargandoSync={cargandoSync} />
+        <AppRoutes />
       </UserProvider>
     </BrowserRouter>
   );

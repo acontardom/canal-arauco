@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
@@ -38,10 +37,19 @@ export default function SubirFotos() {
 
   const entidadIdReal = tipo === 'caida' ? Number(entidadId) : entidadId;
 
-  const guardadas = useLiveQuery(
-    () => db.fotos_terreno.where('tipo').equals(tipo).and(f => f.entidadId === entidadIdReal).count(),
-    [tipo, entidadId]
-  ) ?? 0;
+  const [guardadas, setGuardadas] = useState(0);
+
+  useEffect(() => {
+    if (!supabase) { setGuardadas(0); return; }
+    supabase
+      .from('fotos_terreno')
+      .select('id', { count: 'exact', head: true })
+      .eq('tipo', tipo)
+      .eq('entidad_id', entidadIdReal)
+      .then(({ count, error }) => {
+        if (!error) setGuardadas(count ?? 0);
+      });
+  }, [tipo, entidadId]);
 
   // Forzar sincronización al montar para subir cualquier foto pendiente en Dexie
   useEffect(() => {
