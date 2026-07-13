@@ -29,13 +29,12 @@ export function useSyncStatus() {
   }, []);
 
   const pendientes = useLiveQuery(async () => {
-    const [protocolos, fotos, fotosTerreno, camiones] = await Promise.all([
+    const [protocolos, fotosTerreno, camiones] = await Promise.all([
       db.protocolos.filter(p => p.sincronizada !== true).count(),
-      db.fotos.filter(f => f.sincronizada !== true).count(),
       db.fotos_terreno.filter(f => f.sincronizada !== true).count(),
       db.camiones.filter(c => c.sincronizado !== true).count(),
     ]);
-    return protocolos + fotos + fotosTerreno + camiones;
+    return protocolos + fotosTerreno + camiones;
   }, [tick]) ?? 0;
 
   return {

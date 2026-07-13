@@ -22,7 +22,6 @@ export default function Perfil() {
     setResincronizando(true);
     try {
       await db.fotos_terreno.toCollection().modify({ sincronizada: false, subidaStorage: false });
-      await db.fotos.toCollection().modify({ sincronizada: false, subidaStorage: false });
       await db.protocolos.toCollection().modify({ sincronizada: false });
       await db.camiones.toCollection().modify({ sincronizado: false });
       await sincronizar();

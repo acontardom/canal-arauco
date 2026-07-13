@@ -103,6 +103,7 @@ db.camiones.hook('creating', (primKey, obj) => {
 db.protocolos.hook('creating', (primKey, obj) => {
   if (!obj.deviceProtocoloId) obj.deviceProtocoloId = generateUUID();
 });
+// fotos: tabla legacy — ya no se usa activamente, datos van directo a Supabase
 db.fotos.hook('creating', (primKey, obj) => {
   if (!obj.deviceFotoId) obj.deviceFotoId = generateUUID();
 });

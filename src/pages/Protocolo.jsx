@@ -9,7 +9,7 @@ import { PROTOCOLOS, CHECKLISTS, CHECKLIST_DEFAULTS, TRAMOS, CAIDAS, ATRAVIESOS 
 import { generarPDF, construirDocumentoPDF } from '../utils/generarPDF';
 import { useKm } from '../hooks/useKm';
 import { useAuth } from '../hooks/useAuth';
-import { sincronizar, sincronizarFotos } from '../utils/sync';
+import { sincronizar } from '../utils/sync';
 import { supabase } from '../config/supabase';
 import { fechaHoy, formatearFecha } from '../utils/fecha';
 import { comprimirFoto } from '../utils/comprimirFoto';
@@ -349,7 +349,6 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const [cargandoBusqueda, setCargandoBusqueda]   = useState(false);
   const [busquedaActiva, setBusquedaActiva]       = useState(null); // { tipo, entidadId, label }
   const [fotosNubeSeleccionadas, setFotosNubeSeleccionadas] = useState([]);
-  const [fotosParaEliminar, setFotosParaEliminar]         = useState([]);
   // ── Estado COTAS Topográficas ────────────────────────────────────────────────
   const [cotasFechaControl, setCotasFechaControl] = useState(fechaHoy());
   const [cotasNControl, setCotasNControl]         = useState('');
@@ -397,13 +396,6 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const protocolo = protocoloArr?.[0];
   const estado = protocolo?.estado ?? 'pendiente';
 
-  const fotos = useLiveQuery(
-    () =>
-      protocolo?.id
-        ? db.fotos.where('protocoloLocalId').equals(protocolo.id).toArray()
-        : Promise.resolve([]),
-    [protocolo?.id]
-  ) ?? [];
 
   // Hidrata Dexie con la versión más reciente de Supabase al abrir el protocolo.
   // datos solo se sobreescribe si el registro local no tiene datos propios — evitar
@@ -434,10 +426,10 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   }, [protocolo?.supabaseId]);
 
   const [fotosTerreno, setFotosTerreno] = useState([]);
-  const [fotosProtocoloNube, setFotosProtocoloNube] = useState([]);
+  const [fotosProtocolo, setFotosProtocolo] = useState([]);
 
-  // Fotos subidas directo al protocolo por otro dispositivo (tabla fotos de Supabase).
-  // Solo lectura — Firma.jsx las incluye en el PDF; aquí solo se muestran para revisión.
+  // Fotos adjuntas directamente al protocolo (tabla fotos de Supabase).
+  // Fuente de verdad directa — sin Dexie.
   useEffect(() => {
     if (!protocolo?.supabaseId) return;
     let cancelado = false;
@@ -447,12 +439,11 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       .eq('protocolo_id', protocolo.supabaseId)
       .then(({ data }) => {
         if (cancelado || !data) return;
-        setFotosProtocoloNube(data.map(f => ({
-          id: `nube-proto-${f.id}`,
+        setFotosProtocolo(data.map(f => ({
+          id: f.id,
           storageUrl: f.storage_url ?? null,
           dataUrl: null,
           descripcion: f.descripcion ?? '',
-          origen: 'nube-protocolo',
         })));
       });
     return () => { cancelado = true; };
@@ -809,8 +800,6 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     try {
 
     // Sincronizar fotos de cámara a Supabase antes de enviar, para que el ITO las vea en el PDF
-    try { await sincronizarFotos(); } catch (err) { console.warn('[enviarAlITO] sincronizarFotos falló:', err?.message ?? err); }
-
     let datosActuales;
     if (esHA) {
       const fotosRecortadasUrls = await subirFotosRecortadasHA(fotosRecortadas);
@@ -856,9 +845,6 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     setGuardando(true);
     const nuevoToken = crypto.randomUUID();
     try {
-
-    // Sincronizar fotos de cámara a Supabase antes de enviar, para que el ITO las vea en el PDF
-    try { await sincronizarFotos(); } catch (err) { console.warn('[marcarListoParaRevision] sincronizarFotos falló:', err?.message ?? err); }
 
     let datosActuales;
     if (esHA) {
@@ -963,7 +949,6 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     if (guardando) return;
     setGuardando(true);
     try {
-      await procesarEliminacionesFotos();
       let datos;
       if (esHA) {
         const fotosRecortadasUrls = await subirFotosRecortadasHA(fotosRecortadas);
@@ -1174,7 +1159,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           : f
       ));
     } else if (cropModal.tipo === 'editar-nueva') {
-      await db.fotos.update(cropModal.meta.fotoId, { dataUrl: croppedUrl });
+      setFotosProtocolo(prev => prev.map(f =>
+        f.id === cropModal.meta.fotoId ? { ...f, dataUrl: croppedUrl } : f
+      ));
     } else if (cropModal.tipo === 'cotas-autocad') {
       setFotoAutocad({ dataUrl: croppedUrl });
     } else if (cropModal.tipo === 'cotas-tabla') {
@@ -1227,22 +1214,39 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   }
 
   async function guardarFotoNueva(croppedDataUrl, nombre, tipoMime) {
+    if (!croppedDataUrl) return;
+    if (!protocolo?.supabaseId) {
+      mostrarToast('El protocolo no está sincronizado aún', 'error');
+      return;
+    }
     try {
-      const protocoloLocalId = await obtenerOCrearId();
-      const fotoId = await db.fotos.add({
-        protocoloLocalId, nombre, tipo: tipoMime, dataUrl: croppedDataUrl,
-        sincronizada: false, storageUrl: null, subidaStorage: false,
+      const storageUrl = await uploadFoto(croppedDataUrl, {
+        tipo, entidadId: entidadIdReal, carpeta: 'protocolos', archivo: nombre,
       });
-      if (supabase && navigator.onLine) {
-        try {
-          const storageUrl = await uploadFoto(croppedDataUrl, { tipo, entidadId: entidadIdReal, nombre });
-          if (storageUrl) await db.fotos.update(fotoId, { storageUrl, subidaStorage: true });
-        } catch (err) {
-          console.warn('[Foto] Error al subir a Storage:', err?.message ?? err);
-        }
+      if (!storageUrl) { mostrarToast('Error al subir foto', 'error'); return; }
+
+      const { data: fotoSupabase } = await supabase
+        .from('fotos')
+        .insert({
+          protocolo_id: protocolo.supabaseId,
+          storage_url: storageUrl,
+          descripcion: '',
+          device_foto_id: crypto.randomUUID(),
+        })
+        .select()
+        .single();
+
+      if (fotoSupabase) {
+        setFotosProtocolo(prev => [...prev, {
+          id: fotoSupabase.id,
+          storageUrl,
+          dataUrl: null,
+          descripcion: '',
+        }]);
       }
       mostrarToast('Foto agregada');
-    } catch {
+    } catch (err) {
+      console.warn('[Foto] Error al guardar:', err?.message ?? err);
       mostrarToast('Error al guardar foto', 'error');
     }
   }
@@ -1260,29 +1264,17 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     abrirCropModal(dataUrl, 'nueva', { file: first });
   }
 
-  async function eliminarFoto(fotoId) {
-    const foto = await db.fotos.get(fotoId);
-    await db.fotos.delete(fotoId);
-    if (foto && (foto.deviceFotoId || foto.storageUrl)) {
-      setFotosParaEliminar(prev => [...prev, { deviceFotoId: foto.deviceFotoId ?? null, storageUrl: foto.storageUrl ?? null }]);
-    }
-  }
-
-  async function procesarEliminacionesFotos() {
-    if (!fotosParaEliminar.length || !supabase || !navigator.onLine) return;
-    for (const { deviceFotoId, storageUrl } of fotosParaEliminar) {
+  async function eliminarFoto(supabaseId) {
+    const foto = fotosProtocolo.find(f => f.id === supabaseId);
+    setFotosProtocolo(prev => prev.filter(f => f.id !== supabaseId));
+    if (supabase && navigator.onLine) {
       try {
-        if (deviceFotoId) {
-          await supabase.from('fotos').delete().eq('device_foto_id', deviceFotoId);
-        }
-        if (storageUrl) {
-          await eliminarFotoStorage(storageUrl);
-        }
+        await supabase.from('fotos').delete().eq('id', supabaseId);
+        if (foto?.storageUrl) await eliminarFotoStorage(foto.storageUrl);
       } catch (err) {
-        console.warn('[Foto] Error al eliminar de Supabase:', err?.message ?? err);
+        console.warn('[Foto] Error al eliminar:', err?.message ?? err);
       }
     }
-    setFotosParaEliminar([]);
   }
 
   function toggleFotoNube(foto, index) {
@@ -1500,9 +1492,16 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         origen: 'galeria-ha',
       }))
     : [
-        ...fotos.map(f => ({ id: `nueva-${f.id}`, fotoId: f.id, dataUrl: f.dataUrl, storageUrl: f.storageUrl ?? null, descripcion: f.descripcion ?? '', origen: 'nueva' })),
+        ...fotosProtocolo.map(f => ({
+          id: `proto-${f.id}`,
+          fotoId: f.id,
+          supabaseId: f.id,
+          dataUrl: f.dataUrl ?? null,
+          storageUrl: f.storageUrl ?? null,
+          descripcion: f.descripcion ?? '',
+          origen: 'nueva',
+        })),
         ...fotosNubeData,
-        ...fotosProtocoloNube,
       ];
 
   const fotosSugeridas = defaultsDef?.fotos_sugeridas ?? [];
@@ -1768,7 +1767,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           {fotosCombinadas.length > 0 ? (
             <div style={s.fotosGrid}>
               {fotosCombinadas.map(foto => {
-                const esSoloLectura = readOnly || foto.origen === 'nube-protocolo';
+                const esSoloLectura = readOnly;
                 return (
                 <div key={foto.id} style={s.fotoCard}>
                   <div
@@ -1788,9 +1787,6 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                         ×
                       </button>
                     )}
-                    {foto.origen === 'nube-protocolo' && (
-                      <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.55)', color: '#fff', fontSize: 9, padding: '1px 5px', borderRadius: 4 }}>terreno</div>
-                    )}
                   </div>
                   <input
                     type="text"
@@ -1800,9 +1796,16 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                     readOnly={esSoloLectura}
                     onBlur={e => {
                       if (esSoloLectura) return;
-                      foto.origen === 'nueva'
-                        ? db.fotos.update(foto.fotoId, { descripcion: e.target.value })
-                        : setDescFotoNube(foto.key, e.target.value);
+                      if (foto.origen === 'nueva') {
+                        setFotosProtocolo(prev => prev.map(f =>
+                          f.id === foto.supabaseId ? { ...f, descripcion: e.target.value } : f
+                        ));
+                        if (supabase && navigator.onLine) {
+                          supabase.from('fotos').update({ descripcion: e.target.value }).eq('id', foto.supabaseId);
+                        }
+                      } else {
+                        setDescFotoNube(foto.key, e.target.value);
+                      }
                     }}
                   />
                 </div>

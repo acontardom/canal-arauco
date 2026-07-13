@@ -153,40 +153,6 @@ async function sincronizarProtocolos() {
   }
 }
 
-// ─── Subida de fotos pendientes a Supabase Storage ────────────────────────────
-
-async function subirFotosPendientes() {
-  const pendientes = await db.fotos
-    .filter(f => !f.subidaStorage && Boolean(f.dataUrl))
-    .toArray();
-
-  for (const foto of pendientes) {
-    const protocoloLocal = await db.protocolos.get(foto.protocoloLocalId);
-    if (!protocoloLocal) continue;
-
-    const storageUrl = await conReintentos(() => uploadFoto(foto.dataUrl, {
-      tipo:      protocoloLocal.tipo,
-      entidadId: protocoloLocal.entidadId,
-      nombre:    foto.nombre,
-    }));
-
-    if (storageUrl) {
-      await db.fotos.update(foto.id, { storageUrl, subidaStorage: true, dataUrl: null });
-      if (foto.deviceFotoId) {
-        try {
-          await supabase.from('fotos')
-            .update({ storage_url: storageUrl, subida_storage: true, data_url: null })
-            .eq('device_foto_id', foto.deviceFotoId);
-        } catch (err) {
-          console.warn(`[Sync] Foto ${foto.id} — no se pudo limpiar data_url en Supabase:`, err?.message ?? err);
-        }
-      }
-    } else {
-      console.warn(`[Sync] Foto ${foto.id} no se pudo subir tras 3 intentos — se reintentará en el próximo ciclo`);
-    }
-  }
-}
-
 // ─── Subida de fotos de terreno pendientes a Supabase Storage ────────────────
 
 async function subirFotosTerrenoPendientes() {
@@ -261,57 +227,6 @@ async function sincronizarFotosTerreno() {
       await db.fotos_terreno.update(foto.id, { sincronizada: true });
     } catch (err) {
       console.warn(`[Sync] FotoTerreno ${foto.id}:`, err);
-    }
-  }
-}
-
-// ─── Sincronización de fotos ──────────────────────────────────────────────────
-
-export async function sincronizarFotos() {
-  const pendientes = await db.fotos
-    .filter(f => !f.sincronizada)
-    .toArray();
-
-  for (const foto of pendientes) {
-    try {
-      const protocoloLocal = await db.protocolos.get(foto.protocoloLocalId);
-
-      // No sincronizar fotos cuyo protocolo todavía no llegó a Supabase
-      if (!protocoloLocal?.supabaseId) continue;
-
-      // Garantizar UUID permanente para registros anteriores a v10
-      if (!foto.deviceFotoId) {
-        const deviceFotoId = generateUUID();
-        await db.fotos.update(foto.id, { deviceFotoId });
-        foto.deviceFotoId = deviceFotoId;
-      }
-
-      const { data, error } = await supabase
-        .from('fotos')
-        .upsert(
-          {
-            device_foto_id:     foto.deviceFotoId,
-            local_id:          foto.id,
-            protocolo_id:      protocoloLocal.supabaseId,
-            protocolo_local_id: foto.protocoloLocalId,
-            nombre:            foto.nombre ?? null,
-            tipo_mime:         foto.tipo ?? null,
-            data_url:          foto.dataUrl,
-            descripcion:       foto.descripcion ?? null,
-            storage_url:       foto.storageUrl ?? null,
-            subida_storage:    foto.subidaStorage ?? false,
-          },
-          { onConflict: 'device_foto_id' }
-        )
-        .select();
-
-      console.log(`Foto ${foto.id} — resultado Supabase:`, data, error);
-      if (error) throw error;
-      if (!data?.length) throw new Error('Upsert no retornó datos');
-
-      await db.fotos.update(foto.id, { sincronizada: true });
-    } catch (err) {
-      console.warn(`[Sync] Foto ${foto.id}:`, err);
     }
   }
 }
@@ -519,35 +434,6 @@ export async function descargarDesdeSupabase() {
       }
     }
 
-    // ── Fotos ─────────────────────────────────────────────────────────────────
-    const { data: fotosRemoto, error: errFotos } = await supabase
-      .from('fotos')
-      .select('id, device_foto_id, local_id, protocolo_id, protocolo_local_id, nombre, tipo_mime, descripcion, storage_url, subida_storage');
-
-    if (errFotos) throw errFotos;
-
-    for (const remoto of fotosRemoto ?? []) {
-      // Buscar por UUID permanente (v10+) → fallback a supabaseId
-      const local = remoto.device_foto_id
-        ? await db.fotos.where('deviceFotoId').equals(remoto.device_foto_id).first()
-        : await db.fotos.where('supabaseId').equals(remoto.id).first();
-
-      if (!local) {
-        await db.fotos.add({
-          deviceFotoId:     remoto.device_foto_id ?? null,
-          protocoloLocalId: remoto.protocolo_local_id,
-          nombre:           remoto.nombre ?? null,
-          tipo:             remoto.tipo_mime ?? null,
-          dataUrl:          null,  // no se descarga — usar storageUrl
-          descripcion:      remoto.descripcion ?? null,
-          storageUrl:       remoto.storage_url ?? null,
-          subidaStorage:    remoto.subida_storage ?? false,
-          sincronizada:     true,
-        });
-      }
-      // Si ya existe → no se modifica (las fotos no se editan)
-    }
-
     // ── Fotos de terreno ─────────────────────────────────────────────────────
     const { data: fotosTerrenoRemoto, error: errFotosTerreno } = await supabase
       .from('fotos_terreno')
@@ -651,8 +537,6 @@ export async function sincronizar() {
   window.dispatchEvent(new CustomEvent('syncStarted'));
   try {
     await sincronizarProtocolos();
-    await subirFotosPendientes();
-    await sincronizarFotos();
     await subirFotosTerrenoPendientes();
     await sincronizarFotosTerreno();
     await subirFotosCamionesPendientes();
