@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
+import { useAuth } from '../hooks/useAuth';
 import { USUARIOS } from '../constants/estructura';
 
 export default function UsuarioSelector({ nombreStyle }) {
   const { usuario, seleccionarUsuario } = useUser();
+  const { session } = useAuth();
   const [abierto, setAbierto] = useState(false);
   const ref = useRef(null);
 
@@ -16,7 +18,7 @@ export default function UsuarioSelector({ nombreStyle }) {
     return () => document.removeEventListener('mousedown', onClick);
   }, [abierto]);
 
-  if (!usuario) return null;
+  if (session || !usuario) return null;
 
   return (
     <div style={s.wrap} ref={ref}>
