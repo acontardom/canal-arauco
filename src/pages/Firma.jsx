@@ -53,7 +53,7 @@ export default function Firma() {
     const fotosNube    = datosProto?.fotosNubeSeleccionadas ?? [];
     const fotosDirectas = (fotosAdj ?? []).map(f => ({
       storageUrl:  f.storage_url,
-      descripcion: f.descripcion ?? f.nombre ?? '',
+      descripcion: f.descripcion || '',
     }));
     const urlsNube = new Set(fotosNube.map(f => f.storageUrl).filter(Boolean));
     return [...fotosNube, ...fotosDirectas.filter(f => !urlsNube.has(f.storageUrl))];
@@ -83,7 +83,7 @@ export default function Firma() {
       // Cargar datos y fotos adjuntas en paralelo
       const [{ data: datosRow }, { data: fotosAdj }] = await Promise.all([
         supabase.from('protocolos').select('datos').eq('id', data.id).single(),
-        supabase.from('fotos').select('storage_url, descripcion, nombre').eq('protocolo_id', data.id),
+        supabase.from('fotos').select('storage_url, descripcion').eq('protocolo_id', data.id),
       ]);
 
       const datosCargados   = datosRow?.datos ?? data.datos ?? {};
