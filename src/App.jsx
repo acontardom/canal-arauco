@@ -35,8 +35,7 @@ import GenerarProtocolo from './pages/GenerarProtocolo';
 import GeneradorEDP from './pages/GeneradorEDP';
 import Configuracion from './pages/Configuracion';
 import VistaCanal from './pages/VistaCanal';
-import { descargarDesdeSupabase, iniciarSyncAutomatico } from './utils/sync';
-import { supabase } from './config/supabase';
+import { iniciarSyncAutomatico } from './utils/sync';
 import { useAuth } from './hooks/useAuth';
 
 function LoadingScreen() {
@@ -185,11 +184,6 @@ function AppRoutes() {
 export default function App() {
   useEffect(() => {
     iniciarSyncAutomatico();
-  }, []);
-
-  useEffect(() => {
-    if (!supabase || !navigator.onLine) return;
-    descargarDesdeSupabase();
   }, []);
 
   return (
