@@ -669,7 +669,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   // Fotos del camión seleccionado, enriquecidas con estado de exclusión y recorte
   const fotosHA = useMemo(() => {
     if (!esHA || camionSeleccionado === 'todos') return [];
-    const c = camionesRegistrados.find(x => x.key === camionSeleccionado);
+    const c = camionesRegistrados.find(x => x.supabaseId === camionSeleccionado);
     if (!c) return [];
     return [
       ...(c.fotoGuiaUrl ? [{ url: c.fotoGuiaUrl, tipo: 'guia', label: 'Guía de despacho' }] : []),
