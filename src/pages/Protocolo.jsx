@@ -142,6 +142,16 @@ function EstadoBadge({ estado }) {
 
 const formatearFechaEnvio = formatearFecha;
 
+function formatDDMMMHHmm(isoStr) {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  const dia = String(d.getDate()).padStart(2, '0');
+  const mes = d.toLocaleString('es-CL', { month: 'short' }).replace('.', '');
+  const hh  = String(d.getHours()).padStart(2, '0');
+  const mm  = String(d.getMinutes()).padStart(2, '0');
+  return `${dia} ${mes} ${hh}:${mm}`;
+}
+
 function Toast({ toast }) {
   if (!toast) return null;
   return (
@@ -2235,13 +2245,27 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
                   )}
                 </div>
               </div>
-              {!esVisor && (
+              {protocolo?.fechaModificacion && (
+                <span style={{ fontSize: '11px', color: '#8892b0', display: 'block', margin: '4px 0 8px' }}>
+                  Última modificación: {protocolo.usuarioNombre ?? '—'} — {formatDDMMMHHmm(protocolo.fechaModificacion)}
+                </span>
+              )}
+              {!esVisor && usuarioAuth?.rol === 'admin' && (
                 <button
                   style={{ ...s.btnAccion, ...s.btnMarcarListo }}
                   onClick={marcarListoParaRevision}
                   disabled={guardando}
                 >
                   {guardando ? 'Guardando...' : '✓ Listo para revisión'}
+                </button>
+              )}
+              {!esVisor && usuarioAuth?.rol !== 'admin' && (
+                <button
+                  style={{ ...s.btnAccion, ...s.btnBorrador }}
+                  onClick={() => guardar(estado)}
+                  disabled={guardando}
+                >
+                  {guardando ? 'Guardando...' : 'Guardar borrador'}
                 </button>
               )}
             </>
