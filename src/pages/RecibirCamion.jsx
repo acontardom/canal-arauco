@@ -66,7 +66,7 @@ const initialForm = {
   fotoGuia: null,
   fotosEnsayo: [],
   usoHormigon: '',
-  llevaEnsayo: false,
+  llevaEnsayo: true,
   tipoEspecificacion: '',
   valorTotal: '',
 };
