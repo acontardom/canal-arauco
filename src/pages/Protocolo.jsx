@@ -340,6 +340,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const isMobile = window.innerWidth < 768;
 
   const [fechaProtocolo, setFechaProtocolo] = useState(fechaHoy());
+  const [mensajeFecha, setMensajeFecha] = useState(null);
   const [checklist, setChecklist] = useState(emptyChecklist);
   const [observaciones, setObservaciones] = useState('');
   const [edp, setEdp] = useState('');
@@ -412,6 +413,32 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const estado = protocolo?.estado ?? 'pendiente';
 
 
+  async function obtenerFechaDefault(pId, t, eId) {
+    if (pId === 'COTAS' || pId === 'HA_RADIER' || pId === 'HA_MURO') {
+      return { fecha: fechaHoy(), mensaje: null };
+    }
+    const usoRadier = ['PICE1', 'PICE2_RADIER', 'PICE4_RADIER', 'PICE4'].includes(pId);
+    const usoMuro   = ['PICE2_MURO', 'PICE3', 'PICE4_MURO'].includes(pId);
+    const esG5      = pId === 'G5';
+    try {
+      let query = supabase
+        .from('camiones')
+        .select('fecha_recepcion, uso_hormigon')
+        .eq('tipo_entidad', t)
+        .eq('entidad_id', String(eId))
+        .order('fecha_recepcion', { ascending: false })
+        .limit(1);
+      if (usoRadier)     query = query.eq('uso_hormigon', 'radier');
+      else if (usoMuro)  query = query.eq('uso_hormigon', 'muro');
+      else if (esG5)     query = query.eq('tipo_hormigon', 'G5');
+      const { data } = await query;
+      if (data?.[0]?.fecha_recepcion) {
+        return { fecha: data[0].fecha_recepcion, mensaje: '⚠️ Fecha sugerida según hormigonado — verifica que sea correcta' };
+      }
+    } catch { /* ignorar error */ }
+    return { fecha: fechaHoy(), mensaje: '📅 Fecha de hoy — verifica que sea correcta' };
+  }
+
   // Carga el protocolo desde Supabase al montar y aplica datos al formulario.
   useEffect(() => {
     let cancelado = false;
@@ -467,6 +494,17 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         setFechaEnvio(normalizado.fechaEnvio ?? null);
         setEdp(normalizado.edp ?? '');
         aplicarDatos(normalizado.datos ?? {});
+        if (!normalizado.datos?.fechaProtocolo) {
+          const { fecha, mensaje } = await obtenerFechaDefault(protocoloId, tipo, entidadIdReal);
+          setFechaProtocolo(fecha);
+          setMensajeFecha(mensaje);
+        } else {
+          setMensajeFecha(null);
+        }
+      } else {
+        const { fecha, mensaje } = await obtenerFechaDefault(protocoloId, tipo, entidadIdReal);
+        setFechaProtocolo(fecha);
+        setMensajeFecha(mensaje);
       }
 
       setCargando(false);
@@ -665,6 +703,17 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
       return { ...prev, cono_conforme: { valor: 'si', obs } };
     });
   }, [esPICE2, camionesTramo]);
+
+  // Para HA: actualizar mensaje de fecha al cambiar el camión seleccionado
+  useEffect(() => {
+    if (!esHA) return;
+    if (camionSeleccionado === 'todos') { setMensajeFecha(null); return; }
+    const c = camionesRegistrados.find(x => x.supabaseId === camionSeleccionado);
+    if (c?.fechaRecepcion) {
+      setFechaProtocolo(c.fechaRecepcion);
+      setMensajeFecha('📅 Fecha del camión seleccionado — verifica que sea correcta');
+    }
+  }, [camionSeleccionado, camionesRegistrados]);
 
   // Fotos del camión seleccionado, enriquecidas con estado de exclusión y recorte
   const fotosHA = useMemo(() => {
@@ -1908,10 +1957,15 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           type="date"
           style={s.fechaProtocoloInput}
           value={fechaProtocolo}
-          onChange={e => setFechaProtocolo(e.target.value)}
+          onChange={e => { setFechaProtocolo(e.target.value); setMensajeFecha(null); }}
           readOnly={readOnly}
         />
       </div>
+      {mensajeFecha && (
+        <span style={{ fontSize: '11px', color: mensajeFecha.startsWith('⚠️') ? '#f59e0b' : '#8892b0', display: 'block', marginTop: '-6px', marginBottom: '8px' }}>
+          {mensajeFecha}
+        </span>
+      )}
 
       {esHA && (
         /* ── Camiones registrados desde Recepción de Camiones ────────────────── */
