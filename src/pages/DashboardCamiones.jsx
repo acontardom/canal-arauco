@@ -25,6 +25,8 @@ const COLORES_TIPO = {
 
 const MESES_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
+const RESISTENCIA_MIN = { G20: 20, G25: 25, G30: 30 };
+
 const FILTROS_INICIAL = {
   entidadTipo:  '',
   entidadId:    '',
@@ -101,6 +103,11 @@ function colorSemaforo(pct) {
 
 const fechaKey = s => s?.substring(0, 10) ?? '';
 
+function diasDesde(fecha) {
+  if (!fecha) return null;
+  return Math.floor((Date.now() - new Date(fecha).getTime()) / (1000 * 60 * 60 * 24));
+}
+
 // ─── Sub-componentes ──────────────────────────────────────────────────────────
 
 function KpiCard({ label, valor, sub }) {
@@ -144,6 +151,7 @@ export default function DashboardCamiones() {
   const [error, setError]                     = useState(null);
   const [filtros, setFiltros]                 = useState(FILTROS_INICIAL);
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+  const [ensayosLab, setEnsayosLab]           = useState([]);
 
   useEffect(() => {
     let activo = true;
@@ -168,6 +176,16 @@ export default function DashboardCamiones() {
       });
 
     return () => { activo = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!supabase || !navigator.onLine) return;
+    supabase
+      .from('ensayos_laboratorio')
+      .select('id, r7, r28, fecha_muestreo, tipo_ensayo, camiones(tipo_hormigon)')
+      .then(({ data, error: err }) => {
+        if (!err) setEnsayosLab(data ?? []);
+      });
   }, []);
 
   function setFiltro(campo, valor) {
@@ -283,6 +301,21 @@ export default function DashboardCamiones() {
 
     return { coberturaPU, nBase: base.length, nConPU: conPU.length, porPlanta };
   }, [filtrados]);
+
+  const kpisEnsayo = useMemo(() => {
+    const compresion = ensayosLab.filter(e => e.tipo_ensayo === 'compresion');
+    const total    = compresion.length;
+    const conR28   = compresion.filter(e => e.r28 != null).length;
+    const cumpleR28 = compresion.filter(e => {
+      if (e.r28 == null) return false;
+      const min = RESISTENCIA_MIN[e.camiones?.tipo_hormigon];
+      return min != null && e.r28 >= min;
+    }).length;
+    const vencidos = compresion.filter(e =>
+      e.r28 == null && (diasDesde(e.fecha_muestreo) ?? 0) >= 28
+    ).length;
+    return { total, conR28, cumpleR28, vencidos };
+  }, [ensayosLab]);
 
   const filtrosActivos = Object.values(filtros).filter(Boolean).length;
 
@@ -500,6 +533,52 @@ export default function DashboardCamiones() {
             </div>
             <p style={s.nota}>Sin especificación contractual definida — solo estadística descriptiva</p>
           </div>
+
+          {/* ── Ensayos de Laboratorio ─────────────────────────────────────── */}
+          {(() => {
+            const pct = kpisEnsayo.conR28 > 0
+              ? Math.round((kpisEnsayo.cumpleR28 / kpisEnsayo.conR28) * 100)
+              : null;
+            const pctColor = pct == null ? '#8892b0'
+              : pct === 100 ? '#10b981'
+              : pct >= 90   ? '#f59e0b'
+              : '#ef4444';
+            return (
+              <div style={s.seccion}>
+                <h2 style={s.seccionTitulo}>Ensayos de Laboratorio</h2>
+                <div style={s.kpiRow}>
+                  <div style={s.kpiCard}>
+                    <div style={s.kpiValor}>{kpisEnsayo.total}</div>
+                    <div style={s.kpiLabel}>Total muestras</div>
+                    <div style={s.kpiSub}>ensayos compresión</div>
+                  </div>
+                  <div style={s.kpiCard}>
+                    <div style={s.kpiValor}>{kpisEnsayo.conR28}</div>
+                    <div style={s.kpiLabel}>Con R28 disponible</div>
+                    <div style={s.kpiSub}>{kpisEnsayo.conR28} / {kpisEnsayo.total}</div>
+                  </div>
+                  <div style={s.kpiCard}>
+                    <div style={{ ...s.kpiValor, color: pctColor }}>
+                      {pct != null ? `${pct}%` : '—'}
+                    </div>
+                    <div style={s.kpiLabel}>% Cumplimiento R28</div>
+                    {kpisEnsayo.conR28 > 0 && (
+                      <div style={s.kpiSub}>{kpisEnsayo.cumpleR28} / {kpisEnsayo.conR28} cumplen</div>
+                    )}
+                  </div>
+                  <div style={s.kpiCard}>
+                    <div style={{ ...s.kpiValor, color: kpisEnsayo.vencidos > 0 ? '#ef4444' : '#64ffda' }}>
+                      {kpisEnsayo.vencidos}
+                    </div>
+                    <div style={s.kpiLabel}>Pendientes vencidos</div>
+                    <div style={{ ...s.kpiSub, ...(kpisEnsayo.vencidos > 0 ? { color: '#ef4444' } : {}) }}>
+                      sin R28 con 28+ días
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </>
       )}
     </div>
