@@ -101,12 +101,14 @@ function RecuadroProtocolos({ titulo, protocolos, color, renderAccion }) {
 function CeldaMatrizITO({ proto, cellStyle, cellBg }) {
   const navigate = useNavigate();
   const estado = proto?.estado;
-  const clickable = estado === 'enviado_ito' || estado === 'firmado';
+  const clickable = estado === 'enviado_ito' || estado === 'firmado' || (estado === 'enviado_edp' && proto?.pdf_firmado_url);
 
   function handleClick() {
     if (estado === 'enviado_ito' && proto?.firma_token) {
       navigate(`/firma/${proto.firma_token}`);
     } else if (estado === 'firmado' && proto?.pdf_firmado_url) {
+      window.open(proto.pdf_firmado_url, '_blank');
+    } else if (estado === 'enviado_edp' && proto?.pdf_firmado_url) {
       window.open(proto.pdf_firmado_url, '_blank');
     }
   }
