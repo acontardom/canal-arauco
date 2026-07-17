@@ -38,6 +38,7 @@ import EnsayosLaboratorio from './pages/EnsayosLaboratorio';
 import VistaCanal from './pages/VistaCanal';
 import { iniciarSyncAutomatico } from './utils/sync';
 import { useAuth } from './hooks/useAuth';
+import UpdatePrompt from './components/UpdatePrompt';
 
 function LoadingScreen() {
   return (
@@ -192,6 +193,7 @@ export default function App() {
     <BrowserRouter>
       <UserProvider>
         <AppRoutes />
+        <UpdatePrompt />
       </UserProvider>
     </BrowserRouter>
   );
