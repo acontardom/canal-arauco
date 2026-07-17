@@ -34,6 +34,7 @@ import Protocolo from './pages/Protocolo';
 import GenerarProtocolo from './pages/GenerarProtocolo';
 import GeneradorEDP from './pages/GeneradorEDP';
 import Configuracion from './pages/Configuracion';
+import EnsayosLaboratorio from './pages/EnsayosLaboratorio';
 import VistaCanal from './pages/VistaCanal';
 import { iniciarSyncAutomatico } from './utils/sync';
 import { useAuth } from './hooks/useAuth';
@@ -171,6 +172,7 @@ function AppRoutes() {
             <Route path="/planificacion" element={<Planificacion />} />
             <Route path="/cuadrillas" element={<Cuadrillas />} />
             <Route path="/configuracion" element={<Configuracion />} />
+            <Route path="/ensayos" element={<EnsayosLaboratorio />} />
           </>
         )}
         <Route path="/login" element={<Navigate to="/" replace />} />

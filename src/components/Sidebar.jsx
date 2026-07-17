@@ -20,6 +20,7 @@ const SECCIONES = [
       { to: '/galeria', label: 'Galería de Fotos', icono: '📁' },
       { to: '/camiones',           label: 'Historial Camiones', icono: '🚛' },
       { to: '/dashboard-camiones', label: 'Control HA',         icono: '🧪' },
+      { to: '/ensayos',            label: 'Ensayos Lab.',       icono: '🔬', soloAdmin: true },
     ],
   },
   {
