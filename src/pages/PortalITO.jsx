@@ -195,55 +195,91 @@ function MatrizITO({ protocolos, verPorEDP }) {
   };
   const cellStyle = { width: 34, height: 26, border: '1px solid #0a1428' };
 
-  const N = COLUMNAS_CAIDAS_ATRAVIESOS.length + 1;
+  const tablaStyle = { borderCollapse: 'collapse', fontSize: 12, width: '100%', tableLayout: 'fixed' };
+  const wrapStyle  = { overflowX: 'auto', border: '1px solid #0f3460', borderRadius: 10 };
+  const thSticky   = { ...tdLabel, position: 'sticky', left: 0, zIndex: 2, borderBottom: '1px solid #0f3460', width: 52 };
 
   return (
-    <div style={{ overflowX: 'auto', border: '1px solid #0f3460', borderRadius: 10 }}>
-      <table style={{ borderCollapse: 'collapse', fontSize: 12, width: '100%', tableLayout: 'fixed' }}>
-        <thead>
-          <tr>
-            <th style={{ ...tdLabel, position: 'sticky', left: 0, zIndex: 2, borderBottom: '1px solid #0f3460', width: 52 }} />
-            {COLUMNAS_CAIDAS_ATRAVIESOS.map(col => (
-              <th key={col.id} style={thLabel}>{col.label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          <tr><th colSpan={N} style={sectionTh}>TRAMOS</th></tr>
-          {TRAMOS.map(id => (
-            <tr key={id}>
-              <td style={tdLabel}>{id}</td>
-              {COLUMNAS_CAIDAS_ATRAVIESOS.map(col => {
-                if (col.id === 'PICE4_MURO') {
-                  return <td key={col.id} style={{ ...cellStyle, background: '#0a1428' }} />;
-                }
-                const k = `tramo-${id}-${col.id}`;
-                return <CeldaMatrizITO key={col.id} proto={protMap[k]} cellStyle={cellStyle} cellBg={cellBg(k)} />;
-              })}
-            </tr>
-          ))}
-          <tr><th colSpan={N} style={sectionTh}>CAÍDAS</th></tr>
-          {CAIDAS.map(id => (
-            <tr key={id}>
-              <td style={tdLabel}>{id}</td>
-              {COLUMNAS_CAIDAS_ATRAVIESOS.map(col => {
-                const k = `caida-${String(id)}-${col.id}`;
-                return <CeldaMatrizITO key={col.id} proto={protMap[k]} cellStyle={cellStyle} cellBg={cellBg(k)} />;
-              })}
-            </tr>
-          ))}
-          <tr><th colSpan={N} style={sectionTh}>ATRAVIESOS</th></tr>
-          {ATRAVIESOS.map(id => (
-            <tr key={id}>
-              <td style={tdLabel}>AT {id}</td>
-              {COLUMNAS_CAIDAS_ATRAVIESOS.map(col => {
-                const k = `atravieso-${String(id)}-${col.id}`;
-                return <CeldaMatrizITO key={col.id} proto={protMap[k]} cellStyle={cellStyle} cellBg={cellBg(k)} />;
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* ── Tramos ── */}
+      <div>
+        <div style={sectionTh}>TRAMOS</div>
+        <div style={wrapStyle}>
+          <table style={tablaStyle}>
+            <thead>
+              <tr>
+                <th style={thSticky} />
+                {COLUMNAS_TRAMOS.map(col => <th key={col.id} style={thLabel}>{col.label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {TRAMOS.map(id => (
+                <tr key={id}>
+                  <td style={tdLabel}>{id}</td>
+                  {COLUMNAS_TRAMOS.map(col => {
+                    const k = `tramo-${id}-${col.id}`;
+                    return <CeldaMatrizITO key={col.id} proto={protMap[k]} cellStyle={cellStyle} cellBg={cellBg(k)} />;
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── Caídas ── */}
+      <div>
+        <div style={sectionTh}>CAÍDAS</div>
+        <div style={wrapStyle}>
+          <table style={tablaStyle}>
+            <thead>
+              <tr>
+                <th style={thSticky} />
+                {COLUMNAS_CAIDAS_ATRAVIESOS.map(col => <th key={col.id} style={thLabel}>{col.label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {CAIDAS.map(id => (
+                <tr key={id}>
+                  <td style={tdLabel}>{id}</td>
+                  {COLUMNAS_CAIDAS_ATRAVIESOS.map(col => {
+                    const k = `caida-${String(id)}-${col.id}`;
+                    return <CeldaMatrizITO key={col.id} proto={protMap[k]} cellStyle={cellStyle} cellBg={cellBg(k)} />;
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── Atraviesos ── */}
+      <div>
+        <div style={sectionTh}>ATRAVIESOS</div>
+        <div style={wrapStyle}>
+          <table style={tablaStyle}>
+            <thead>
+              <tr>
+                <th style={thSticky} />
+                {COLUMNAS_CAIDAS_ATRAVIESOS.map(col => <th key={col.id} style={thLabel}>{col.label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {ATRAVIESOS.map(id => (
+                <tr key={id}>
+                  <td style={tdLabel}>AT {id}</td>
+                  {COLUMNAS_CAIDAS_ATRAVIESOS.map(col => {
+                    const k = `atravieso-${String(id)}-${col.id}`;
+                    return <CeldaMatrizITO key={col.id} proto={protMap[k]} cellStyle={cellStyle} cellBg={cellBg(k)} />;
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
   );
 }
