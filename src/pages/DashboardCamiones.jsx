@@ -27,9 +27,9 @@ const COLORES_TIPO = {
 };
 
 const COLORES_PLANTA = {
-  'Membrillar':     '#b45309',
-  'Quilanco':       '#d97706',
-  'Río San Martín': '#92400e',
+  'Membrillar':     '#64ffda',
+  'Quilanco':       '#f59e0b',
+  'Río San Martín': '#818cf8',
 };
 
 const COLORES_LAB = {
@@ -264,7 +264,7 @@ export default function DashboardCamiones() {
     if (!supabase || !navigator.onLine) return;
     supabase
       .from('ensayos_laboratorio')
-      .select('*, camiones(tipo_hormigon)')
+      .select('*, camiones(tipo_hormigon, planta)')
       .eq('tipo_ensayo', 'compresion')
       .order('fecha_muestreo', { ascending: true })
       .then(({ data, error: err }) => {
@@ -548,6 +548,36 @@ export default function DashboardCamiones() {
       }));
   }, [ensayos]);
 
+  const barrasPlantaEnsayo = useMemo(() => {
+    const conR28 = ensayos.filter(e => e.r28 != null && e.camiones?.planta);
+    const porPlanta = {};
+    for (const e of conR28) {
+      const pl = e.camiones.planta;
+      if (!porPlanta[pl]) porPlanta[pl] = [];
+      porPlanta[pl].push(e);
+    }
+    return PLANTAS
+      .filter(p => porPlanta[p])
+      .map(p => {
+        const regs = porPlanta[p];
+        const vals = regs.map(e => e.r28);
+        const n    = vals.length;
+        const prom = vals.reduce((a, b) => a + b, 0) / n;
+        const sigma = Math.sqrt(vals.reduce((a, b) => a + (b - prom) ** 2, 0) / n);
+        const cumple = regs.filter(e => {
+          const min = RESISTENCIA_MIN[e.camiones?.tipo_hormigon];
+          return min != null && e.r28 >= min;
+        }).length;
+        return {
+          planta:    p,
+          promedio:  Math.round(prom * 10) / 10,
+          sigma:     Math.round(sigma * 10) / 10,
+          pctCumple: Math.round((cumple / n) * 100),
+          n,
+        };
+      });
+  }, [ensayos]);
+
   const filtrosActivos = Object.values(filtros).filter(Boolean).length;
 
   // ─── Render ──────────────────────────────────────────────────────────────
@@ -752,7 +782,7 @@ export default function DashboardCamiones() {
                     <th style={{ ...s.th, ...s.thNum }}>Promedio (cm)</th>
                     <th style={{ ...s.th, ...s.thNum }}>σ</th>
                     <th style={{ ...s.th, ...s.thNum }}>Rango</th>
-                    <th style={{ ...s.th, ...s.thNum }}>% en spec (6–10 cm)</th>
+                    <th style={{ ...s.th, ...s.thNum }}>CV (%)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -766,8 +796,8 @@ export default function DashboardCamiones() {
                         {min != null ? `${fmtNum(min)} – ${fmtNum(max)}` : '—'}
                       </td>
                       <td style={{ ...s.td, ...s.tdNum }}>
-                        {pctSpec != null
-                          ? <span style={{ color: colorSemaforo(pctSpec), fontWeight: 700 }}>{pctSpec.toFixed(0)}%</span>
+                        {sigma != null && promedio != null && promedio !== 0
+                          ? `${(sigma / promedio * 100).toFixed(1)}%`
                           : '—'}
                       </td>
                     </tr>
@@ -1023,6 +1053,30 @@ export default function DashboardCamiones() {
                           <Label value="Mínimo G20: 20 MPa" position="insideTopRight" fill="#ef4444" fontSize={11} />
                         </ReferenceLine>
                         <Bar dataKey="promedio" fill="#64ffda" radius={[6, 6, 0, 0]}>
+                          <LabelList dataKey="promedio" position="top" style={{ fill: '#ccd6f6', fontSize: 11, fontWeight: 600 }} formatter={v => `${fmtNum(v)} MPa`} />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* R28 promedio por planta */}
+                {barrasPlantaEnsayo.length > 0 && (
+                  <div style={{ marginTop: '24px' }}>
+                    <p style={s.graficoTitulo}>R28 promedio por planta (MPa)</p>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <BarChart data={barrasPlantaEnsayo} margin={{ top: 16, right: 32, left: 0, bottom: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e3a5f" vertical={false} />
+                        <XAxis dataKey="planta" tick={{ fill: '#8892b0', fontSize: 11 }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fill: '#8892b0', fontSize: 11 }} axisLine={false} tickLine={false} unit=" MPa" width={58} />
+                        <Tooltip content={TooltipLab} />
+                        <ReferenceLine y={20} stroke="#ef4444" strokeDasharray="4 4">
+                          <Label value="Mínimo G20: 20 MPa" position="insideTopRight" fill="#ef4444" fontSize={11} />
+                        </ReferenceLine>
+                        <Bar dataKey="promedio" radius={[6, 6, 0, 0]}>
+                          {barrasPlantaEnsayo.map(d => (
+                            <Cell key={d.planta} fill={COLORES_PLANTA[d.planta] ?? '#8892b0'} />
+                          ))}
                           <LabelList dataKey="promedio" position="top" style={{ fill: '#ccd6f6', fontSize: 11, fontWeight: 600 }} formatter={v => `${fmtNum(v)} MPa`} />
                         </Bar>
                       </BarChart>
