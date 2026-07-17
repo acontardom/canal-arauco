@@ -1907,7 +1907,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const modoSimplificado = estado === 'firmado' || estado === 'enviado_edp';
 
   if (modoSimplificado) return (
-    <div style={s.page}>
+    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div style={s.header}>
         {!embedded && (
           <button style={s.btnVolver} onClick={() => navigate(volverUrl)}>← Volver</button>
@@ -1963,7 +1963,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
           <>
             <iframe
               src={protocolo.pdfFirmadoUrl}
-              style={{ width: '100%', height: '80vh', border: 'none', borderRadius: '8px' }}
+              style={{ width: '100%', height: '75vh', border: 'none', borderRadius: '8px' }}
               title="PDF Firmado"
             />
             <button
