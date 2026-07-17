@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { db } from '../db/database';
 import { supabase } from '../config/supabase';
 import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
-import { eliminarFotoStorage } from '../utils/uploadFoto';
+import { eliminarFotoStorage, uploadFoto } from '../utils/uploadFoto';
 import { formatearFecha, formatearFechaLarga } from '../utils/fecha';
 
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
@@ -187,6 +187,8 @@ export default function HistorialCamiones() {
           tipo_especificacion: cambios.tipoEspecificacion ?? null,
           valor_total: cambios.valorTotal ? Number(cambios.valorTotal) : null,
           fecha_recepcion: cambios.fechaRecepcion || null,
+          foto_guia_url: cambios.fotoGuiaUrl ?? null,
+          fotos_ensayo_urls: cambios.fotosEnsayoUrls ?? [],
         };
         const { error: err } = await supabase.from('camiones').update(payload).eq('id', camion.supabaseId);
         if (err) throw err;
@@ -580,7 +582,14 @@ function EditarCamionModal({ camion: c, guardando, onGuardar, onCancelar }) {
     observaciones: c.observaciones ?? '',
     tipoEspecificacion: c.tipoEspecificacion ?? '',
     valorTotal: c.valorTotal ?? '',
+    fotoGuia: c.fotoGuiaUrl ?? null,
+    fotosEnsayo: c.fotosEnsayoUrls ?? [],
   }));
+
+  const [nuevaFotoGuia, setNuevaFotoGuia] = useState(null);
+  const [nuevasFotosEnsayo, setNuevasFotosEnsayo] = useState([]);
+  const inputGuiaRef = useRef(null);
+  const inputEnsayoRef = useRef(null);
 
   function campo(nombre, valor) {
     setForm(prev => ({ ...prev, [nombre]: valor }));
@@ -594,15 +603,37 @@ function EditarCamionModal({ camion: c, guardando, onGuardar, onCancelar }) {
     setForm(prev => ({ ...prev, entidadSecundariaTipo: tipo, entidadSecundariaId: String(LISTAS[tipo][0]) }));
   }
 
-  const puPreview = calcPU(form.pesoHoyaHormigon);
-  const fotosEnsayo = c.fotosEnsayoUrls ?? [];
+  function fileToDataUrl(file) {
+    return new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.readAsDataURL(file);
+    });
+  }
 
-  function handleGuardar() {
+  const puPreview = calcPU(form.pesoHoyaHormigon);
+
+  async function handleGuardar() {
     const entidadIdFinal = form.tipoEntidad === 'caida' ? Number(form.entidadId) : form.entidadId;
     const entidadSecundariaTipoFinal = form.involucraSecundaria ? form.entidadSecundariaTipo : null;
     const entidadSecundariaIdFinal = entidadSecundariaTipoFinal
       ? (entidadSecundariaTipoFinal === 'caida' ? Number(form.entidadSecundariaId) : form.entidadSecundariaId)
       : null;
+
+    let fotoGuiaFinal = form.fotoGuia;
+    let fotosEnsayoFinal = [...form.fotosEnsayo];
+
+    if (nuevaFotoGuia) {
+      const dataUrl = await fileToDataUrl(nuevaFotoGuia.file);
+      const url = await uploadFoto(dataUrl, { tipo: c.tipoEntidad, entidadId: c.entidadId, carpeta: 'camiones' });
+      if (url) fotoGuiaFinal = url;
+    }
+
+    for (const f of nuevasFotosEnsayo) {
+      const dataUrl = await fileToDataUrl(f.file);
+      const url = await uploadFoto(dataUrl, { tipo: c.tipoEntidad, entidadId: c.entidadId, carpeta: 'camiones' });
+      if (url) fotosEnsayoFinal.push(url);
+    }
 
     onGuardar({
       fechaRecepcion: form.fechaRecepcion || null,
@@ -627,6 +658,8 @@ function EditarCamionModal({ camion: c, guardando, onGuardar, onCancelar }) {
       observaciones: form.observaciones,
       tipoEspecificacion: form.tipoEspecificacion || null,
       valorTotal: form.valorTotal,
+      fotoGuiaUrl: fotoGuiaFinal,
+      fotosEnsayoUrls: fotosEnsayoFinal,
     });
   }
 
@@ -795,15 +828,67 @@ function EditarCamionModal({ camion: c, guardando, onGuardar, onCancelar }) {
             <textarea style={s.textarea} rows={3} value={form.observaciones} onChange={e => campo('observaciones', e.target.value)} />
           </div>
 
-          <div style={s.fotosReadonly}>
-            <span style={s.fotoSeccionTitulo}>Fotos (solo lectura)</span>
-            {!c.fotoGuiaUrl && fotosEnsayo.length === 0 && (
-              <p style={s.sinFotos}>Sin fotos asociadas a este registro</p>
-            )}
+          {/* ── Foto guía ── */}
+          <div style={s.campo}>
+            <span style={s.fotoSeccionTitulo}>Foto guía</span>
+            <input ref={inputGuiaRef} type="file" accept="image/*" style={{ display: 'none' }}
+              onChange={e => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (!file) return;
+                setNuevaFotoGuia({ file, preview: URL.createObjectURL(file) });
+              }}
+            />
             <div style={s.fotosGrid}>
-              {c.fotoGuiaUrl && <img src={c.fotoGuiaUrl} alt="Guía de despacho" loading="lazy" style={{ ...s.fotoThumb, backgroundColor: '#2a2a3e' }} onError={e => { e.target.style.opacity = '0.3'; }} />}
-              {fotosEnsayo.map((url, i) => <img key={i} src={url} alt={`Ensayo ${i + 1}`} loading="lazy" style={{ ...s.fotoThumb, backgroundColor: '#2a2a3e' }} onError={e => { e.target.style.opacity = '0.3'; }} />)}
+              {(form.fotoGuia || nuevaFotoGuia) ? (
+                <div style={{ position: 'relative', display: 'inline-block' }}>
+                  <img
+                    src={nuevaFotoGuia ? nuevaFotoGuia.preview : form.fotoGuia}
+                    alt="Guía de despacho"
+                    loading="lazy"
+                    style={{ ...s.fotoThumb, backgroundColor: '#2a2a3e' }}
+                    onError={e => { e.target.style.opacity = '0.3'; }}
+                  />
+                  <button
+                    style={s.btnEliminarFotoEdit}
+                    onClick={() => { setForm(prev => ({ ...prev, fotoGuia: null })); setNuevaFotoGuia(null); }}
+                  >✕</button>
+                </div>
+              ) : null}
             </div>
+            <button style={s.btnAgregarFoto} onClick={() => inputGuiaRef.current?.click()}>
+              {form.fotoGuia || nuevaFotoGuia ? '📷 Cambiar foto guía' : '📷 Agregar foto guía'}
+            </button>
+          </div>
+
+          {/* ── Fotos ensayo ── */}
+          <div style={s.campo}>
+            <span style={s.fotoSeccionTitulo}>Fotos ensayo</span>
+            <input ref={inputEnsayoRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
+              onChange={e => {
+                const files = Array.from(e.target.files ?? []);
+                e.target.value = '';
+                if (!files.length) return;
+                setNuevasFotosEnsayo(prev => [...prev, ...files.map(f => ({ file: f, preview: URL.createObjectURL(f) }))]);
+              }}
+            />
+            <div style={s.fotosGrid}>
+              {form.fotosEnsayo.map((url, i) => (
+                <div key={url + i} style={{ position: 'relative', display: 'inline-block' }}>
+                  <img src={url} alt={`Ensayo ${i + 1}`} loading="lazy" style={{ ...s.fotoThumb, backgroundColor: '#2a2a3e' }} onError={e => { e.target.style.opacity = '0.3'; }} />
+                  <button style={s.btnEliminarFotoEdit} onClick={() => setForm(prev => ({ ...prev, fotosEnsayo: prev.fotosEnsayo.filter((_, j) => j !== i) }))}>✕</button>
+                </div>
+              ))}
+              {nuevasFotosEnsayo.map((f, i) => (
+                <div key={f.preview} style={{ position: 'relative', display: 'inline-block' }}>
+                  <img src={f.preview} alt={`Nueva ${i + 1}`} style={{ ...s.fotoThumb, backgroundColor: '#2a2a3e', opacity: 0.7 }} />
+                  <button style={s.btnEliminarFotoEdit} onClick={() => setNuevasFotosEnsayo(prev => prev.filter((_, j) => j !== i))}>✕</button>
+                </div>
+              ))}
+            </div>
+            <button style={s.btnAgregarFoto} onClick={() => inputEnsayoRef.current?.click()}>
+              📷 Agregar fotos ensayo
+            </button>
           </div>
         </div>
 
@@ -972,6 +1057,17 @@ const s = {
     color: '#ccd6f6', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
   },
   fotosReadonly: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  btnEliminarFotoEdit: {
+    position: 'absolute', top: '2px', right: '2px',
+    background: 'rgba(0,0,0,0.7)', border: 'none', borderRadius: '50%',
+    color: '#fff', fontSize: '10px', width: '18px', height: '18px',
+    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+  },
+  btnAgregarFoto: {
+    marginTop: '6px', background: '#0f3460', border: 'none', borderRadius: '8px',
+    color: '#ccd6f6', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+    padding: '6px 12px', alignSelf: 'flex-start',
+  },
   modalFooter: { display: 'flex', justifyContent: 'flex-end', gap: '10px' },
   btnCancelarModal: {
     background: 'transparent', border: '1px solid #0f3460', color: '#8892b0',
