@@ -1,7 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  ScatterChart, Scatter, ZAxis,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   LabelList, ResponsiveContainer,
+  ErrorBar, ReferenceArea, ReferenceLine, Label,
 } from 'recharts';
 import { supabase } from '../config/supabase';
 import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
@@ -21,6 +24,12 @@ const COLORES_TIPO = {
   G20: '#f97316',
   G25: '#c2410c',
   G30: '#7c2d12',
+};
+
+const COLORES_PLANTA = {
+  'Membrillar':     '#b45309',
+  'Quilanco':       '#d97706',
+  'Río San Martín': '#92400e',
 };
 
 const MESES_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -103,6 +112,24 @@ function colorSemaforo(pct) {
 
 const fechaKey = s => s?.substring(0, 10) ?? '';
 
+function formatDDMMM(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T12:00:00');
+  if (isNaN(d.getTime())) return dateStr;
+  return `${String(d.getDate()).padStart(2, '0')} ${MESES_ES[d.getMonth()]}`;
+}
+
+function getWeekKey(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr + 'T12:00:00');
+  if (isNaN(d.getTime())) return null;
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diff);
+  return monday.toISOString().substring(0, 10);
+}
+
 function diasDesde(fecha) {
   if (!fecha) return null;
   return Math.floor((Date.now() - new Date(fecha).getTime()) / (1000 * 60 * 60 * 24));
@@ -140,6 +167,19 @@ function BarLabel({ value, x, y, width, height }) {
     >
       {Math.round(value)}
     </text>
+  );
+}
+
+function TooltipCono({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div style={{ background: '#16213e', border: '1px solid #0f3460', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
+      <p style={{ color: '#ccd6f6', margin: '0 0 2px' }}>Guía: {d.guia || '—'}</p>
+      <p style={{ color: '#ccd6f6', margin: '0 0 2px' }}>Fecha: {d.fecha}</p>
+      <p style={{ color: '#ccd6f6', margin: '0 0 2px' }}>Cono: {d.y} cm</p>
+      <p style={{ color: '#8892b0', margin: 0 }}>Planta: {d.planta || '—'}</p>
+    </div>
   );
 }
 
@@ -317,6 +357,91 @@ export default function DashboardCamiones() {
     return { total, conR28, cumpleR28, vencidos };
   }, [ensayosLab]);
 
+  const datosAcumulado = useMemo(() => {
+    let acum = 0;
+    return [...filtrados]
+      .filter(c => c.fechaRecepcion && parseFloat(c.volumen) > 0)
+      .sort((a, b) => a.fechaRecepcion.localeCompare(b.fechaRecepcion))
+      .map(c => {
+        acum += parseFloat(c.volumen) || 0;
+        return { label: formatDDMMM(c.fechaRecepcion), acumulado: Math.round(acum * 10) / 10 };
+      });
+  }, [filtrados]);
+
+  const donaPlanta = useMemo(() => {
+    const mapa = {};
+    for (const c of filtrados) {
+      if (!c.planta) continue;
+      mapa[c.planta] = (mapa[c.planta] || 0) + (parseFloat(c.volumen) || 0);
+    }
+    return PLANTAS
+      .map(p => ({ name: p, value: Math.round((mapa[p] || 0) * 10) / 10 }))
+      .filter(p => p.value > 0);
+  }, [filtrados]);
+
+  const scatterCono = useMemo(() => {
+    const tieneCono = c => c.cono !== null && c.cono !== undefined && c.cono !== '';
+    return filtrados
+      .filter(c => TIPOS_ESTRUCTURALES.includes(c.tipoHormigon) && tieneCono(c) && c.fechaRecepcion)
+      .map(c => ({
+        x:      new Date(c.fechaRecepcion + 'T12:00:00').getTime(),
+        y:      parseFloat(c.cono),
+        planta: c.planta,
+        guia:   c.numeroGuia,
+        fecha:  c.fechaRecepcion.substring(0, 10),
+      }));
+  }, [filtrados]);
+
+  const semanalCono = useMemo(() => {
+    const tieneCono = c => c.cono !== null && c.cono !== undefined && c.cono !== '';
+    const mapa = {};
+    for (const c of filtrados.filter(c => TIPOS_ESTRUCTURALES.includes(c.tipoHormigon) && tieneCono(c))) {
+      const wk = getWeekKey(c.fechaRecepcion);
+      if (!wk) continue;
+      if (!mapa[wk]) mapa[wk] = [];
+      mapa[wk].push(parseFloat(c.cono));
+    }
+    return Object.keys(mapa).sort().map(wk => ({
+      semana:   formatDDMMM(wk),
+      promedio: Math.round(mapa[wk].reduce((a, b) => a + b, 0) / mapa[wk].length * 10) / 10,
+      n:        mapa[wk].length,
+    }));
+  }, [filtrados]);
+
+  const promedioGlobalPU = useMemo(() => {
+    const vals = filtrados
+      .filter(c => TIPOS_ESTRUCTURALES.includes(c.tipoHormigon) && fechaKey(c.fechaRecepcion) >= FECHA_INICIO_PU)
+      .map(c => parseFloat(c.puCalculado))
+      .filter(v => !isNaN(v) && v > 0);
+    return vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+  }, [filtrados]);
+
+  const semanalPU = useMemo(() => {
+    const base = filtrados.filter(c =>
+      TIPOS_ESTRUCTURALES.includes(c.tipoHormigon) &&
+      fechaKey(c.fechaRecepcion) >= FECHA_INICIO_PU &&
+      c.puCalculado !== null && c.puCalculado !== undefined && c.puCalculado !== ''
+    );
+    const mapa = {};
+    for (const c of base) {
+      const wk = getWeekKey(c.fechaRecepcion);
+      if (!wk || !c.planta) continue;
+      if (!mapa[wk]) mapa[wk] = { label: formatDDMMM(wk) };
+      if (!mapa[wk][c.planta]) mapa[wk][c.planta] = [];
+      mapa[wk][c.planta].push(parseFloat(c.puCalculado));
+    }
+    return Object.keys(mapa).sort()
+      .map(wk => {
+        const row = { semana: mapa[wk].label };
+        for (const p of PLANTAS) {
+          const vals = mapa[wk][p];
+          if (vals && vals.length > 0) row[p] = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+        }
+        return row;
+      })
+      .filter(row => PLANTAS.some(p => row[p] != null));
+  }, [filtrados]);
+
   const filtrosActivos = Object.values(filtros).filter(Boolean).length;
 
   // ─── Render ──────────────────────────────────────────────────────────────
@@ -437,6 +562,60 @@ export default function DashboardCamiones() {
                 </ResponsiveContainer>
               )
             }
+
+            {datosAcumulado.length > 0 && (
+              <div style={{ marginTop: '24px' }}>
+                <p style={s.graficoTitulo}>
+                  Producción acumulada
+                  <span style={{ fontWeight: 400, color: '#64ffda', marginLeft: '8px', fontSize: '13px' }}>
+                    → {fmtNum(datosAcumulado[datosAcumulado.length - 1].acumulado, 1)} m³ total
+                  </span>
+                </p>
+                <ResponsiveContainer width="100%" height={280}>
+                  <LineChart data={datosAcumulado} margin={{ top: 8, right: 32, left: 0, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e3a5f" vertical={false} />
+                    <XAxis dataKey="label" tick={{ fill: '#8892b0', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                    <YAxis tick={{ fill: '#8892b0', fontSize: 11 }} axisLine={false} tickLine={false} unit=" m³" width={62} />
+                    <Tooltip
+                      contentStyle={{ background: '#16213e', border: '1px solid #0f3460', borderRadius: 8, fontSize: 12 }}
+                      labelStyle={{ color: '#ccd6f6', fontWeight: 700 }}
+                      itemStyle={{ color: '#64ffda' }}
+                      formatter={v => [`${fmtNum(v, 1)} m³`, 'Acumulado']}
+                    />
+                    <Line type="monotone" dataKey="acumulado" stroke="#64ffda" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {donaPlanta.length > 0 && (
+              <div style={{ marginTop: '24px' }}>
+                <p style={s.graficoTitulo}>Distribución por planta (m³)</p>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={donaPlanta}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={70}
+                      outerRadius={110}
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                      labelLine={{ stroke: '#8892b0' }}
+                      fontSize={11}
+                    >
+                      {donaPlanta.map(entry => (
+                        <Cell key={entry.name} fill={COLORES_PLANTA[entry.name] ?? '#8892b0'} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ background: '#16213e', border: '1px solid #0f3460', borderRadius: 8, fontSize: 12 }}
+                      formatter={(v, name) => [`${fmtNum(v, 1)} m³`, name]}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12, color: '#8892b0', paddingTop: 8 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
 
           {/* ── Control de Cono ───────────────────────────────────────────── */}
@@ -490,6 +669,89 @@ export default function DashboardCamiones() {
                 </tbody>
               </table>
             </div>
+
+            {(() => {
+              const data = analisisCono.porPlanta
+                .filter(p => p.n > 0 && p.promedio != null)
+                .map(p => ({ planta: p.planta, promedio: Math.round(p.promedio * 10) / 10 }));
+              return data.length > 0 ? (
+                <div style={{ marginTop: '24px' }}>
+                  <p style={s.graficoTitulo}>Promedio de cono por planta (cm)</p>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={data} margin={{ top: 16, right: 32, left: 0, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1e3a5f" vertical={false} />
+                      <XAxis dataKey="planta" tick={{ fill: '#8892b0', fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis domain={[0, 14]} tick={{ fill: '#8892b0', fontSize: 11 }} axisLine={false} tickLine={false} unit=" cm" width={48} />
+                      <Tooltip
+                        contentStyle={{ background: '#16213e', border: '1px solid #0f3460', borderRadius: 8, fontSize: 12 }}
+                        labelStyle={{ color: '#ccd6f6', fontWeight: 700 }}
+                        formatter={v => [`${fmtNum(v)} cm`, 'Promedio cono']}
+                      />
+                      <ReferenceArea y1={6} y2={10} fill="#10b981" fillOpacity={0.08} />
+                      <ReferenceLine y={8} stroke="#10b981" strokeDasharray="4 4">
+                        <Label value="Óptimo 8 cm" position="insideTopRight" fill="#10b981" fontSize={11} />
+                      </ReferenceLine>
+                      <Bar dataKey="promedio" radius={[6, 6, 0, 0]}>
+                        {data.map(d => (
+                          <Cell key={d.planta} fill={COLORES_PLANTA[d.planta] ?? '#8892b0'} />
+                        ))}
+                        <LabelList dataKey="promedio" position="top" style={{ fill: '#ccd6f6', fontSize: 11, fontWeight: 600 }} formatter={v => `${fmtNum(v)} cm`} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : null;
+            })()}
+
+            {scatterCono.length > 0 && (
+              <div style={{ marginTop: '24px' }}>
+                <p style={s.graficoTitulo}>Cono vs. fecha — G20+ (rojo: fuera del rango 6–10 cm)</p>
+                <ResponsiveContainer width="100%" height={280}>
+                  <ScatterChart margin={{ top: 8, right: 32, left: 0, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e3a5f" />
+                    <XAxis
+                      type="number" dataKey="x" name="fecha"
+                      domain={['auto', 'auto']}
+                      tickFormatter={v => formatDDMMM(new Date(v).toISOString().substring(0, 10))}
+                      tick={{ fill: '#8892b0', fontSize: 10 }} axisLine={false} tickLine={false}
+                    />
+                    <YAxis type="number" dataKey="y" name="cono" domain={[0, 14]} unit=" cm" tick={{ fill: '#8892b0', fontSize: 11 }} axisLine={false} tickLine={false} width={48} />
+                    <ZAxis range={[35, 35]} />
+                    <ReferenceArea y1={6} y2={10} fill="#10b981" fillOpacity={0.07} />
+                    <Tooltip content={TooltipCono} />
+                    <Scatter
+                      data={scatterCono}
+                      shape={({ cx, cy, payload }) => {
+                        const inRange = payload.y >= 6 && payload.y <= 10;
+                        const fill = inRange ? (COLORES_PLANTA[payload.planta] ?? '#8892b0') : '#ef4444';
+                        return <circle cx={cx} cy={cy} r={4} fill={fill} fillOpacity={0.85} stroke="none" />;
+                      }}
+                    />
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {semanalCono.length > 0 && (
+              <div style={{ marginTop: '24px' }}>
+                <p style={s.graficoTitulo}>Promedio semanal de cono — G20+</p>
+                <ResponsiveContainer width="100%" height={280}>
+                  <LineChart data={semanalCono} margin={{ top: 8, right: 32, left: 0, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e3a5f" vertical={false} />
+                    <XAxis dataKey="semana" tick={{ fill: '#8892b0', fontSize: 10 }} axisLine={false} tickLine={false} interval={0} />
+                    <YAxis domain={[0, 14]} tick={{ fill: '#8892b0', fontSize: 11 }} axisLine={false} tickLine={false} unit=" cm" width={48} />
+                    <Tooltip
+                      contentStyle={{ background: '#16213e', border: '1px solid #0f3460', borderRadius: 8, fontSize: 12 }}
+                      labelStyle={{ color: '#ccd6f6', fontWeight: 700 }}
+                      formatter={(v, _n, props) => [`${fmtNum(v)} cm  (n=${props.payload.n})`, 'Promedio cono']}
+                    />
+                    <ReferenceArea y1={6} y2={10} fill="#10b981" fillOpacity={0.07} />
+                    <ReferenceLine y={8} stroke="#10b981" strokeDasharray="4 4" />
+                    <Line type="monotone" dataKey="promedio" stroke="#64ffda" strokeWidth={2} dot={{ fill: '#64ffda', r: 4 }} activeDot={{ r: 5 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
 
           {/* ── Control de Peso Unitario ───────────────────────────────────── */}
@@ -531,6 +793,68 @@ export default function DashboardCamiones() {
                 </tbody>
               </table>
             </div>
+            {(() => {
+              const dataBarras = analisisPU.porPlanta
+                .filter(p => p.n > 0 && p.promedio != null)
+                .map(p => ({ planta: p.planta, promedio: Math.round(p.promedio), sigma: Math.round(p.sigma ?? 0) }));
+              return dataBarras.length > 0 ? (
+                <div style={{ marginTop: '24px' }}>
+                  <p style={s.graficoTitulo}>Promedio ± σ de PU por planta (kg/m³)</p>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={dataBarras} margin={{ top: 16, right: 32, left: 0, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1e3a5f" vertical={false} />
+                      <XAxis dataKey="planta" tick={{ fill: '#8892b0', fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis domain={[2200, 2500]} tick={{ fill: '#8892b0', fontSize: 11 }} axisLine={false} tickLine={false} unit=" kg" width={62} />
+                      <Tooltip
+                        contentStyle={{ background: '#16213e', border: '1px solid #0f3460', borderRadius: 8, fontSize: 12 }}
+                        labelStyle={{ color: '#ccd6f6', fontWeight: 700 }}
+                        formatter={(v, name) => [`${fmtNum(v, 0)} kg/m³`, name === 'promedio' ? 'Promedio PU' : 'σ']}
+                      />
+                      {promedioGlobalPU && (
+                        <ReferenceLine y={promedioGlobalPU} stroke="#64ffda" strokeDasharray="4 4">
+                          <Label value={`Prom global: ${promedioGlobalPU}`} position="insideTopRight" fill="#64ffda" fontSize={11} />
+                        </ReferenceLine>
+                      )}
+                      <Bar dataKey="promedio" radius={[6, 6, 0, 0]}>
+                        {dataBarras.map(d => (
+                          <Cell key={d.planta} fill={COLORES_PLANTA[d.planta] ?? '#8892b0'} />
+                        ))}
+                        <LabelList dataKey="promedio" position="top" style={{ fill: '#ccd6f6', fontSize: 11, fontWeight: 600 }} formatter={v => fmtNum(v, 0)} />
+                        <ErrorBar dataKey="sigma" width={4} strokeWidth={2} stroke="#8892b0" direction="y" />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : null;
+            })()}
+
+            {semanalPU.length > 0 && (
+              <div style={{ marginTop: '24px' }}>
+                <p style={s.graficoTitulo}>Evolución semanal de PU por planta (kg/m³)</p>
+                <ResponsiveContainer width="100%" height={280}>
+                  <LineChart data={semanalPU} margin={{ top: 8, right: 32, left: 0, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e3a5f" vertical={false} />
+                    <XAxis dataKey="semana" tick={{ fill: '#8892b0', fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis domain={[2200, 2500]} tick={{ fill: '#8892b0', fontSize: 11 }} axisLine={false} tickLine={false} unit=" kg" width={62} />
+                    <Tooltip
+                      contentStyle={{ background: '#16213e', border: '1px solid #0f3460', borderRadius: 8, fontSize: 12 }}
+                      labelStyle={{ color: '#ccd6f6', fontWeight: 700 }}
+                      formatter={(v, name) => [`${fmtNum(v, 0)} kg/m³`, name]}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12, color: '#8892b0', paddingTop: 8 }} />
+                    {PLANTAS.map(p => (
+                      <Line
+                        key={p} type="monotone" dataKey={p}
+                        stroke={COLORES_PLANTA[p]} strokeWidth={2}
+                        dot={{ fill: COLORES_PLANTA[p], r: 3 }}
+                        connectNulls
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
             <p style={s.nota}>Sin especificación contractual definida — solo estadística descriptiva</p>
           </div>
 
@@ -651,5 +975,6 @@ const s = {
   td:    { color: '#ccd6f6', fontSize: '13px', padding: '10px 12px', borderBottom: '1px solid #0f3460' },
   tdNum: { textAlign: 'right', fontVariantNumeric: 'tabular-nums' },
 
-  nota: { color: '#8892b0', fontSize: '12px', fontStyle: 'italic', marginTop: '12px', marginBottom: 0 },
+  nota:          { color: '#8892b0', fontSize: '12px', fontStyle: 'italic', marginTop: '12px', marginBottom: 0 },
+  graficoTitulo: { color: '#64ffda', fontSize: '14px', fontWeight: 600, margin: '0 0 8px' },
 };
