@@ -32,6 +32,11 @@ const COLORES_PLANTA = {
   'Río San Martín': '#92400e',
 };
 
+const COLORES_LAB = {
+  'Pampa Austral': '#64ffda',
+  'Labotec':       '#f59e0b',
+};
+
 const MESES_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
 const RESISTENCIA_MIN = { G20: 20, G25: 25, G30: 30 };
@@ -183,6 +188,32 @@ function TooltipCono({ active, payload }) {
   );
 }
 
+function TooltipLab({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div style={{ background: '#16213e', border: '1px solid #0f3460', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
+      <p style={{ color: '#ccd6f6', fontWeight: 700, margin: '0 0 4px' }}>{label}</p>
+      <p style={{ color: '#64ffda', margin: '0 0 2px' }}>Promedio R28: {d.promedio} MPa</p>
+      <p style={{ color: '#8892b0', margin: '0 0 2px' }}>σ: {d.sigma} MPa</p>
+      <p style={{ color: '#8892b0', margin: 0 }}>Cumplimiento: {d.pctCumple}% ({d.n} ensayos)</p>
+    </div>
+  );
+}
+
+function TooltipR28({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div style={{ background: '#16213e', border: '1px solid #0f3460', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
+      <p style={{ color: '#ccd6f6', margin: '0 0 2px' }}>Guía: {d.guia}</p>
+      <p style={{ color: '#ccd6f6', margin: '0 0 2px' }}>Fecha: {d.fecha}</p>
+      <p style={{ color: '#ccd6f6', margin: '0 0 2px' }}>R28: {d.y} MPa</p>
+      <p style={{ color: '#8892b0', margin: 0 }}>Lab.: {d.laboratorio}</p>
+    </div>
+  );
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function DashboardCamiones() {
@@ -192,6 +223,7 @@ export default function DashboardCamiones() {
   const [filtros, setFiltros]                 = useState(FILTROS_INICIAL);
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [ensayosLab, setEnsayosLab]           = useState([]);
+  const [ensayos, setEnsayos]                 = useState([]);
 
   useEffect(() => {
     let activo = true;
@@ -225,6 +257,18 @@ export default function DashboardCamiones() {
       .select('id, r7, r28, fecha_muestreo, tipo_ensayo, camiones(tipo_hormigon)')
       .then(({ data, error: err }) => {
         if (!err) setEnsayosLab(data ?? []);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!supabase || !navigator.onLine) return;
+    supabase
+      .from('ensayos_laboratorio')
+      .select('*, camiones(tipo_hormigon)')
+      .eq('tipo_ensayo', 'compresion')
+      .order('fecha_muestreo', { ascending: true })
+      .then(({ data, error: err }) => {
+        if (!err) setEnsayos(data ?? []);
       });
   }, []);
 
@@ -441,6 +485,68 @@ export default function DashboardCamiones() {
       })
       .filter(row => PLANTAS.some(p => row[p] != null));
   }, [filtrados]);
+
+  const kpisLab = useMemo(() => {
+    const total = ensayos.length;
+    const conR28 = ensayos.filter(e => e.r28 != null).length;
+    const cumpleR28 = ensayos.filter(e => {
+      if (e.r28 == null) return false;
+      const min = RESISTENCIA_MIN[e.camiones?.tipo_hormigon];
+      return min != null && e.r28 >= min;
+    }).length;
+    const vencidosSinR28 = ensayos.filter(e =>
+      e.r28 === null && (diasDesde(e.fecha_muestreo) ?? 0) >= 28
+    ).length;
+    return { total, conR28, cumpleR28, vencidosSinR28 };
+  }, [ensayos]);
+
+  const barrasLaboratorio = useMemo(() => {
+    const conR28 = ensayos.filter(e => e.r28 != null && e.laboratorio);
+    const porLab = {};
+    for (const e of conR28) {
+      if (!porLab[e.laboratorio]) porLab[e.laboratorio] = [];
+      porLab[e.laboratorio].push(e);
+    }
+    return Object.entries(porLab).map(([lab, regs]) => {
+      const vals = regs.map(e => e.r28);
+      const n    = vals.length;
+      const prom = vals.reduce((a, b) => a + b, 0) / n;
+      const sigma = Math.sqrt(vals.reduce((a, b) => a + (b - prom) ** 2, 0) / n);
+      const cumple = regs.filter(e => {
+        const min = RESISTENCIA_MIN[e.camiones?.tipo_hormigon];
+        return min != null && e.r28 >= min;
+      }).length;
+      return {
+        laboratorio: lab,
+        promedio:    Math.round(prom * 10) / 10,
+        sigma:       Math.round(sigma * 10) / 10,
+        pctCumple:   Math.round((cumple / n) * 100),
+        n,
+      };
+    });
+  }, [ensayos]);
+
+  const scatterR28 = useMemo(() => {
+    return ensayos
+      .filter(e => e.r28 != null && e.fecha_muestreo)
+      .map(e => ({
+        x:           new Date((e.fecha_muestreo ?? '') + 'T12:00:00').getTime(),
+        y:           e.r28,
+        laboratorio: e.laboratorio ?? '—',
+        guia:        e.numero_guia ?? '—',
+        fecha:       (e.fecha_muestreo ?? '').substring(0, 10),
+      }));
+  }, [ensayos]);
+
+  const barrasR7vsR28 = useMemo(() => {
+    return ensayos
+      .filter(e => e.r7 != null)
+      .map(e => ({
+        guia: e.numero_guia ?? '—',
+        r7:   e.r7,
+        r28:  e.r28 ?? null,
+      }));
+  }, [ensayos]);
 
   const filtrosActivos = Object.values(filtros).filter(Boolean).length;
 
@@ -860,46 +966,140 @@ export default function DashboardCamiones() {
 
           {/* ── Ensayos de Laboratorio ─────────────────────────────────────── */}
           {(() => {
-            const pct = kpisEnsayo.conR28 > 0
-              ? Math.round((kpisEnsayo.cumpleR28 / kpisEnsayo.conR28) * 100)
+            const pct = kpisLab.conR28 > 0
+              ? Math.round((kpisLab.cumpleR28 / kpisLab.conR28) * 100)
               : null;
             const pctColor = pct == null ? '#8892b0'
               : pct === 100 ? '#10b981'
               : pct >= 90   ? '#f59e0b'
               : '#ef4444';
             return (
-              <div style={s.seccion}>
-                <h2 style={s.seccionTitulo}>Ensayos de Laboratorio</h2>
+              <div style={{ ...s.seccion, background: '#0a1428' }}>
+                <h2 style={{ ...s.seccionTitulo, color: '#ccd6f6' }}>Ensayos de Laboratorio</h2>
+
+                {/* KPIs */}
                 <div style={s.kpiRow}>
                   <div style={s.kpiCard}>
-                    <div style={s.kpiValor}>{kpisEnsayo.total}</div>
+                    <div style={s.kpiValor}>{kpisLab.total}</div>
                     <div style={s.kpiLabel}>Total muestras</div>
                     <div style={s.kpiSub}>ensayos compresión</div>
                   </div>
                   <div style={s.kpiCard}>
-                    <div style={s.kpiValor}>{kpisEnsayo.conR28}</div>
+                    <div style={s.kpiValor}>{kpisLab.conR28}</div>
                     <div style={s.kpiLabel}>Con R28 disponible</div>
-                    <div style={s.kpiSub}>{kpisEnsayo.conR28} / {kpisEnsayo.total}</div>
+                    <div style={s.kpiSub}>{kpisLab.conR28} / {kpisLab.total}</div>
                   </div>
                   <div style={s.kpiCard}>
                     <div style={{ ...s.kpiValor, color: pctColor }}>
                       {pct != null ? `${pct}%` : '—'}
                     </div>
                     <div style={s.kpiLabel}>% Cumplimiento R28</div>
-                    {kpisEnsayo.conR28 > 0 && (
-                      <div style={s.kpiSub}>{kpisEnsayo.cumpleR28} / {kpisEnsayo.conR28} cumplen</div>
+                    {kpisLab.conR28 > 0 && (
+                      <div style={s.kpiSub}>{kpisLab.cumpleR28} / {kpisLab.conR28} cumplen</div>
                     )}
                   </div>
                   <div style={s.kpiCard}>
-                    <div style={{ ...s.kpiValor, color: kpisEnsayo.vencidos > 0 ? '#ef4444' : '#64ffda' }}>
-                      {kpisEnsayo.vencidos}
+                    <div style={{ ...s.kpiValor, color: kpisLab.vencidosSinR28 > 0 ? '#ef4444' : '#64ffda' }}>
+                      {kpisLab.vencidosSinR28}
                     </div>
                     <div style={s.kpiLabel}>Pendientes vencidos</div>
-                    <div style={{ ...s.kpiSub, ...(kpisEnsayo.vencidos > 0 ? { color: '#ef4444' } : {}) }}>
+                    <div style={{ ...s.kpiSub, ...(kpisLab.vencidosSinR28 > 0 ? { color: '#ef4444' } : {}) }}>
                       sin R28 con 28+ días
                     </div>
                   </div>
                 </div>
+
+                {/* Barras promedio R28 por laboratorio */}
+                {barrasLaboratorio.length > 0 && (
+                  <div style={{ marginTop: '24px' }}>
+                    <p style={s.graficoTitulo}>Promedio R28 por laboratorio (MPa)</p>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <BarChart data={barrasLaboratorio} margin={{ top: 16, right: 32, left: 0, bottom: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e3a5f" vertical={false} />
+                        <XAxis dataKey="laboratorio" tick={{ fill: '#8892b0', fontSize: 11 }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fill: '#8892b0', fontSize: 11 }} axisLine={false} tickLine={false} unit=" MPa" width={58} />
+                        <Tooltip content={TooltipLab} />
+                        <ReferenceLine y={20} stroke="#ef4444" strokeDasharray="4 4">
+                          <Label value="Mínimo G20: 20 MPa" position="insideTopRight" fill="#ef4444" fontSize={11} />
+                        </ReferenceLine>
+                        <Bar dataKey="promedio" fill="#64ffda" radius={[6, 6, 0, 0]}>
+                          <LabelList dataKey="promedio" position="top" style={{ fill: '#ccd6f6', fontSize: 11, fontWeight: 600 }} formatter={v => `${fmtNum(v)} MPa`} />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* Scatter R28 vs fecha */}
+                {scatterR28.length > 0 && (
+                  <div style={{ marginTop: '24px' }}>
+                    <p style={s.graficoTitulo}>Dispersión R28 vs fecha de muestreo (MPa)</p>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <ScatterChart margin={{ top: 8, right: 32, left: 0, bottom: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e3a5f" />
+                        <XAxis
+                          type="number" dataKey="x" name="fecha"
+                          domain={['auto', 'auto']}
+                          tickFormatter={v => formatDDMMM(new Date(v).toISOString().substring(0, 10))}
+                          tick={{ fill: '#8892b0', fontSize: 10 }} axisLine={false} tickLine={false}
+                        />
+                        <YAxis type="number" dataKey="y" name="R28" unit=" MPa" tick={{ fill: '#8892b0', fontSize: 11 }} axisLine={false} tickLine={false} width={58} />
+                        <ZAxis range={[40, 40]} />
+                        <ReferenceLine y={20} stroke="#ef4444" strokeDasharray="4 4">
+                          <Label value="Mínimo G20" position="insideTopRight" fill="#ef4444" fontSize={11} />
+                        </ReferenceLine>
+                        <Tooltip content={TooltipR28} />
+                        <Scatter
+                          data={scatterR28}
+                          shape={({ cx, cy, payload }) => {
+                            const fill = COLORES_LAB[payload.laboratorio] ?? '#8892b0';
+                            return <circle cx={cx} cy={cy} r={5} fill={fill} fillOpacity={0.85} stroke="none" />;
+                          }}
+                        />
+                      </ScatterChart>
+                    </ResponsiveContainer>
+                    <p style={{ ...s.nota, marginTop: '8px' }}>
+                      {Object.entries(COLORES_LAB).map(([lab, color]) => (
+                        <span key={lab} style={{ marginRight: '16px' }}>
+                          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: color, marginRight: 5 }} />
+                          {lab}
+                        </span>
+                      ))}
+                    </p>
+                  </div>
+                )}
+
+                {/* Barras R7 vs R28 por guía */}
+                {barrasR7vsR28.length > 0 && (
+                  <div style={{ marginTop: '24px' }}>
+                    <p style={s.graficoTitulo}>R7 vs R28 por guía (MPa)</p>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <BarChart data={barrasR7vsR28} margin={{ top: 8, right: 16, left: 0, bottom: 60 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e3a5f" vertical={false} />
+                        <XAxis
+                          dataKey="guia"
+                          tick={{ fill: '#8892b0', fontSize: 10, angle: -45, textAnchor: 'end', dy: 5 }}
+                          axisLine={false} tickLine={false} interval={0}
+                        />
+                        <YAxis tick={{ fill: '#8892b0', fontSize: 11 }} axisLine={false} tickLine={false} unit=" MPa" width={52} />
+                        <Tooltip
+                          contentStyle={{ background: '#16213e', border: '1px solid #0f3460', borderRadius: 8, fontSize: 12 }}
+                          labelStyle={{ color: '#ccd6f6', fontWeight: 700 }}
+                          formatter={(v, name) => [v != null ? `${fmtNum(v)} MPa` : '—', name === 'r7' ? 'R7' : 'R28']}
+                        />
+                        <Legend
+                          wrapperStyle={{ fontSize: 12, color: '#8892b0', paddingTop: 8 }}
+                          formatter={name => name === 'r7' ? 'R7' : 'R28'}
+                        />
+                        <ReferenceLine y={20} stroke="#ef4444" strokeDasharray="4 4">
+                          <Label value="Mínimo G20" position="insideTopRight" fill="#ef4444" fontSize={11} />
+                        </ReferenceLine>
+                        <Bar dataKey="r7"  fill="#8892b0" name="r7"  radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="r28" fill="#64ffda" name="r28" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
               </div>
             );
           })()}
