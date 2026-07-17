@@ -1958,17 +1958,25 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         })()}
       </div>
 
-      <div style={{ padding: '32px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-        <p style={{ color: '#8892b0', fontSize: '13px', margin: 0 }}>
-          Este protocolo está firmado y ha sido incluido en un EDP. No puede editarse.
-        </p>
-        {protocolo?.pdfFirmadoUrl && (
-          <button
-            style={{ width: '280px', padding: '14px', fontSize: '15px', fontWeight: 700, borderRadius: '12px', background: '#10b981', color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
-            onClick={() => window.open(protocolo.pdfFirmadoUrl, '_blank')}
-          >
-            ⬇ PDF Firmado
-          </button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {protocolo?.pdfFirmadoUrl ? (
+          <>
+            <iframe
+              src={protocolo.pdfFirmadoUrl}
+              style={{ width: '100%', height: '80vh', border: 'none', borderRadius: '8px' }}
+              title="PDF Firmado"
+            />
+            <button
+              style={{ alignSelf: 'center', background: 'transparent', border: '1px solid #1e3a5f', color: '#8892b0', borderRadius: '8px', padding: '8px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+              onClick={() => window.open(protocolo.pdfFirmadoUrl, '_blank')}
+            >
+              ⬇ Descargar PDF
+            </button>
+          </>
+        ) : (
+          <p style={{ color: '#8892b0', fontSize: '13px', margin: 0, textAlign: 'center' }}>
+            Sin PDF firmado disponible
+          </p>
         )}
       </div>
     </div>
