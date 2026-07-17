@@ -118,6 +118,7 @@ export default function EnsayosLaboratorio() {
           )
         `)
         .order('fecha_muestreo', { ascending: false });
+      console.log('[EnsayosLaboratorio] query result:', { data, error: err });
       if (err) throw err;
       setEnsayos((data ?? []).map(mapEnsayo));
     } catch (err) {
