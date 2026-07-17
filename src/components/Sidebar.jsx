@@ -8,16 +8,22 @@ const SECCIONES = [
   {
     titulo: 'Terreno',
     items: [
-      { to: '/subir-fotos', label: 'Subir Fotos', icono: '📷' },
+      { to: '/subir-fotos',    label: 'Subir Fotos',    icono: '📷' },
       { to: '/recibir-camion', label: 'Recibir Camión', icono: '🚛' },
     ],
   },
   {
-    titulo: 'Gestión',
+    titulo: 'Protocolos',
     items: [
-      { to: '/matriz', label: 'Matriz', icono: '📊' },
-      { to: '/dashboard', label: 'Dashboard', icono: '📈' },
-      { to: '/galeria', label: 'Galería de Fotos', icono: '📁' },
+      { to: '/matriz',            label: 'Matriz',            icono: '📊' },
+      { to: '/galeria',           label: 'Galería de Fotos',  icono: '📁' },
+      { to: '/generar-protocolo', label: 'Generar Protocolo', icono: '📋' },
+      { to: '/generar-edp',       label: 'Generar EDP',       icono: '📄' },
+    ],
+  },
+  {
+    titulo: 'Hormigón',
+    items: [
       { to: '/camiones',           label: 'Historial Camiones', icono: '🚛' },
       { to: '/dashboard-camiones', label: 'Control HA',         icono: '🧪' },
       { to: '/ensayos',            label: 'Ensayos Lab.',       icono: '🔬', soloAdmin: true },
@@ -26,24 +32,14 @@ const SECCIONES = [
   {
     titulo: 'Avance',
     items: [
-      { to: '/planificacion',      label: 'Planificación',      icono: '📅', soloAdmin: true },
-      { to: '/recepcionar-avance', label: 'Recepcionar Avance', icono: '✅' },
-      { to: '/cuadrillas',         label: 'Cuadrillas',         icono: '👷', soloAdmin: true },
       { to: '/vista-canal',        label: 'Vista Canal',        icono: '🗺️' },
+      { to: '/recepcionar-avance', label: 'Recepcionar Avance', icono: '✅' },
     ],
   },
   {
     titulo: 'Herramientas',
     items: [
       { to: '/cubicaciones', label: 'Cubicaciones', icono: '🧮' },
-    ],
-  },
-  {
-    titulo: 'Acciones',
-    items: [
-      { to: '/generar-protocolo', label: 'Generar Protocolo', icono: '📋' },
-      { to: '/generar-edp', label: 'Generar EDP',    icono: '📄', soloAdmin: true },
-      { to: '/generar-edp', label: 'Estado de Pagos', icono: '📄', noAdmin: true  },
     ],
   },
 ];

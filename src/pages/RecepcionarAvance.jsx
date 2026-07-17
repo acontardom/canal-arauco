@@ -17,61 +17,34 @@ export default function RecepcionarAvance() {
   const initEntidad = searchParams.get('entidad') ?? String(TRAMOS[0]);
   const initPartida = searchParams.get('partida') ?? null;
 
-  const [tipo, setTipo]             = useState(initTipo);
-  const [entidadId, setEntidadId]   = useState(initEntidad);
-  const partidaInitRef              = useRef(false);
-  const [registros, setRegistros]   = useState(null);
-  const [planMap, setPlanMap]       = useState({}); // { partida_id: cuadrilla_id }
-  const [cuadrillas, setCuadrillas] = useState([]);
-  const [cargando, setCargando]     = useState(false);
-  const [formPartida, setFormPartida]         = useState(null);
-  const [cuadrillaId, setCuadrillaId]         = useState('');
-  const [cuadrillaDePlan, setCuadrillaDePlan] = useState(false);
-  const [observaciones, setObservaciones]     = useState('');
-  const [confirmando, setConfirmando]         = useState(false);
-  const [guardando, setGuardando]             = useState(false);
-  const [toast, setToast]                     = useState(null);
+  const [tipo, setTipo]                   = useState(initTipo);
+  const [entidadId, setEntidadId]         = useState(initEntidad);
+  const partidaInitRef                    = useRef(false);
+  const [registros, setRegistros]         = useState(null);
+  const [cargando, setCargando]           = useState(false);
+  const [formPartida, setFormPartida]     = useState(null);
+  const [observaciones, setObservaciones] = useState('');
+  const [confirmando, setConfirmando]     = useState(false);
+  const [guardando, setGuardando]         = useState(false);
+  const [toast, setToast]                 = useState(null);
   const toastRef = useRef(null);
-
-  useEffect(() => {
-    if (!supabase) return;
-    supabase.from('cuadrillas').select('*').order('nombre')
-      .then(({ data }) => setCuadrillas(data ?? []));
-  }, []);
 
   const cargarRegistros = useCallback(async () => {
     if (!supabase) return;
     setCargando(true);
     setRegistros(null);
     setFormPartida(null);
-
-    const [{ data: avanceData }, { data: planData }] = await Promise.all([
-      supabase
-        .from('avance')
-        .select('*')
-        .eq('tipo_entidad', tipo)
-        .eq('entidad_id', String(entidadId)),
-      supabase
-        .from('planificacion')
-        .select('partida_id,cuadrilla_id')
-        .eq('tipo_entidad', tipo)
-        .eq('entidad_id', String(entidadId)),
-    ]);
-
-    setRegistros(avanceData ?? []);
-
-    const pMap = {};
-    for (const r of planData ?? []) {
-      if (r.cuadrilla_id) pMap[r.partida_id] = r.cuadrilla_id;
-    }
-    setPlanMap(pMap);
-
+    const { data } = await supabase
+      .from('avance')
+      .select('*')
+      .eq('tipo_entidad', tipo)
+      .eq('entidad_id', String(entidadId));
+    setRegistros(data ?? []);
     setCargando(false);
   }, [tipo, entidadId]);
 
   useEffect(() => { cargarRegistros(); }, [cargarRegistros]);
 
-  // Preseleccionar partida desde URL param (solo la primera vez que carguen los registros)
   useEffect(() => {
     if (!initPartida || !registros || partidaInitRef.current) return;
     partidaInitRef.current = true;
@@ -94,23 +67,10 @@ export default function RecepcionarAvance() {
     return { tipo: 'bloqueada' };
   }
 
-  function cuadrillaMap(id) {
-    return cuadrillas.find(c => c.id === id)?.nombre ?? '—';
-  }
-
   function abrirForm(partidaId) {
     setFormPartida(partidaId);
     setObservaciones('');
     setConfirmando(false);
-
-    const planCuadrillaId = planMap[partidaId];
-    if (planCuadrillaId) {
-      setCuadrillaId(planCuadrillaId);
-      setCuadrillaDePlan(true);
-    } else {
-      setCuadrillaId(cuadrillas.filter(c => c.activa)[0]?.id ?? '');
-      setCuadrillaDePlan(false);
-    }
   }
 
   function mostrarToast(msg, t = 'ok') {
@@ -130,7 +90,6 @@ export default function RecepcionarAvance() {
           tipo_entidad:     tipo,
           entidad_id:       String(entidadId),
           partida_id:       formPartida,
-          cuadrilla_id:     cuadrillaId || null,
           observaciones:    observaciones.trim() || null,
           recepcionado_por: usuario,
           fecha_recepcion:  fechaHoy(),
@@ -150,8 +109,7 @@ export default function RecepcionarAvance() {
     }
   }
 
-  const cuadrillasActivas = cuadrillas.filter(c => c.activa);
-  const partidaActual     = PARTIDAS.find(p => p.id === formPartida);
+  const partidaActual = PARTIDAS.find(p => p.id === formPartida);
 
   return (
     <div style={s.page}>
@@ -182,9 +140,8 @@ export default function RecepcionarAvance() {
       {registros !== null && (
         <div style={s.lista}>
           {PARTIDAS.map(partida => {
-            const estado      = estadoPartida(partida);
+            const estado        = estadoPartida(partida);
             const esFormAbierto = formPartida === partida.id;
-            const planCuadrilla = planMap[partida.id];
 
             return (
               <div key={partida.id}>
@@ -200,16 +157,11 @@ export default function RecepcionarAvance() {
                       <div style={s.partidaNombre}>{partida.nombre}</div>
                       {estado.tipo === 'recepcionada' && (
                         <div style={s.partidaMeta}>
-                          {cuadrillaMap(estado.registro.cuadrilla_id)} · {formatearFecha(estado.registro.fecha_recepcion)} · {estado.registro.recepcionado_por}
+                          {formatearFecha(estado.registro.fecha_recepcion)} · {estado.registro.recepcionado_por}
                         </div>
                       )}
                       {estado.tipo === 'bloqueada' && (
                         <div style={s.partidaMeta}>Requiere partida anterior</div>
-                      )}
-                      {estado.tipo === 'disponible' && planCuadrilla && !esFormAbierto && (
-                        <div style={s.partidaMetaPlan}>
-                          📅 {cuadrillaMap(planCuadrilla)}
-                        </div>
                       )}
                     </div>
                   </div>
@@ -229,28 +181,6 @@ export default function RecepcionarAvance() {
 
                 {esFormAbierto && (
                   <div style={s.formInline}>
-                    <div style={s.campo}>
-                      <label style={s.label}>Cuadrilla</label>
-                      {cuadrillaDePlan ? (
-                        <div style={s.cuadrillaPlaneada}>
-                          <span style={s.badgePlan}>📅 Planificada</span>
-                          <span style={s.cuadrillaPlaneadaNombre}>
-                            {cuadrillaMap(cuadrillaId)}
-                          </span>
-                        </div>
-                      ) : (
-                        <select
-                          style={s.input}
-                          value={cuadrillaId}
-                          onChange={e => setCuadrillaId(e.target.value)}
-                        >
-                          <option value="">Sin cuadrilla</option>
-                          {cuadrillasActivas.map(c => (
-                            <option key={c.id} value={c.id}>{c.nombre}</option>
-                          ))}
-                        </select>
-                      )}
-                    </div>
                     <div style={s.campo}>
                       <label style={s.label}>Observaciones (opcional)</label>
                       <textarea
@@ -282,11 +212,6 @@ export default function RecepcionarAvance() {
             <p style={s.modalTexto}>
               ¿Confirmar recepción de <strong>{partidaActual.nombre}</strong> en{' '}
               <strong>{NOMBRE_TIPO[tipo]} {entidadId}</strong>?
-              {cuadrillaDePlan && (
-                <span style={s.modalCuadrilla}>
-                  {'\n'}Cuadrilla: {cuadrillaMap(cuadrillaId)}
-                </span>
-              )}
             </p>
             <div style={s.modalBotones}>
               <button style={s.btnCancelarModal} onClick={() => setConfirmando(false)} disabled={guardando}>
@@ -318,7 +243,7 @@ const s = {
   },
   titulo: { color: '#ccd6f6', fontSize: '20px', fontWeight: 700, margin: 0 },
 
-  row: { display: 'flex', gap: '10px' },
+  row:   { display: 'flex', gap: '10px' },
   campo: { flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' },
   label: { color: '#8892b0', fontSize: '12px', fontWeight: 600 },
   input: {
@@ -344,15 +269,14 @@ const s = {
   partidaDisponible: { background: '#16213e', borderColor: '#1e5f8a' },
   partidaBloqueada:  { background: '#0a1428', borderColor: '#1a2540', opacity: 0.6 },
 
-  partidaInfo:   { display: 'flex', alignItems: 'center', gap: '10px', flex: 1 },
-  partidaOrden:  {
+  partidaInfo:  { display: 'flex', alignItems: 'center', gap: '10px', flex: 1 },
+  partidaOrden: {
     width: '22px', height: '22px', borderRadius: '50%', background: '#0f3460',
     color: '#8892b0', fontSize: '11px', fontWeight: 700, display: 'flex',
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   partidaNombre: { color: '#ccd6f6', fontSize: '14px', fontWeight: 600 },
-  partidaMeta:     { color: '#8892b0', fontSize: '11px', marginTop: '2px' },
-  partidaMetaPlan: { color: '#64ffda', fontSize: '11px', marginTop: '2px', fontWeight: 600 },
+  partidaMeta:   { color: '#8892b0', fontSize: '11px', marginTop: '2px' },
 
   partidaAccion: { flexShrink: 0 },
   badgeOk:   { fontSize: '18px' },
@@ -372,18 +296,6 @@ const s = {
     marginTop: '-4px',
   },
 
-  cuadrillaPlaneada: {
-    background: '#0d2a48', border: '1px solid #2a5080', borderRadius: '7px',
-    padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '10px',
-  },
-  badgePlan: {
-    background: 'rgba(100,255,218,0.12)', color: '#64ffda', borderRadius: '6px',
-    padding: '2px 8px', fontSize: '10px', fontWeight: 700, whiteSpace: 'nowrap',
-  },
-  cuadrillaPlaneadaNombre: {
-    color: '#ccd6f6', fontSize: '14px', fontWeight: 600,
-  },
-
   btnConfirmarInline: {
     background: '#1e5f8a', color: '#fff', border: 'none', borderRadius: '10px',
     padding: '12px', fontSize: '14px', fontWeight: 700, cursor: 'pointer',
@@ -401,9 +313,7 @@ const s = {
   },
   modalTexto: {
     color: '#ccd6f6', fontSize: '15px', fontWeight: 600, margin: 0, lineHeight: 1.5,
-    whiteSpace: 'pre-line',
   },
-  modalCuadrilla: { color: '#64ffda', fontWeight: 700 },
   modalBotones: { display: 'flex', gap: '10px' },
   btnCancelarModal: {
     flex: 1, background: 'transparent', border: '1px solid #0f3460', color: '#8892b0',
