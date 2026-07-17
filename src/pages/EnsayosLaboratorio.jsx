@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../config/supabase';
 
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
@@ -77,6 +77,7 @@ function mapEnsayo(r) {
     entidadId:      cam.entidad_id     ?? '',
     fechaRecepcion: cam.fecha_recepcion ?? '',
     usoHormigon:    cam.uso_hormigon   ?? '',
+    pdfUrl:         r.pdf_url          ?? null,
   };
 }
 
@@ -94,6 +95,8 @@ export default function EnsayosLaboratorio() {
   const [modalEdit, setModalEdit] = useState(null);
   const [editForm,  setEditForm]  = useState({});
   const [guardando, setGuardando] = useState(false);
+  const [toast, setToast]         = useState(null);
+  const toastRef                  = useRef(null);
 
   const [modalNuevo,       setModalNuevo]       = useState(false);
   const [guiaBuscar,       setGuiaBuscar]       = useState('');
@@ -279,6 +282,54 @@ export default function EnsayosLaboratorio() {
     }
   }
 
+  function mostrarToast(msg) {
+    if (toastRef.current) clearTimeout(toastRef.current);
+    setToast(msg);
+    toastRef.current = setTimeout(() => setToast(null), 3000);
+  }
+
+  async function subirPdfEnsayo(ensayoId, file) {
+    try {
+      const path = `ensayos/${ensayoId}/informe.pdf`;
+      const { error: upErr } = await supabase.storage
+        .from('fotos-canal-arauco')
+        .upload(path, file, { upsert: true, contentType: 'application/pdf' });
+      if (upErr) throw upErr;
+      const { data: { publicUrl } } = supabase.storage
+        .from('fotos-canal-arauco')
+        .getPublicUrl(path);
+      const { error: dbErr } = await supabase
+        .from('ensayos_laboratorio')
+        .update({ pdf_url: publicUrl })
+        .eq('id', ensayoId);
+      if (dbErr) throw dbErr;
+      setEnsayos(prev => prev.map(e => e.id !== ensayoId ? e : { ...e, pdfUrl: publicUrl }));
+      mostrarToast('PDF adjuntado correctamente');
+    } catch (err) {
+      alert('Error al subir PDF: ' + (err.message ?? err));
+    }
+  }
+
+  async function eliminarPdfEnsayo(ensayoId) {
+    if (!window.confirm('¿Eliminar el PDF adjunto?')) return;
+    try {
+      const path = `ensayos/${ensayoId}/informe.pdf`;
+      const { error: stErr } = await supabase.storage
+        .from('fotos-canal-arauco')
+        .remove([path]);
+      if (stErr) throw stErr;
+      const { error: dbErr } = await supabase
+        .from('ensayos_laboratorio')
+        .update({ pdf_url: null })
+        .eq('id', ensayoId);
+      if (dbErr) throw dbErr;
+      setEnsayos(prev => prev.map(e => e.id !== ensayoId ? e : { ...e, pdfUrl: null }));
+      mostrarToast('PDF eliminado');
+    } catch (err) {
+      alert('Error al eliminar PDF: ' + (err.message ?? err));
+    }
+  }
+
   const filtrosActivos = Object.values(filtros).filter(Boolean).length;
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -351,7 +402,7 @@ export default function EnsayosLaboratorio() {
           <table style={s.tabla}>
             <thead>
               <tr>
-                {['Guía', 'Entidad', 'Tipo H°', 'Planta', 'Laboratorio', 'Correlativo', 'Muestreo', 'Días', 'R7', 'R28', 'Estado', ''].map(col => (
+                {['Guía', 'Entidad', 'Tipo H°', 'Planta', 'Laboratorio', 'Correlativo', 'Muestreo', 'Días', 'R7', 'R28', 'Estado', 'Informe', ''].map(col => (
                   <th key={col} style={s.th}>{col}</th>
                 ))}
               </tr>
@@ -387,6 +438,26 @@ export default function EnsayosLaboratorio() {
                       <span style={{ ...s.badge, color: cfg.color, background: cfg.bg }}>
                         {cfg.label}
                       </span>
+                    </td>
+                    <td style={s.td}>
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        id={`pdf-input-${e.id}`}
+                        style={{ display: 'none' }}
+                        onChange={ev => {
+                          if (ev.target.files[0]) subirPdfEnsayo(e.id, ev.target.files[0]);
+                          ev.target.value = '';
+                        }}
+                      />
+                      {e.pdfUrl ? (
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                          <button style={s.btnPdf} onClick={() => window.open(e.pdfUrl, '_blank')}>📄 Ver</button>
+                          <button style={s.btnPdfDel} onClick={() => eliminarPdfEnsayo(e.id)}>×</button>
+                        </div>
+                      ) : (
+                        <button style={s.btnPdf} onClick={() => document.getElementById(`pdf-input-${e.id}`).click()}>📎 Adjuntar</button>
+                      )}
                     </td>
                     <td style={s.td}>
                       <button style={s.btnEdit} onClick={() => abrirEdicion(e)} title="Editar">✏️</button>
@@ -456,6 +527,11 @@ export default function EnsayosLaboratorio() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div style={s.toast}>{toast}</div>
       )}
 
       {/* Modal nuevo ensayo */}
@@ -660,6 +736,22 @@ const s = {
   btnGuardar: {
     background: '#10b981', color: '#fff', border: 'none',
     borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+  },
+  btnPdf: {
+    background: 'transparent', border: '1px solid #1e3a5f', color: '#64ffda',
+    borderRadius: '6px', padding: '4px 10px', fontSize: '12px', fontWeight: 600,
+    cursor: 'pointer', whiteSpace: 'nowrap',
+  },
+  btnPdfDel: {
+    background: 'transparent', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444',
+    borderRadius: '6px', padding: '4px 8px', fontSize: '13px', fontWeight: 700,
+    cursor: 'pointer', lineHeight: 1,
+  },
+  toast: {
+    position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
+    background: '#10b981', color: '#fff', padding: '10px 20px', borderRadius: '8px',
+    fontSize: '13px', fontWeight: 600, boxShadow: '0 4px 12px rgba(0,0,0,0.3)', zIndex: 400,
+    whiteSpace: 'nowrap',
   },
   btnBuscar: {
     background: 'transparent', color: '#64ffda', border: '1px solid #64ffda',
