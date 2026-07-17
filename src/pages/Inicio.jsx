@@ -10,7 +10,7 @@ const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 
 export default function Inicio() {
   const { usuario, seleccionarUsuario } = useUser();
-  const { session } = useAuth();
+  const { session, usuario: usuarioAuth } = useAuth();
   const navigate = useNavigate();
 
   const hoy = fechaHoy();
@@ -36,7 +36,7 @@ export default function Inicio() {
     <div style={s.page}>
       {(usuario || session) ? (
         <div style={s.saludo}>
-          <h1 style={s.saludoTexto}>Hola, {usuario?.split(' ')[0] ?? ''} 👋</h1>
+          <h1 style={s.saludoTexto}>Hola{usuarioAuth?.nombre ? `, ${usuarioAuth.nombre}` : ''} 👋</h1>
         </div>
       ) : (
         <div style={s.selector}>
@@ -75,9 +75,6 @@ export default function Inicio() {
             </button>
             <button style={s.btnGestion} onClick={() => navigate('/matriz')}>
               📊 Matriz
-            </button>
-            <button style={s.btnGestion} onClick={() => navigate('/dashboard')}>
-              📈 Dashboard
             </button>
           </section>
 
