@@ -61,9 +61,6 @@ const initialForm = {
   tiempoTraslado: '',
   pesoHoyaHormigon: '',
   observaciones: '',
-  involucraOtra: false,
-  entidadSecundariaTipo: '',
-  entidadSecundariaId: '',
   fotoGuia: null,
   fotosEnsayo: [],
   usoHormigon: '',
@@ -234,9 +231,6 @@ export default function RecibirCamion() {
         next.pesoHoyaHormigon = '';
         next.fotosEnsayo = [];
       }
-      if (field === 'entidadSecundariaTipo') {
-        next.entidadSecundariaId = '';
-      }
       return next;
     });
   }
@@ -360,10 +354,6 @@ export default function RecibirCamion() {
       const camion = {
         tipoEntidad: tipo,
         entidadId: entidadIdReal,
-        entidadSecundariaTipo: form.involucraOtra ? (form.entidadSecundariaTipo || null) : null,
-        entidadSecundariaId: form.involucraOtra && form.entidadSecundariaId
-          ? (form.entidadSecundariaTipo === 'caida' ? Number(form.entidadSecundariaId) : form.entidadSecundariaId)
-          : null,
         tipoHormigon: form.tipoHormigon,
         usoHormigon: TIPOS_CON_ENSAYO.includes(form.tipoHormigon) ? form.usoHormigon : null,
         volumen: form.volumen,
@@ -761,44 +751,6 @@ export default function RecibirCamion() {
                   )}
                 </>
               )}
-            </div>
-          )}
-
-          <div style={s.toggleRow}>
-            <span style={s.label}>¿Involucra otra entidad?</span>
-            <button
-              style={{ ...s.toggle, ...(form.involucraOtra ? s.toggleActivo : {}) }}
-              onClick={() => set('involucraOtra', !form.involucraOtra)}
-            >
-              {form.involucraOtra ? 'Sí' : 'No'}
-            </button>
-          </div>
-
-          {form.involucraOtra && (
-            <div style={s.row}>
-              <div style={s.campo}>
-                <label style={s.label}>Tipo</label>
-                <select style={s.input} value={form.entidadSecundariaTipo} onChange={e => set('entidadSecundariaTipo', e.target.value)}>
-                  <option value="">Seleccionar...</option>
-                  <option value="tramo">Tramo</option>
-                  <option value="caida">Caída</option>
-                  <option value="atravieso">Atravieso</option>
-                </select>
-              </div>
-              <div style={s.campo}>
-                <label style={s.label}>{NOMBRE_TIPO[form.entidadSecundariaTipo] ?? 'Entidad'}</label>
-                <select
-                  style={s.input}
-                  value={form.entidadSecundariaId}
-                  onChange={e => set('entidadSecundariaId', e.target.value)}
-                  disabled={!form.entidadSecundariaTipo}
-                >
-                  <option value="">Seleccionar...</option>
-                  {(LISTAS[form.entidadSecundariaTipo] ?? []).map(id => (
-                    <option key={id} value={id}>{NOMBRE_TIPO[form.entidadSecundariaTipo]} {id}</option>
-                  ))}
-                </select>
-              </div>
             </div>
           )}
 
