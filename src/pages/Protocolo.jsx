@@ -1904,6 +1904,76 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     </Seccion>
   );
 
+  const modoSimplificado = estado === 'firmado' || estado === 'enviado_edp';
+
+  if (modoSimplificado) return (
+    <div style={s.page}>
+      <div style={s.header}>
+        {!embedded && (
+          <button style={s.btnVolver} onClick={() => navigate(volverUrl)}>← Volver</button>
+        )}
+        <div style={s.headerInfo}>
+          <h1 style={s.titulo}>{titulo}</h1>
+          <EstadoBadge estado={estado} />
+        </div>
+      </div>
+
+      <div style={s.tarjetasRow}>
+        <div style={{ ...s.tarjetaInfo, ...(edp ? s.tarjetaInfoAzul : s.tarjetaInfoGris) }}>
+          <span style={s.tarjetaInfoLabel}>EDP</span>
+          <span style={s.tarjetaInfoValor}>{edp ? `📄 ${edp}` : 'Sin EDP asignado'}</span>
+        </div>
+        {(() => {
+          const terminado = estado === 'completado' || estado === 'enviado';
+          if (terminado) {
+            return (
+              <div style={{ ...s.tarjetaInfo, ...s.tarjetaInfoAzul }}>
+                <span style={s.tarjetaInfoLabel}>Avance</span>
+                <span style={s.tarjetaInfoValor}>📋 Protocolo listo</span>
+              </div>
+            );
+          }
+          if (avanceDisponible === null) {
+            return (
+              <div style={{ ...s.tarjetaInfo, ...s.tarjetaInfoGris }}>
+                <span style={s.tarjetaInfoLabel}>Avance</span>
+                <span style={s.tarjetaInfoValor}>Consultando...</span>
+              </div>
+            );
+          }
+          if (avanceDisponible) {
+            return (
+              <div style={{ ...s.tarjetaInfo, ...s.tarjetaInfoVerde }}>
+                <span style={s.tarjetaInfoLabel}>Avance</span>
+                <span style={s.tarjetaInfoValor}>✅ Disponible para protocolizar</span>
+              </div>
+            );
+          }
+          return (
+            <div style={{ ...s.tarjetaInfo, ...s.tarjetaInfoAmarillo }}>
+              <span style={s.tarjetaInfoLabel}>Avance</span>
+              <span style={s.tarjetaInfoValor}>⏳ Pendiente de recepción</span>
+            </div>
+          );
+        })()}
+      </div>
+
+      <div style={{ padding: '32px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+        <p style={{ color: '#8892b0', fontSize: '13px', margin: 0 }}>
+          Este protocolo está firmado y ha sido incluido en un EDP. No puede editarse.
+        </p>
+        {protocolo?.pdfFirmadoUrl && (
+          <button
+            style={{ width: '280px', padding: '14px', fontSize: '15px', fontWeight: 700, borderRadius: '12px', background: '#10b981', color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+            onClick={() => window.open(protocolo.pdfFirmadoUrl, '_blank')}
+          >
+            ⬇ PDF Firmado
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div style={s.page}>
       <div style={s.header}>
