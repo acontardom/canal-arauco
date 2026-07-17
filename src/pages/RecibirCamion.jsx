@@ -21,6 +21,7 @@ const USOS_HORMIGON = [
   { valor: 'otro', label: 'Otro' },
 ];
 const PLANTAS = ['Membrillar', 'Quilanco', 'Río San Martín'];
+const LABS_MUESTRA = ['Pampa Austral', 'Labotec', 'Otro'];
 const PESO_HOYA = 6.9;
 const PROBETA_VOL = 0.0101;
 
@@ -69,6 +70,9 @@ const initialForm = {
   llevaEnsayo: true,
   tipoEspecificacion: '',
   valorTotal: '',
+  tieneMuestra: false,
+  laboratorioMuestra: '',
+  laboratorioOtro: '',
 };
 
 export default function RecibirCamion() {
@@ -386,6 +390,10 @@ export default function RecibirCamion() {
         llevaEnsayo: form.llevaEnsayo,
         tipoEspecificacion: TIPOS_CON_ENSAYO.includes(form.tipoHormigon) ? (form.tipoEspecificacion || null) : null,
         valorTotal: form.valorTotal || null,
+        tieneMuestra: form.tieneMuestra,
+        laboratorioMuestra: form.tieneMuestra
+          ? (form.laboratorioMuestra === 'Otro' ? form.laboratorioOtro : form.laboratorioMuestra)
+          : null,
       };
 
       const id = await db.camiones.add(camion);
@@ -396,7 +404,31 @@ export default function RecibirCamion() {
 
       if (supabase && navigator.onLine) {
         setSincronizando(true);
-        sincronizar().finally(() => setSincronizando(false));
+        const crearEnsayo = camion.tieneMuestra && camion.laboratorioMuestra;
+        sincronizar()
+          .catch(() => {})
+          .then(async () => {
+            if (crearEnsayo) {
+              try {
+                const registroActualizado = await db.camiones.get(id);
+                const camionSupabaseId = registroActualizado?.supabaseId;
+                if (camionSupabaseId) {
+                  const { error: errEnsayo } = await supabase.from('ensayos_laboratorio').insert({
+                    camion_id: camionSupabaseId,
+                    numero_guia: camion.numeroGuia,
+                    laboratorio: camion.laboratorioMuestra,
+                    fecha_muestreo: camion.fechaRecepcion,
+                    tipo_ensayo: 'compresion',
+                    usuario_nombre: nombreUsuario,
+                  });
+                  if (errEnsayo) console.error('[RecibirCamion] Error creando ensayo laboratorio:', errEnsayo.message);
+                }
+              } catch (err) {
+                console.error('[RecibirCamion] Error en ensayo laboratorio:', err.message);
+              }
+            }
+            setSincronizando(false);
+          });
       }
     } catch {
       mostrarToast('Error al registrar camión', 'error');
@@ -695,6 +727,42 @@ export default function RecibirCamion() {
             <label style={s.label}>Observaciones</label>
             <textarea style={s.textarea} rows={3} value={form.observaciones} onChange={e => set('observaciones', e.target.value)} placeholder="Notas..." />
           </div>
+
+          {TIPOS_CON_ENSAYO.includes(form.tipoHormigon) && (
+            <div style={s.campo}>
+              <p style={s.sectionTitle}>Muestra de laboratorio</p>
+              <div style={s.toggleRow}>
+                <label style={s.label}>¿Se tomó muestra para laboratorio?</label>
+                <input
+                  type="checkbox"
+                  checked={form.tieneMuestra}
+                  onChange={e => set('tieneMuestra', e.target.checked)}
+                  style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#64ffda' }}
+                />
+              </div>
+              {form.tieneMuestra && (
+                <>
+                  <label style={s.label}>Laboratorio</label>
+                  <select style={s.input} value={form.laboratorioMuestra} onChange={e => set('laboratorioMuestra', e.target.value)}>
+                    <option value="">Seleccionar...</option>
+                    {LABS_MUESTRA.map(l => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                  {form.laboratorioMuestra === 'Otro' && (
+                    <>
+                      <label style={s.label}>Especificar laboratorio</label>
+                      <input
+                        style={s.input}
+                        type="text"
+                        placeholder="Nombre del laboratorio"
+                        value={form.laboratorioOtro}
+                        onChange={e => set('laboratorioOtro', e.target.value)}
+                      />
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           <div style={s.toggleRow}>
             <span style={s.label}>¿Involucra otra entidad?</span>
