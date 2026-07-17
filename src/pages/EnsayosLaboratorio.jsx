@@ -402,7 +402,7 @@ export default function EnsayosLaboratorio() {
           <table style={s.tabla}>
             <thead>
               <tr>
-                {['Guía', 'Entidad', 'Tipo H°', 'Planta', 'Laboratorio', 'Correlativo', 'Muestreo', 'Días', 'R7', 'R28', 'Estado', 'Informe', ''].map(col => (
+                {['Guía', 'Entidad', 'Tipo H°', 'Planta', 'Laboratorio', 'Muestreo', 'Días', 'R7', 'R28', 'Estado', 'Informe', ''].map(col => (
                   <th key={col} style={s.th}>{col}</th>
                 ))}
               </tr>
@@ -423,7 +423,6 @@ export default function EnsayosLaboratorio() {
                     <td style={s.td}>{e.tipoHormigon || '—'}</td>
                     <td style={s.td}>{e.planta || '—'}</td>
                     <td style={s.td}>{e.laboratorio || '—'}</td>
-                    <td style={s.td}>{e.correlativo || '—'}</td>
                     <td style={s.td}>{e.fechaMuestreo ? e.fechaMuestreo.slice(0, 10) : '—'}</td>
                     <td style={{ ...s.td, color: diasColor, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                       {dias != null ? dias : '—'}
