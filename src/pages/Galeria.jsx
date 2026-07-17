@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { db } from '../db/database';
 import { supabase } from '../config/supabase';
 import { eliminarFotoStorage } from '../utils/uploadFoto';
+import { useAuth } from '../hooks/useAuth';
 import { formatearFecha, formatearFechaLarga } from '../utils/fecha';
 import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
 
@@ -62,6 +63,7 @@ const fechaKey = s => s?.substring(0, 10) ?? '';
 const formatFechaCorta = formatearFecha;
 
 export default function Galeria() {
+  const { usuario: usuarioAuth } = useAuth();
   const [fotos, setFotos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
@@ -74,6 +76,9 @@ export default function Galeria() {
   const [editDescripcion, setEditDescripcion] = useState('');
   const [moveTipo, setMoveTipo] = useState('tramo');
   const [moveEntidadId, setMoveEntidadId] = useState('');
+  const [modoSeleccion, setModoSeleccion] = useState(false);
+  const [seleccionadas, setSeleccionadas] = useState(new Set());
+  const [eliminando, setEliminando] = useState(false);
 
   useEffect(() => {
     let activo = true;
@@ -264,6 +269,35 @@ export default function Galeria() {
     }
   }
 
+  async function eliminarSeleccionadas() {
+    if (!window.confirm(`¿Eliminar ${seleccionadas.size} foto${seleccionadas.size === 1 ? '' : 's'}? Esta acción no se puede deshacer.`)) return;
+    setEliminando(true);
+    try {
+      const fotosAEliminar = fotos.filter(f => seleccionadas.has(f.id));
+      for (const foto of fotosAEliminar) {
+        if (foto.storageUrl) {
+          const marker = '/fotos-canal-arauco/';
+          const idx = foto.storageUrl.indexOf(marker);
+          if (idx !== -1) {
+            const path = decodeURIComponent(foto.storageUrl.slice(idx + marker.length));
+            await supabase.storage.from('fotos-canal-arauco').remove([path]);
+          }
+        }
+        if (foto.origen === 'remoto') {
+          await supabase.from('fotos_terreno').delete().eq('id', foto.id);
+        }
+        if (foto.localId != null) {
+          await db.fotos_terreno.delete(foto.localId);
+        }
+      }
+    } finally {
+      setSeleccionadas(new Set());
+      setModoSeleccion(false);
+      setEliminando(false);
+      setReintento(r => r + 1);
+    }
+  }
+
   async function eliminarFoto() {
     if (!window.confirm('¿Eliminar esta foto? Esta acción no se puede deshacer.')) return;
     try {
@@ -294,6 +328,14 @@ export default function Galeria() {
         </button>
         {filtrosActivos > 0 && (
           <button style={s.btnLimpiar} onClick={() => setFiltros(FILTROS_INICIAL)}>Limpiar filtros</button>
+        )}
+        {usuarioAuth?.rol === 'admin' && (
+          <button
+            style={modoSeleccion ? s.btnCancelarSeleccion : s.btnSeleccion}
+            onClick={() => { setModoSeleccion(o => !o); setSeleccionadas(new Set()); }}
+          >
+            {modoSeleccion ? '✕ Cancelar selección' : '☑ Seleccionar'}
+          </button>
         )}
       </div>
 
@@ -367,25 +409,58 @@ export default function Galeria() {
         <div key={grupo.key} style={s.grupo}>
           <h2 style={s.grupoTitulo}>{grupo.titulo}</h2>
           <div className="galeria-grid">
-            {grupo.items.map((f, i) => (
-              <div key={f.id} className="galeria-thumb" onClick={() => abrirModal(grupo.key, i)}>
-                <img
-                  src={imgSrc(f)}
-                  alt=""
-                  loading="lazy"
-                  style={{ backgroundColor: '#2a2a3e', minHeight: '80px', width: '100%', display: 'block' }}
-                  onError={e => { e.target.style.opacity = '0.3'; }}
-                />
-                <div className="galeria-overlay">
-                  <span>{f.usuarioNombre || 'Sin usuario'}</span>
-                  <span>{formatFechaCorta(f.fechaCaptura) || 'Sin fecha'}</span>
-                  {f.etiquetas.length > 0 && <span>{f.etiquetas.join(', ')}</span>}
+            {grupo.items.map((f, i) => {
+              const estaSeleccionada = seleccionadas.has(f.id);
+              return (
+                <div
+                  key={f.id}
+                  className="galeria-thumb"
+                  style={modoSeleccion && estaSeleccionada ? { outline: '3px solid #22c55e', outlineOffset: '-3px' } : undefined}
+                  onClick={() => {
+                    if (modoSeleccion) {
+                      setSeleccionadas(prev => {
+                        const next = new Set(prev);
+                        if (next.has(f.id)) next.delete(f.id);
+                        else next.add(f.id);
+                        return next;
+                      });
+                    } else {
+                      abrirModal(grupo.key, i);
+                    }
+                  }}
+                >
+                  <img
+                    src={imgSrc(f)}
+                    alt=""
+                    loading="lazy"
+                    style={{ backgroundColor: '#2a2a3e', minHeight: '80px', width: '100%', display: 'block' }}
+                    onError={e => { e.target.style.opacity = '0.3'; }}
+                  />
+                  <div className="galeria-overlay">
+                    <span>{f.usuarioNombre || 'Sin usuario'}</span>
+                    <span>{formatFechaCorta(f.fechaCaptura) || 'Sin fecha'}</span>
+                    {f.etiquetas.length > 0 && <span>{f.etiquetas.join(', ')}</span>}
+                  </div>
+                  {modoSeleccion && estaSeleccionada && (
+                    <div style={s.seleccionOverlay}>✓</div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ))}
+
+      {modoSeleccion && seleccionadas.size > 0 && (
+        <div style={s.barraFlotante}>
+          <span style={{ color: '#ccd6f6', fontSize: '14px', fontWeight: 600 }}>
+            {seleccionadas.size} foto{seleccionadas.size === 1 ? '' : 's'} seleccionada{seleccionadas.size === 1 ? '' : 's'}
+          </span>
+          <button style={s.btnEliminarLote} onClick={eliminarSeleccionadas} disabled={eliminando}>
+            {eliminando ? 'Eliminando...' : '🗑 Eliminar seleccionadas'}
+          </button>
+        </div>
+      )}
 
       {modal && fotoActual && (
         <div style={s.modalOverlay} onClick={cerrarModal}>
@@ -555,6 +630,30 @@ const s = {
   btnEliminar: {
     background: '#e74c3c33', color: '#e74c3c', border: '1px solid #e74c3c55',
     borderRadius: '8px', padding: '8px 14px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+  },
+  btnSeleccion: {
+    background: '#16213e', color: '#64ffda', border: '1px solid #64ffda',
+    borderRadius: '8px', padding: '8px 14px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+  },
+  btnCancelarSeleccion: {
+    background: '#16213e', color: '#8892b0', border: '1px solid #0f3460',
+    borderRadius: '8px', padding: '8px 14px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+  },
+  seleccionOverlay: {
+    position: 'absolute', inset: 0, background: 'rgba(34,197,94,0.35)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    color: '#fff', fontSize: '28px', fontWeight: 700, pointerEvents: 'none',
+  },
+  barraFlotante: {
+    position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
+    background: '#16213e', border: '1px solid #0f3460', borderRadius: '14px',
+    padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '16px',
+    zIndex: 999, boxShadow: '0 4px 24px rgba(0,0,0,0.5)', whiteSpace: 'nowrap',
+  },
+  btnEliminarLote: {
+    background: '#e74c3c33', color: '#e74c3c', border: '1px solid #e74c3c',
+    borderRadius: '8px', padding: '8px 16px', fontSize: '13px', fontWeight: 600,
+    cursor: 'pointer',
   },
   chips: { display: 'flex', flexWrap: 'wrap', gap: '6px' },
   chip: {
