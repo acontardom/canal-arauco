@@ -45,11 +45,21 @@ function fmtFecha(dateStr) {
   return String(dateStr).slice(0, 10);
 }
 
-function entidadLabel(tipoEntidad, entidadId) {
-  if (!tipoEntidad) return '—';
-  return `${NOMBRES_TIPO[tipoEntidad] ?? tipoEntidad} ${entidadId ?? ''}`.trim();
+// camiones: camelCase  →  tipoEntidad, entidadId
+function entidadLabelCamel(c) {
+  if (!c.tipoEntidad) return '—';
+  return `${NOMBRES_TIPO[c.tipoEntidad] ?? c.tipoEntidad} ${c.entidadId ?? ''}`.trim();
 }
 
+// ensayos: snake_case (raw Supabase join)  →  camiones.tipo_entidad, camiones.entidad_id
+function entidadLabelEnsayo(e) {
+  const tipo = e.camiones?.tipo_entidad ?? '';
+  const id   = e.camiones?.entidad_id   ?? '';
+  if (!tipo) return '—';
+  return `${NOMBRES_TIPO[tipo] ?? tipo} ${id}`.trim();
+}
+
+// ensayos: snake_case
 function estadoEnsayo(e) {
   const tipoH  = e.camiones?.tipo_hormigon ?? null;
   const minima = RESISTENCIA_MIN[tipoH] ?? null;
@@ -60,6 +70,15 @@ function estadoEnsayo(e) {
   const dias = diasDesde(e.fecha_muestreo) ?? 0;
   if (e.r7 != null) return dias >= 28 ? 'R28 vencido' : 'Espera R28';
   return 'Sin resultado';
+}
+
+function rangoTitulo(fechaDesde, fechaHasta) {
+  const fd = fechaDesde && fechaDesde !== '—' ? fechaDesde : null;
+  const fh = fechaHasta && fechaHasta !== '—' ? fechaHasta : null;
+  if (!fd && !fh) return 'todo el período';
+  if (fd && !fh)  return `desde ${fd}`;
+  if (!fd && fh)  return `hasta ${fh}`;
+  return `${fd} al ${fh}`;
 }
 
 // ── Elementos base ────────────────────────────────────────────────────────────
@@ -74,25 +93,21 @@ function addHeader(slide, texto) {
 }
 
 function addKpi(slide, x, y, w, h, valor, label) {
-  // Caja completa con borde
   slide.addText('', {
     x, y, w, h,
     fill: { color: COLORES.blanco },
     line: { color: 'DDDDDD', pt: 1 },
   });
-  // Barra de acento izquierda
   slide.addText('', {
     x, y, w: 0.06, h,
     fill: { color: COLORES.acento },
     line: { color: COLORES.acento, pt: 0 },
   });
-  // Valor
   slide.addText(String(valor), {
     x: x + 0.12, y, w: w - 0.14, h: h * 0.62,
     fontSize: 28, bold: true, color: COLORES.acento,
     fontFace: FUENTE, valign: 'bottom',
   });
-  // Label
   slide.addText(label, {
     x: x + 0.12, y: y + h * 0.6, w: w - 0.14, h: h * 0.38,
     fontSize: 10, color: COLORES.grisTexto,
@@ -100,11 +115,11 @@ function addKpi(slide, x, y, w, h, valor, label) {
   });
 }
 
-function kpiLayout(n = 4) {
+function kpiLayout() {
   const GAP = 0.15;
   const X0  = 0.3;
-  const W_  = (W - X0 * 2 - GAP * (n - 1)) / n;
-  return Array.from({ length: n }, (_, i) => X0 + i * (W_ + GAP));
+  const W_  = (W - X0 * 2 - GAP * 3) / 4;
+  return { xs: Array.from({ length: 4 }, (_, i) => X0 + i * (W_ + GAP)), W_ };
 }
 
 const TH = (extra = {}) => ({
@@ -125,29 +140,30 @@ const TD_ERR = (alt) => ({
 });
 
 // ── LÁMINA 1 — Resumen de la semana ──────────────────────────────────────────
+// camionesSemana: camelCase  |  ensayosSemana: snake_case
 
 function slide1(pptx, { camionesSemana, ensayosSemana, fechaDesde, fechaHasta }) {
   const slide = pptx.addSlide();
   slide.background = { color: COLORES.blanco };
 
-  addHeader(slide, `Control de Calidad Hormigón — Semana ${fechaDesde} al ${fechaHasta}`);
+  addHeader(slide, `Control de Calidad Hormigón — Semana ${rangoTitulo(fechaDesde, fechaHasta)}`);
 
-  const volTotal     = camionesSemana.reduce((s, c) => s + (parseFloat(c.volumen) || 0), 0);
-  const g20plus      = camionesSemana.filter(c => c.tipo_hormigon && c.tipo_hormigon !== 'G5');
-  const g20conCono   = g20plus.filter(c => c.cono != null).length;
-  const cobertura    = g20plus.length > 0 ? Math.round((g20conCono / g20plus.length) * 100) : 0;
+  // KPIs — camelCase
+  const volTotal   = camionesSemana.reduce((s, c) => s + (parseFloat(c.volumen) || 0), 0);
+  const g20plus    = camionesSemana.filter(c => c.tipoHormigon && c.tipoHormigon !== 'G5');
+  const g20conCono = g20plus.filter(c => c.cono != null && c.cono !== '').length;
+  const cobertura  = g20plus.length > 0 ? Math.round((g20conCono / g20plus.length) * 100) : 0;
 
+  const { xs, W_ } = kpiLayout();
   const KPI_Y = 0.85;
   const KPI_H = 1.1;
-  const KPI_W = (W - 0.6 - 0.15 * 3) / 4;
-  const xs    = kpiLayout(4);
 
-  addKpi(slide, xs[0], KPI_Y, KPI_W, KPI_H, camionesSemana.length,       'Camiones recibidos');
-  addKpi(slide, xs[1], KPI_Y, KPI_W, KPI_H, `${volTotal.toFixed(1)} m³`,  'Volumen hormigonado');
-  addKpi(slide, xs[2], KPI_Y, KPI_W, KPI_H, `${cobertura}%`,              'Cobertura cono');
-  addKpi(slide, xs[3], KPI_Y, KPI_W, KPI_H, ensayosSemana.length,         'Muestras laboratorio');
+  addKpi(slide, xs[0], KPI_Y, W_, KPI_H, camionesSemana.length,      'Camiones recibidos');
+  addKpi(slide, xs[1], KPI_Y, W_, KPI_H, `${volTotal.toFixed(1)} m³`, 'Volumen hormigonado');
+  addKpi(slide, xs[2], KPI_Y, W_, KPI_H, `${cobertura}%`,             'Cobertura cono');
+  addKpi(slide, xs[3], KPI_Y, W_, KPI_H, ensayosSemana.length,        'Muestras laboratorio');
 
-  // Mapa guia → laboratorio desde ensayosSemana
+  // Mapa guia → laboratorio desde ensayosSemana (snake_case)
   const labPorGuia = {};
   for (const e of ensayosSemana) {
     if (e.numero_guia != null) labPorGuia[String(e.numero_guia)] = e.laboratorio ?? '';
@@ -167,22 +183,25 @@ function slide1(pptx, { camionesSemana, ensayosSemana, fechaDesde, fechaHasta })
 
   const filas = camionesSemana.map((c, i) => {
     const alt = i % 2 === 1;
-    const lab = labPorGuia[String(c.numero_guia ?? '')] ?? null;
+    const lab = labPorGuia[String(c.numeroGuia ?? '')] ?? null;
     return [
-      { text: fmt(c.numero_guia),                              options: TD(alt) },
-      { text: fmtFecha(c.fecha_recepcion),                     options: TD(alt) },
-      { text: c.planta        || '—',                          options: TD(alt) },
-      { text: c.tipo_hormigon || '—',                          options: TD(alt) },
-      { text: c.uso_hormigon  || '—',                          options: TD(alt) },
-      { text: entidadLabel(c.tipo_entidad, c.entidad_id),      options: TD(alt) },
-      { text: fmt(c.cono),                                     options: TD(alt) },
-      { text: fmt(c.pu_calculado),                             options: TD(alt) },
-      { text: lab ? `Muestra: ${lab}` : '',                   options: TD(alt, { align: 'left' }) },
+      { text: fmt(c.numeroGuia),                  options: TD(alt) },
+      { text: fmtFecha(c.fechaRecepcion),          options: TD(alt) },
+      { text: c.planta          || '—',            options: TD(alt) },
+      { text: c.tipoHormigon    || '—',            options: TD(alt) },
+      { text: c.usoHormigon     || '—',            options: TD(alt) },
+      { text: entidadLabelCamel(c),                options: TD(alt) },
+      { text: fmt(c.cono),                         options: TD(alt) },
+      { text: fmt(c.puCalculado),                  options: TD(alt) },
+      { text: lab ? `Muestra: ${lab}` : '',        options: TD(alt, { align: 'left' }) },
     ];
   });
 
   if (filas.length === 0) {
-    filas.push([{ text: 'Sin camiones en el período seleccionado', options: { ...TD(false, { align: 'center' }), colspan: 9 } }]);
+    filas.push([{
+      text: 'Sin camiones en el período seleccionado',
+      options: { ...TD(false, { align: 'center' }), colspan: 9 },
+    }]);
   }
 
   slide.addTable([headers, ...filas], {
@@ -197,32 +216,32 @@ function slide1(pptx, { camionesSemana, ensayosSemana, fechaDesde, fechaHasta })
 }
 
 // ── LÁMINA 2 — Acumulado consolidado ─────────────────────────────────────────
+// camiones: camelCase (array completo, sin filtro de fecha)
 
 function slide2(pptx, { camiones, fechaDesde, fechaHasta }) {
   const slide = pptx.addSlide();
   slide.background = { color: COLORES.blanco };
 
-  addHeader(slide, `Control de Calidad Hormigón — Acumulado ${fechaDesde} al ${fechaHasta}`);
+  addHeader(slide, `Control de Calidad Hormigón — Acumulado ${rangoTitulo(fechaDesde, fechaHasta)}`);
 
-  const INICIO_PU = '2026-05-21';
-  const g20plus     = camiones.filter(c => c.tipo_hormigon && c.tipo_hormigon !== 'G5');
-  const g20conCono  = g20plus.filter(c => c.cono != null);
+  const INICIO_PU   = '2026-05-21';
+  const g20plus     = camiones.filter(c => c.tipoHormigon && c.tipoHormigon !== 'G5');
+  const g20conCono  = g20plus.filter(c => c.cono != null && c.cono !== '');
   const volG20      = g20plus.reduce((s, c) => s + (parseFloat(c.volumen) || 0), 0);
   const cobertura   = g20plus.length > 0 ? Math.round((g20conCono.length / g20plus.length) * 100) : 0;
 
-  const g20mayo     = g20plus.filter(c => (c.fecha_recepcion ?? '') >= INICIO_PU);
-  const g20mayoCono = g20mayo.filter(c => c.cono != null);
+  const g20mayo     = g20plus.filter(c => (c.fechaRecepcion ?? '') >= INICIO_PU);
+  const g20mayoCono = g20mayo.filter(c => c.cono != null && c.cono !== '');
   const cobMayo     = g20mayo.length > 0 ? Math.round((g20mayoCono.length / g20mayo.length) * 100) : 0;
 
+  const { xs, W_ } = kpiLayout();
   const KPI_Y = 0.85;
   const KPI_H = 1.1;
-  const KPI_W = (W - 0.6 - 0.15 * 3) / 4;
-  const xs    = kpiLayout(4);
 
-  addKpi(slide, xs[0], KPI_Y, KPI_W, KPI_H, g20plus.length,           'Total camiones G20+');
-  addKpi(slide, xs[1], KPI_Y, KPI_W, KPI_H, `${volG20.toFixed(1)} m³`, 'Total m³ G20+');
-  addKpi(slide, xs[2], KPI_Y, KPI_W, KPI_H, `${cobertura}%`,           'Cobertura cono total');
-  addKpi(slide, xs[3], KPI_Y, KPI_W, KPI_H, `${cobMayo}%`,             'Cobertura cono mayo 2026');
+  addKpi(slide, xs[0], KPI_Y, W_, KPI_H, g20plus.length,           'Total camiones G20+');
+  addKpi(slide, xs[1], KPI_Y, W_, KPI_H, `${volG20.toFixed(1)} m³`, 'Total m³ G20+');
+  addKpi(slide, xs[2], KPI_Y, W_, KPI_H, `${cobertura}%`,           'Cobertura cono total');
+  addKpi(slide, xs[3], KPI_Y, W_, KPI_H, `${cobMayo}%`,             'Cobertura cono mayo 2026');
 
   const COL_Y  = 2.15;
   const COL_TH = 0.3;
@@ -245,17 +264,20 @@ function slide2(pptx, { camiones, fechaDesde, fechaHasta }) {
     { text: 'CV (%)',        options: TH() },
   ];
   const rCono = PLANTAS.map((planta, i) => {
-    const vals = g20conCono.filter(c => c.planta === planta).map(c => parseFloat(c.cono));
-    const st   = calcStats(vals);
-    const cv   = (st.promedio && st.sigma != null)
+    const vals = g20conCono
+      .filter(c => c.planta === planta)
+      .map(c => parseFloat(c.cono))
+      .filter(v => !isNaN(v));
+    const st  = calcStats(vals);
+    const cv  = (st.promedio && st.sigma != null)
       ? `${((st.sigma / st.promedio) * 100).toFixed(1)}%` : '—';
-    const alt  = i % 2 === 1;
+    const alt = i % 2 === 1;
     return [
-      { text: planta,                                          options: TD(alt, { align: 'left' }) },
-      { text: String(st.n),                                   options: TD(alt) },
-      { text: st.promedio != null ? `${st.promedio}` : '—',  options: TD(alt) },
-      { text: st.sigma    != null ? `${st.sigma}`    : '—',  options: TD(alt) },
-      { text: cv,                                             options: TD(alt) },
+      { text: planta,                                         options: TD(alt, { align: 'left' }) },
+      { text: String(st.n),                                  options: TD(alt) },
+      { text: st.promedio != null ? `${st.promedio}` : '—', options: TD(alt) },
+      { text: st.sigma    != null ? `${st.sigma}`    : '—', options: TD(alt) },
+      { text: cv,                                            options: TD(alt) },
     ];
   });
   slide.addTable([hCono, ...rCono], {
@@ -269,26 +291,32 @@ function slide2(pptx, { camiones, fechaDesde, fechaHasta }) {
     fontSize: 11, bold: true, color: COLORES.acento, fontFace: FUENTE, valign: 'middle',
   });
 
-  const g20pu = g20plus.filter(c => c.pu_calculado != null && (c.fecha_recepcion ?? '') >= INICIO_PU);
+  const g20pu = g20plus.filter(c =>
+    c.puCalculado != null && c.puCalculado !== '' &&
+    (c.fechaRecepcion ?? '') >= INICIO_PU
+  );
   const hPU = [
-    { text: 'Planta',            options: TH({ align: 'left' }) },
-    { text: 'N',                 options: TH() },
-    { text: 'Promedio (kg/m³)',  options: TH() },
-    { text: 'σ',                 options: TH() },
-    { text: 'CV (%)',            options: TH() },
+    { text: 'Planta',           options: TH({ align: 'left' }) },
+    { text: 'N',                options: TH() },
+    { text: 'Promedio (kg/m³)', options: TH() },
+    { text: 'σ',                options: TH() },
+    { text: 'CV (%)',           options: TH() },
   ];
   const rPU = PLANTAS.map((planta, i) => {
-    const vals = g20pu.filter(c => c.planta === planta).map(c => parseFloat(c.pu_calculado));
-    const st   = calcStats(vals);
-    const cv   = (st.promedio && st.sigma != null)
+    const vals = g20pu
+      .filter(c => c.planta === planta)
+      .map(c => parseFloat(c.puCalculado))
+      .filter(v => !isNaN(v));
+    const st  = calcStats(vals);
+    const cv  = (st.promedio && st.sigma != null)
       ? `${((st.sigma / st.promedio) * 100).toFixed(1)}%` : '—';
-    const alt  = i % 2 === 1;
+    const alt = i % 2 === 1;
     return [
-      { text: planta,                                          options: TD(alt, { align: 'left' }) },
-      { text: String(st.n),                                   options: TD(alt) },
-      { text: st.promedio != null ? `${st.promedio}` : '—',  options: TD(alt) },
-      { text: st.sigma    != null ? `${st.sigma}`    : '—',  options: TD(alt) },
-      { text: cv,                                             options: TD(alt) },
+      { text: planta,                                         options: TD(alt, { align: 'left' }) },
+      { text: String(st.n),                                  options: TD(alt) },
+      { text: st.promedio != null ? `${st.promedio}` : '—', options: TD(alt) },
+      { text: st.sigma    != null ? `${st.sigma}`    : '—', options: TD(alt) },
+      { text: cv,                                            options: TD(alt) },
     ];
   });
   slide.addTable([hPU, ...rPU], {
@@ -303,6 +331,7 @@ function slide2(pptx, { camiones, fechaDesde, fechaHasta }) {
 }
 
 // ── LÁMINA 3 — Ensayos de laboratorio ────────────────────────────────────────
+// ensayos / ensayosSemana: snake_case (raw de Supabase con join camiones)
 
 function slide3(pptx, { ensayos, ensayosSemana }) {
   const slide = pptx.addSlide();
@@ -323,19 +352,18 @@ function slide3(pptx, { ensayos, ensayosSemana }) {
     return min == null || e.r28 >= min;
   }).length;
   const pct      = conR28 > 0 ? Math.round((cumple / conR28) * 100) : null;
-  const vencidos = ensayos.filter(e => e.r28 == null && (diasDesde(e.fecha_muestreo) ?? 0) >= 28).length;
+  const vencidos = ensayos.filter(e =>
+    e.r28 == null && (diasDesde(e.fecha_muestreo) ?? 0) >= 28
+  ).length;
 
+  const { xs, W_ } = kpiLayout();
   const KPI_Y = 1.2;
   const KPI_H = 1.0;
-  const KPI_W = (W - 0.6 - 0.15 * 3) / 4;
-  const xs    = kpiLayout(4);
 
-  addKpi(slide, xs[0], KPI_Y, KPI_W, KPI_H, total,                    'Total muestras');
-  addKpi(slide, xs[1], KPI_Y, KPI_W, KPI_H, conR28,                   'Con R28 disponible');
-  addKpi(slide, xs[2], KPI_Y, KPI_W, KPI_H, pct != null ? `${pct}%` : '—', '% cumplimiento R28');
-  addKpi(slide, xs[3], KPI_Y, KPI_W, KPI_H, vencidos,                 'Pendientes vencidos');
-
-  const entidad = (e) => entidadLabel(e.camiones?.tipo_entidad, e.camiones?.entidad_id);
+  addKpi(slide, xs[0], KPI_Y, W_, KPI_H, total,                          'Total muestras');
+  addKpi(slide, xs[1], KPI_Y, W_, KPI_H, conR28,                         'Con R28 disponible');
+  addKpi(slide, xs[2], KPI_Y, W_, KPI_H, pct != null ? `${pct}%` : '—', '% cumplimiento R28');
+  addKpi(slide, xs[3], KPI_Y, W_, KPI_H, vencidos,                       'Pendientes vencidos');
 
   // ── Nuevos ensayos semana ─────────────────────────────────────────────────
   const SEC1_Y = 2.4;
@@ -344,14 +372,13 @@ function slide3(pptx, { ensayos, ensayosSemana }) {
     fontSize: 11, bold: true, color: COLORES.acento, fontFace: FUENTE, valign: 'middle',
   });
 
-  let sec1Height = 0.32;
+  let sec1Height = 0.35;
 
   if (ensayosSemana.length === 0) {
     slide.addText('Sin nuevos ensayos esta semana', {
       x: 0.3, y: SEC1_Y + 0.3, w: W - 0.6, h: 0.3,
       fontSize: 9, italic: true, color: COLORES.grisTexto, fontFace: FUENTE, valign: 'middle',
     });
-    sec1Height = 0.35;
   } else {
     const hSem = [
       { text: 'Guía',        options: TH() },
@@ -364,12 +391,12 @@ function slide3(pptx, { ensayos, ensayosSemana }) {
     const rSem = ensayosSemana.map((e, i) => {
       const alt = i % 2 === 1;
       return [
-        { text: fmt(e.numero_guia),   options: TD(alt) },
-        { text: entidad(e),           options: TD(alt) },
-        { text: e.laboratorio || '—', options: TD(alt) },
-        { text: fmt(e.r7, ' MPa'),    options: TD(alt) },
-        { text: fmt(e.r28, ' MPa'),   options: TD(alt) },
-        { text: estadoEnsayo(e),      options: TD(alt) },
+        { text: fmt(e.numero_guia),      options: TD(alt) },
+        { text: entidadLabelEnsayo(e),   options: TD(alt) },
+        { text: e.laboratorio || '—',    options: TD(alt) },
+        { text: fmt(e.r7, ' MPa'),       options: TD(alt) },
+        { text: fmt(e.r28, ' MPa'),      options: TD(alt) },
+        { text: estadoEnsayo(e),         options: TD(alt) },
       ];
     });
     slide.addTable([hSem, ...rSem], {
@@ -410,11 +437,11 @@ function slide3(pptx, { ensayos, ensayosSemana }) {
       const err  = e._dias >= 28;
       const opts = err ? TD_ERR(alt) : TD(alt);
       return [
-        { text: fmt(e.numero_guia),           options: opts },
-        { text: entidad(e),                   options: opts },
-        { text: e.laboratorio || '—',         options: opts },
-        { text: fmtFecha(e.fecha_muestreo),   options: opts },
-        { text: String(e._dias),              options: opts },
+        { text: fmt(e.numero_guia),         options: opts },
+        { text: entidadLabelEnsayo(e),      options: opts },
+        { text: e.laboratorio || '—',       options: opts },
+        { text: fmtFecha(e.fecha_muestreo), options: opts },
+        { text: String(e._dias),            options: opts },
       ];
     });
     slide.addTable([hPend, ...rPend], {
@@ -428,15 +455,15 @@ function slide3(pptx, { ensayos, ensayosSemana }) {
 
 export async function generarPPT({ camiones, ensayos, fechaDesde, fechaHasta, camionesSemana, ensayosSemana }) {
   const pptx = new pptxgen();
-  pptx.layout   = 'LAYOUT_WIDE';
-  pptx.author   = 'Canal Arauco';
-  pptx.subject  = 'Control de Calidad Hormigón';
+  pptx.layout  = 'LAYOUT_WIDE';
+  pptx.author  = 'Canal Arauco';
+  pptx.subject = 'Control de Calidad Hormigón';
 
   slide1(pptx, { camionesSemana, ensayosSemana, fechaDesde, fechaHasta });
   slide2(pptx, { camiones, fechaDesde, fechaHasta });
   slide3(pptx, { ensayos, ensayosSemana });
 
-  const fd = fechaDesde ?? 'inicio';
-  const fh = fechaHasta ?? 'hoy';
+  const fd = (fechaDesde && fechaDesde !== '—') ? fechaDesde : 'inicio';
+  const fh = (fechaHasta && fechaHasta !== '—') ? fechaHasta : 'hoy';
   await pptx.writeFile({ fileName: `Control_Calidad_${fd}_${fh}` });
 }
