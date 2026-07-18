@@ -8,6 +8,7 @@ import {
 } from 'recharts';
 import { supabase } from '../config/supabase';
 import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
+import { generarPPT } from '../utils/generarPPT';
 
 // ─── Constantes de negocio ────────────────────────────────────────────────────
 
@@ -594,6 +595,27 @@ export default function DashboardCamiones() {
         {filtrosActivos > 0 && (
           <button style={s.btnLimpiar} onClick={() => setFiltros(FILTROS_INICIAL)}>Limpiar filtros</button>
         )}
+        <button
+          style={s.btnPPT}
+          onClick={() => {
+            const ensayosSemana = ensayos.filter(e => {
+              const f = e.fecha_muestreo ?? '';
+              if (filtros.fechaDesde && f < filtros.fechaDesde) return false;
+              if (filtros.fechaHasta && f > filtros.fechaHasta) return false;
+              return true;
+            });
+            generarPPT({
+              camiones,
+              ensayos,
+              fechaDesde: filtros.fechaDesde || '—',
+              fechaHasta: filtros.fechaHasta || '—',
+              camionesSemana: filtrados,
+              ensayosSemana,
+            });
+          }}
+        >
+          📊 Exportar PPT
+        </button>
       </div>
 
       {filtrosAbiertos && (
@@ -1176,6 +1198,11 @@ const s = {
   btnFiltros: {
     background: '#16213e', color: '#ccd6f6', border: '1px solid #0f3460',
     borderRadius: '8px', padding: '8px 14px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+  },
+  btnPPT: {
+    background: 'rgba(100,255,218,0.08)', border: '1px solid rgba(100,255,218,0.3)',
+    borderRadius: '8px', color: '#64ffda', fontSize: '13px', fontWeight: 700,
+    padding: '8px 14px', cursor: 'pointer',
   },
   btnLimpiar: {
     background: 'transparent', color: '#8892b0', border: '1px solid #0f3460',
