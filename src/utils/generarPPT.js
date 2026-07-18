@@ -65,34 +65,34 @@ function estadoEnsayo(e) {
 // ── Elementos base ────────────────────────────────────────────────────────────
 
 function addHeader(slide, texto) {
-  slide.addShape(pptxgen.shapes.RECTANGLE, {
+  slide.addText(texto, {
     x: 0, y: 0, w: W, h: 0.71,
     fill: { color: COLORES.header },
-    line: { color: COLORES.header, pt: 0 },
-  });
-  slide.addText(texto, {
-    x: 0.3, y: 0, w: W - 0.6, h: 0.71,
     fontSize: 16, bold: true, color: COLORES.blanco,
-    fontFace: FUENTE, valign: 'middle',
+    fontFace: FUENTE, valign: 'middle', inset: 0.3,
   });
 }
 
 function addKpi(slide, x, y, w, h, valor, label) {
-  slide.addShape(pptxgen.shapes.RECTANGLE, {
+  // Caja completa con borde
+  slide.addText('', {
     x, y, w, h,
     fill: { color: COLORES.blanco },
     line: { color: 'DDDDDD', pt: 1 },
   });
-  slide.addShape(pptxgen.shapes.RECTANGLE, {
+  // Barra de acento izquierda
+  slide.addText('', {
     x, y, w: 0.06, h,
     fill: { color: COLORES.acento },
     line: { color: COLORES.acento, pt: 0 },
   });
+  // Valor
   slide.addText(String(valor), {
     x: x + 0.12, y, w: w - 0.14, h: h * 0.62,
     fontSize: 28, bold: true, color: COLORES.acento,
     fontFace: FUENTE, valign: 'bottom',
   });
+  // Label
   slide.addText(label, {
     x: x + 0.12, y: y + h * 0.6, w: w - 0.14, h: h * 0.38,
     fontSize: 10, color: COLORES.grisTexto,
