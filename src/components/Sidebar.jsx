@@ -71,7 +71,7 @@ export default function Sidebar() {
   const navigate  = useNavigate();
   const location  = useLocation();
 
-  const [seccionAbierta, setSeccionAbierta] = useState(() => seccionDeRuta(location.pathname));
+  const [seccionAbierta, setSeccionAbierta] = useState(() => new Set(SECCIONES.map(s => s.titulo)));
   const [cambioPass, setCambioPass]         = useState(false);
   const [nuevaClave, setNuevaClave]         = useState('');
   const [passMsg, setPassMsg]               = useState('');
@@ -79,11 +79,20 @@ export default function Sidebar() {
 
   useEffect(() => {
     const sec = seccionDeRuta(location.pathname);
-    if (sec && sec !== seccionAbierta) setSeccionAbierta(sec);
+    if (sec) setSeccionAbierta(prev => {
+      if (prev.has(sec)) return prev;
+      const next = new Set(prev);
+      next.add(sec);
+      return next;
+    });
   }, [location.pathname]);
 
   function toggleSeccion(titulo) {
-    setSeccionAbierta(prev => prev === titulo ? null : titulo);
+    setSeccionAbierta(prev => {
+      const next = new Set(prev);
+      if (next.has(titulo)) next.delete(titulo); else next.add(titulo);
+      return next;
+    });
   }
 
   async function handleCambiarPass() {
@@ -103,7 +112,7 @@ export default function Sidebar() {
         <Item to="/" label="Inicio" icono="🏠" end />
 
         {SECCIONES.map(seccion => {
-          const abierta   = seccionAbierta === seccion.titulo;
+          const abierta   = seccionAbierta.has(seccion.titulo);
           const itemsFilt = seccion.items.filter(item =>
             (!item.soloAdmin || usuario?.rol === 'admin') &&
             (!item.noAdmin   || usuario?.rol !== 'admin')
@@ -188,7 +197,7 @@ const s = {
     flexDirection: 'column',
     gap: '2px',
     flex: 1,
-    overflowY: 'hidden',
+    overflowY: 'auto',
   },
   seccion: {
     display: 'flex',
