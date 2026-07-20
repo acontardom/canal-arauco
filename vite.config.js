@@ -62,11 +62,11 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          'pptxgenjs':  ['pptxgenjs'],
-          'recharts':   ['recharts'],
-          'supabase':   ['@supabase/supabase-js'],
-          'dexie':      ['dexie', 'dexie-react-hooks'],
+        manualChunks(id) {
+          if (id.includes('pptxgenjs')) return 'pptxgenjs';
+          if (id.includes('recharts')) return 'recharts';
+          if (id.includes('@supabase')) return 'supabase';
+          if (id.includes('dexie')) return 'dexie';
         },
       },
     },
