@@ -41,8 +41,8 @@ const PARTIDAS_HORMIGON = {
     { id: 'hormigon_muro',   nombre: 'Hormigón Muro',   partida: 'muros',      tipoHormigon: '90-20-08' },
   ],
   atravieso: [
-    { id: 'piso',       nombre: 'Piso',       partida: 'piso',       tipoHormigon: '90-40-08' },
-    { id: 'muros_losa', nombre: 'Muros/Losa', partida: 'muros_losa', tipoHormigon: '90-20-08' },
+    { id: 'hormigon_radier', nombre: 'Piso',       partida: 'piso',       tipoHormigon: '90-40-08' },
+    { id: 'hormigon_muro',   nombre: 'Muros/Losa', partida: 'muros_losa', tipoHormigon: '90-20-08' },
   ],
 };
 
@@ -142,6 +142,7 @@ export default function Cubicaciones() {
       const p = PARTIDAS_HORMIGON[tipo][0];
       for (const id of LISTAS[tipo]) {
         const sid = String(id);
+        if (sid === 'TEST') continue;
         if (!avance[`${tipo}_${sid}_${p.id}`]) {
           const largo = largoEntidad(tipo, sid);
           result.push({ tipo, id: sid, partida: p.partida, volumen: calcVolumen({ tipo, partida: p.partida, largo }, params) });
@@ -157,6 +158,7 @@ export default function Cubicaciones() {
       const p = PARTIDAS_HORMIGON[tipo][1];
       for (const id of LISTAS[tipo]) {
         const sid = String(id);
+        if (sid === 'TEST') continue;
         if (!avance[`${tipo}_${sid}_${p.id}`]) {
           const largo = largoEntidad(tipo, sid);
           result.push({ tipo, id: sid, partida: p.partida, volumen: calcVolumen({ tipo, partida: p.partida, largo }, params) });
@@ -170,6 +172,7 @@ export default function Cubicaciones() {
     let count = 0;
     for (const tipo of ['tramo', 'caida', 'atravieso']) {
       for (const id of LISTAS[tipo]) {
+        if (String(id) === 'TEST') continue;
         if (!avance[`${tipo}_${String(id)}_emplantillado`]) count++;
       }
     }
@@ -363,6 +366,7 @@ export default function Cubicaciones() {
                 <tr>
                   <th style={{ ...s.th, textAlign: 'left' }}>Entidad</th>
                   <th style={s.th}>Tipo</th>
+                  <th style={{ ...s.th, textAlign: 'right' }}>Metros</th>
                   <th style={s.th}>Radier</th>
                   <th style={s.th}>Muro</th>
                   <th style={{ ...s.th, textAlign: 'right' }}>m³ Radier</th>
@@ -386,6 +390,9 @@ export default function Cubicaciones() {
                         <span style={{ ...s.tipoBadge, ...BADGE_TIPO[tipo] }}>
                           {NOMBRE_TIPO[tipo]}
                         </span>
+                      </td>
+                      <td style={{ ...s.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#8892b0' }}>
+                        {tipo === 'tramo' ? `${largoEntidad(tipo, id).toFixed(0)} m` : tipo === 'caida' ? '10 m' : '—'}
                       </td>
                       <td style={{ ...s.td, textAlign: 'center' }}>
                         {pR ? (
