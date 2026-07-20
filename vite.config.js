@@ -32,6 +32,7 @@ export default defineConfig({
         ],
       },
       workbox: {
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         skipWaiting: true,
         clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
@@ -58,4 +59,16 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'pptxgenjs':  ['pptxgenjs'],
+          'recharts':   ['recharts'],
+          'supabase':   ['@supabase/supabase-js'],
+          'dexie':      ['dexie', 'dexie-react-hooks'],
+        },
+      },
+    },
+  },
 })
