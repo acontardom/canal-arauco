@@ -46,7 +46,7 @@ const PARTIDAS_HORMIGON = {
   ],
 };
 
-const LISTAS     = { tramo: TRAMOS, caida: CAIDAS, atravieso: ATRAVIESOS };
+const LISTAS      = { tramo: TRAMOS, caida: CAIDAS, atravieso: ATRAVIESOS };
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -103,36 +103,21 @@ function nombreEntidad(tipo, id) {
   return String(id);
 }
 
-// ─── Sub-componente sección ───────────────────────────────────────────────────
-
-function Sec({ titulo, children }) {
-  return (
-    <div style={s.sec}>
-      <h2 style={s.secTit}>{titulo}</h2>
-      {children}
-    </div>
-  );
-}
-
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function Cubicaciones() {
-  const navigate = useNavigate();
-  const libreIdRef = useRef(1);
+  const navigate    = useNavigate();
+  const libreIdRef  = useRef(1);
 
-  const [params, setParams]                       = useState(PARAMS_DEFAULT);
-  const [paramsEdit, setParamsEdit]               = useState(PARAMS_DEFAULT);
-  const [editandoParams, setEditandoParams]       = useState(false);
-  const [filtroPendientes, setFiltroPendientes]   = useState(true);
-  const [tipo, setTipo]                           = useState('tramo');
-  const [entidadId, setEntidadId]                 = useState(null);
-  const [partidaSeleccionada, setPartidaSeleccionada] = useState(null);
-  const [items, setItems]                         = useState([]);
-  const [avance, setAvance]                       = useState({});
-  const [libres, setLibres]                       = useState(() => [
+  const [params, setParams]                 = useState(PARAMS_DEFAULT);
+  const [paramsEdit, setParamsEdit]         = useState(PARAMS_DEFAULT);
+  const [editandoParams, setEditandoParams] = useState(false);
+  const [avance, setAvance]                 = useState({});
+  const [libres, setLibres]                 = useState(() => [
     { id: 0, l: '', a: '', h: '', tipo: 'radier', desc: '' },
   ]);
-  const [generandoPDF, setGenerandoPDF]           = useState(false);
+  const [seleccionados, setSeleccionados]   = useState(new Set());
+  const [generandoPDF, setGenerandoPDF]     = useState(false);
 
   // Cargar avance desde Supabase
   useEffect(() => {
@@ -149,67 +134,107 @@ export default function Cubicaciones() {
       });
   }, []);
 
-  // ── Cambio de tipo ──────────────────────────────────────────────────────────
+  // ── Dashboard: pendientes ───────────────────────────────────────────────────
 
-  function handleTipo(t) {
-    setTipo(t);
-    setEntidadId(null);
-    setPartidaSeleccionada(null);
-  }
+  const pendientesRadier = useMemo(() => {
+    const result = [];
+    for (const tipo of ['tramo', 'caida', 'atravieso']) {
+      const p = PARTIDAS_HORMIGON[tipo][0];
+      for (const id of LISTAS[tipo]) {
+        const sid = String(id);
+        if (!avance[`${tipo}_${sid}_${p.id}`]) {
+          const largo = largoEntidad(tipo, sid);
+          result.push({ tipo, id: sid, partida: p.partida, volumen: calcVolumen({ tipo, partida: p.partida, largo }, params) });
+        }
+      }
+    }
+    return result;
+  }, [avance, params]);
 
-  // ── Datos derivados ─────────────────────────────────────────────────────────
+  const pendientesMuro = useMemo(() => {
+    const result = [];
+    for (const tipo of ['tramo', 'caida', 'atravieso']) {
+      const p = PARTIDAS_HORMIGON[tipo][1];
+      for (const id of LISTAS[tipo]) {
+        const sid = String(id);
+        if (!avance[`${tipo}_${sid}_${p.id}`]) {
+          const largo = largoEntidad(tipo, sid);
+          result.push({ tipo, id: sid, partida: p.partida, volumen: calcVolumen({ tipo, partida: p.partida, largo }, params) });
+        }
+      }
+    }
+    return result;
+  }, [avance, params]);
 
-  const entidadesFiltradas = useMemo(() => {
-    const lista = LISTAS[tipo];
-    if (!filtroPendientes) return lista;
-    return lista.filter(id =>
-      PARTIDAS_HORMIGON[tipo].some(p => !avance[`${tipo}_${String(id)}_${p.id}`])
-    );
-  }, [tipo, filtroPendientes, avance]);
+  const countEmplantillado = useMemo(() => {
+    let count = 0;
+    for (const tipo of ['tramo', 'caida', 'atravieso']) {
+      for (const id of LISTAS[tipo]) {
+        if (!avance[`${tipo}_${String(id)}_emplantillado`]) count++;
+      }
+    }
+    return count;
+  }, [avance]);
 
-  const countPendientes = useMemo(() =>
-    LISTAS[tipo].filter(id =>
-      PARTIDAS_HORMIGON[tipo].some(p => !avance[`${tipo}_${String(id)}_${p.id}`])
-    ).length
-  , [tipo, avance]);
+  const totalVolRadier = useMemo(() => pendientesRadier.reduce((s, e) => s + e.volumen, 0), [pendientesRadier]);
+  const totalVolMuro   = useMemo(() => pendientesMuro.reduce((s, e) => s + e.volumen, 0), [pendientesMuro]);
 
-  const largoActual    = entidadId !== null ? largoEntidad(tipo, entidadId) : 0;
-  const partidasActuales = PARTIDAS_HORMIGON[tipo];
+  // ── Tabla de planificación ──────────────────────────────────────────────────
 
-  const itemsConVolumen = useMemo(() =>
-    items.map(item => ({
-      ...item,
-      volumen: calcVolumen(item, params),
-      formula: calcFormula(item, params),
-    }))
-  , [items, params]);
+  const pRadierMap = useMemo(() => {
+    const map = {};
+    for (const e of pendientesRadier) map[`${e.tipo}|||${e.id}`] = e;
+    return map;
+  }, [pendientesRadier]);
 
-  const totalRadier = useMemo(() =>
-    itemsConVolumen.filter(i => i.tipoHormigon === '90-40-08').reduce((s, i) => s + i.volumen, 0)
-    + libres.filter(l => l.tipo === 'radier').reduce((s, l) => s + libreVol(l), 0)
-  , [itemsConVolumen, libres]);
+  const pMuroMap = useMemo(() => {
+    const map = {};
+    for (const e of pendientesMuro) map[`${e.tipo}|||${e.id}`] = e;
+    return map;
+  }, [pendientesMuro]);
 
-  const totalMuros = useMemo(() =>
-    itemsConVolumen.filter(i => i.tipoHormigon === '90-20-08').reduce((s, i) => s + i.volumen, 0)
-    + libres.filter(l => l.tipo === 'muros').reduce((s, l) => s + libreVol(l), 0)
-  , [itemsConVolumen, libres]);
+  const entidadesConPendiente = useMemo(() => {
+    const seen = new Map();
+    for (const e of [...pendientesRadier, ...pendientesMuro]) {
+      const key = `${e.tipo}|||${e.id}`;
+      if (!seen.has(key)) seen.set(key, { tipo: e.tipo, id: e.id });
+    }
+    const order = { tramo: 0, caida: 1, atravieso: 2 };
+    return Array.from(seen.values()).sort((a, b) => {
+      if (order[a.tipo] !== order[b.tipo]) return order[a.tipo] - order[b.tipo];
+      return a.id.localeCompare(b.id, undefined, { numeric: true });
+    });
+  }, [pendientesRadier, pendientesMuro]);
+
+  // ── Resumen de jornada ──────────────────────────────────────────────────────
+
+  const jornadaRadierItems = useMemo(() =>
+    pendientesRadier.filter(e => seleccionados.has(`${e.tipo}_${e.id}_${e.partida}`)),
+    [pendientesRadier, seleccionados]
+  );
+  const jornadaMuroItems = useMemo(() =>
+    pendientesMuro.filter(e => seleccionados.has(`${e.tipo}_${e.id}_${e.partida}`)),
+    [pendientesMuro, seleccionados]
+  );
+  const m3RadierJornada = useMemo(() => jornadaRadierItems.reduce((s, e) => s + e.volumen, 0), [jornadaRadierItems]);
+  const m3MuroJornada   = useMemo(() => jornadaMuroItems.reduce((s, e) => s + e.volumen, 0), [jornadaMuroItems]);
+
+  // ── Libres ──────────────────────────────────────────────────────────────────
+
+  const totalLibreRadier = useMemo(() =>
+    libres.filter(l => l.tipo === 'radier').reduce((s, l) => s + libreVol(l), 0), [libres]);
+  const totalLibreMuro = useMemo(() =>
+    libres.filter(l => l.tipo === 'muros').reduce((s, l) => s + libreVol(l), 0), [libres]);
 
   // ── Acciones ────────────────────────────────────────────────────────────────
 
-  function agregarItem() {
-    if (entidadId === null || partidaSeleccionada === null) return;
-    const p = partidasActuales.find(x => x.partida === partidaSeleccionada);
-    if (!p) return;
-    setItems(prev => [...prev, {
-      id:           Date.now(),
-      tipo,
-      entidadId,
-      partida:      p.partida,
-      tipoHormigon: p.tipoHormigon,
-      partidaNombre: p.nombre,
-      largo:        largoActual,
-    }]);
-    setPartidaSeleccionada(null);
+  function toggleSeleccion(tipo, id, partida) {
+    const key = `${tipo}_${id}_${partida}`;
+    setSeleccionados(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
   }
 
   function setLibreField(id, field, value) {
@@ -225,27 +250,9 @@ export default function Cubicaciones() {
     setLibres(prev => prev.filter(l => l.id !== id));
   }
 
-  function limpiarTodo() {
-    setItems([]);
-    const id = ++libreIdRef.current;
-    setLibres([{ id, l: '', a: '', h: '', tipo: 'radier', desc: '' }]);
-  }
-
   function guardarParams() {
     setParams({ ...paramsEdit });
     setEditandoParams(false);
-  }
-
-  async function handleExportarPDF() {
-    if (generandoPDF) return;
-    setGenerandoPDF(true);
-    try {
-      await generarPDFCubicaciones(itemsConVolumen, libres, params, totalRadier, totalMuros);
-    } catch (err) {
-      console.error('[PDF Cubicaciones]', err);
-    } finally {
-      setGenerandoPDF(false);
-    }
   }
 
   function restaurarParams() {
@@ -254,15 +261,43 @@ export default function Cubicaciones() {
     setEditandoParams(false);
   }
 
-  // ── Label botón agregar ─────────────────────────────────────────────────────
+  async function handleExportarJornadaPDF() {
+    if (generandoPDF) return;
+    setGenerandoPDF(true);
+    try {
+      const jornadaItems = [
+        ...jornadaRadierItems.map(e => ({
+          id:            `${e.tipo}_${e.id}_${e.partida}`,
+          tipo:          e.tipo,
+          entidadId:     e.id,
+          partida:       e.partida,
+          tipoHormigon:  '90-40-08',
+          partidaNombre: e.tipo === 'atravieso' ? 'Piso' : 'Hormigón Radier',
+          largo:         largoEntidad(e.tipo, e.id),
+          volumen:       e.volumen,
+          formula:       calcFormula({ tipo: e.tipo, partida: e.partida, largo: largoEntidad(e.tipo, e.id) }, params),
+        })),
+        ...jornadaMuroItems.map(e => ({
+          id:            `${e.tipo}_${e.id}_${e.partida}_m`,
+          tipo:          e.tipo,
+          entidadId:     e.id,
+          partida:       e.partida,
+          tipoHormigon:  '90-20-08',
+          partidaNombre: e.tipo === 'atravieso' ? 'Muros/Losa' : 'Hormigón Muro',
+          largo:         largoEntidad(e.tipo, e.id),
+          volumen:       e.volumen,
+          formula:       calcFormula({ tipo: e.tipo, partida: e.partida, largo: largoEntidad(e.tipo, e.id) }, params),
+        })),
+      ];
+      await generarPDFCubicaciones(jornadaItems, [], params, m3RadierJornada, m3MuroJornada);
+    } catch (err) {
+      console.error('[PDF Jornada]', err);
+    } finally {
+      setGenerandoPDF(false);
+    }
+  }
 
-  const pSel = partidasActuales.find(x => x.partida === partidaSeleccionada);
-  const puedeAgregar = entidadId !== null && partidaSeleccionada !== null;
-  const btnLabel = puedeAgregar && pSel
-    ? `${pSel.nombre} — ${nombreEntidad(tipo, entidadId)}`
-    : 'Selecciona entidad y partida';
-
-  const hayContenido = items.length > 0 || libres.some(l => l.l || l.a || l.h);
+  const hayJornada = seleccionados.size > 0;
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -271,197 +306,220 @@ export default function Cubicaciones() {
       <button style={s.btnVolver} onClick={() => navigate('/')}>← Inicio</button>
       <h1 style={s.titulo}>Cubicaciones</h1>
 
-      {/* ── Sección 1: Agregar al cálculo ────────────────────────────── */}
-      <Sec titulo="Agregar al cálculo">
-        <button
-          style={{ ...s.toggleBtn, ...(filtroPendientes ? s.toggleBtnActivo : {}) }}
-          onClick={() => {
-            setFiltroPendientes(v => !v);
-            setEntidadId(null);
-            setPartidaSeleccionada(null);
-          }}
-        >
-          <span>{filtroPendientes ? '✅' : '⬜'} Mostrar solo partidas pendientes</span>
-          {filtroPendientes && (
-            <span style={s.countBadge}>{countPendientes} pendientes</span>
-          )}
-        </button>
+      {/* ── Sección 1: Dashboard ─────────────────────────────────────── */}
+      <div style={s.sec}>
+        <h2 style={s.secTit}>Pendiente de hormigonar</h2>
+        <div style={s.dashGrid}>
 
-        <div style={s.row}>
-          <div style={s.campo}>
-            <label style={s.label}>Tipo</label>
-            <select style={s.input} value={tipo} onChange={e => handleTipo(e.target.value)}>
-              <option value="tramo">Tramo</option>
-              <option value="caida">Caída</option>
-              <option value="atravieso">Atravieso</option>
-            </select>
+          <div style={{ ...s.dashCard, borderColor: '#3d7ebf' }}>
+            <div style={{ ...s.dashCardLabel, color: '#7ab3e8' }}>Radier pendiente</div>
+            <div style={s.dashCount}>
+              {pendientesRadier.length} <span style={s.dashUnit}>entidades</span>
+            </div>
+            <div style={s.dashM3}>
+              {totalVolRadier.toFixed(1)} <span style={s.dashUnit}>m³</span>
+            </div>
+            <div style={{ ...s.dashCamiones, color: '#7ab3e8' }}>
+              {totalVolRadier > 0 ? Math.ceil(totalVolRadier / params.volumenCamion) : 0} camiones
+            </div>
+            <div style={s.dashCodigo}>90-40-08</div>
           </div>
-          <div style={s.campo}>
-            <label style={s.label}>
-              Entidad
-              {filtroPendientes && <span style={s.countLabel}> ({entidadesFiltradas.length} con hormigón pendiente)</span>}
-            </label>
-            <select
-              style={s.input}
-              value={entidadId ?? ''}
-              onChange={e => { setEntidadId(e.target.value || null); setPartidaSeleccionada(null); }}
-            >
-              <option value="">— Seleccionar —</option>
-              {entidadesFiltradas.map(id => {
-                const largo = tipo !== 'atravieso' ? largoEntidad(tipo, id) : null;
-                return (
-                  <option key={id} value={id}>
-                    {NOMBRE_TIPO[tipo]} {id}{largo !== null ? ` — ${largo.toFixed(1)} m` : ''}
-                  </option>
-                );
-              })}
-            </select>
+
+          <div style={{ ...s.dashCard, borderColor: '#e6a817' }}>
+            <div style={{ ...s.dashCardLabel, color: '#f0c040' }}>Muros pendiente</div>
+            <div style={s.dashCount}>
+              {pendientesMuro.length} <span style={s.dashUnit}>entidades</span>
+            </div>
+            <div style={s.dashM3}>
+              {totalVolMuro.toFixed(1)} <span style={s.dashUnit}>m³</span>
+            </div>
+            <div style={{ ...s.dashCamiones, color: '#f0c040' }}>
+              {totalVolMuro > 0 ? Math.ceil(totalVolMuro / params.volumenCamion) : 0} camiones
+            </div>
+            <div style={s.dashCodigo}>90-20-08</div>
           </div>
+
+          <div style={{ ...s.dashCard, borderColor: '#4a5568' }}>
+            <div style={{ ...s.dashCardLabel, color: '#a0aec0' }}>Emplantillado pendiente</div>
+            <div style={s.dashCount}>
+              {countEmplantillado} <span style={s.dashUnit}>entidades</span>
+            </div>
+            <div style={s.dashCodigo} />
+            <div style={s.dashCodigo}>G5</div>
+          </div>
+
         </div>
+      </div>
 
-        {entidadId !== null && (
-          <div style={s.preview}>
-            <strong>{nombreEntidad(tipo, entidadId)}</strong>
-            {tipo !== 'atravieso'
-              ? ` — ${largoActual.toFixed(1)} m`
-              : ' — vol. fijo'}
+      {/* ── Sección 2: Planificador ──────────────────────────────────── */}
+      <div style={s.sec}>
+        <h2 style={s.secTit}>Planificación de jornada</h2>
+        {entidadesConPendiente.length === 0 ? (
+          <p style={s.emptyMsg}>Sin partidas pendientes</p>
+        ) : (
+          <div style={s.tableWrap}>
+            <table style={s.tabla}>
+              <thead>
+                <tr>
+                  <th style={{ ...s.th, textAlign: 'left' }}>Entidad</th>
+                  <th style={s.th}>Tipo</th>
+                  <th style={s.th}>Radier</th>
+                  <th style={s.th}>Muro</th>
+                  <th style={{ ...s.th, textAlign: 'right' }}>m³ Radier</th>
+                  <th style={{ ...s.th, textAlign: 'right' }}>m³ Muro</th>
+                </tr>
+              </thead>
+              <tbody>
+                {entidadesConPendiente.map(({ tipo, id }) => {
+                  const pR  = pRadierMap[`${tipo}|||${id}`];
+                  const pM  = pMuroMap[`${tipo}|||${id}`];
+                  const keyR = pR ? `${tipo}_${id}_${pR.partida}` : null;
+                  const keyM = pM ? `${tipo}_${id}_${pM.partida}` : null;
+                  const selR = keyR && seleccionados.has(keyR);
+                  const selM = keyM && seleccionados.has(keyM);
+                  return (
+                    <tr key={`${tipo}_${id}`}>
+                      <td style={{ ...s.td, fontWeight: 600, color: '#ccd6f6' }}>
+                        {nombreEntidad(tipo, id)}
+                      </td>
+                      <td style={{ ...s.td, textAlign: 'center' }}>
+                        <span style={{ ...s.tipoBadge, ...BADGE_TIPO[tipo] }}>
+                          {NOMBRE_TIPO[tipo]}
+                        </span>
+                      </td>
+                      <td style={{ ...s.td, textAlign: 'center' }}>
+                        {pR ? (
+                          <input
+                            type="checkbox"
+                            style={s.check}
+                            checked={!!selR}
+                            onChange={() => toggleSeleccion(tipo, id, pR.partida)}
+                          />
+                        ) : (
+                          <span style={s.done}>✓</span>
+                        )}
+                      </td>
+                      <td style={{ ...s.td, textAlign: 'center' }}>
+                        {pM ? (
+                          <input
+                            type="checkbox"
+                            style={s.check}
+                            checked={!!selM}
+                            onChange={() => toggleSeleccion(tipo, id, pM.partida)}
+                          />
+                        ) : (
+                          <span style={s.done}>✓</span>
+                        )}
+                      </td>
+                      <td style={{ ...s.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: selR ? '#7ab3e8' : '#4a5568' }}>
+                        {selR && pR ? pR.volumen.toFixed(2) : '—'}
+                      </td>
+                      <td style={{ ...s.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: selM ? '#f0c040' : '#4a5568' }}>
+                        {selM && pM ? pM.volumen.toFixed(2) : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
+      </div>
 
-        {entidadId !== null && (
-          <div style={s.partidasGrid}>
-            {partidasActuales.map(p => {
-              const volPreview    = calcVolumen({ tipo, entidadId, partida: p.partida, largo: largoActual }, params);
-              const esRecepcionada = !!avance[`${tipo}_${String(entidadId)}_${p.id}`];
-              const esSeleccionada = partidaSeleccionada === p.partida;
-              return (
-                <div
-                  key={p.partida}
-                  style={{
-                    ...s.partidaCard,
-                    ...(esSeleccionada && !esRecepcionada ? s.partidaCardSel : {}),
-                    ...(esRecepcionada ? s.partidaCardRecep : {}),
-                    cursor: esRecepcionada ? 'default' : 'pointer',
-                  }}
-                  onClick={() => !esRecepcionada && setPartidaSeleccionada(p.partida)}
-                >
-                  <div style={s.partidaNombre}>{p.nombre}</div>
-                  <div style={s.partidaTipoH}>{p.tipoHormigon}</div>
-                  <div style={s.partidaVol}>{volPreview.toFixed(3)} m³</div>
-                  {esRecepcionada && <div style={s.recepBadge}>Recepcionado</div>}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        <button
-          style={{ ...s.btnAgregar, opacity: puedeAgregar ? 1 : 0.4 }}
-          onClick={agregarItem}
-          disabled={!puedeAgregar}
-        >
-          + Agregar {btnLabel}
-        </button>
-      </Sec>
-
-      {/* ── Sección 2: Cálculo ───────────────────────────────────────── */}
-      <Sec titulo="Cálculo">
-        {!hayContenido && (
-          <p style={s.emptyMsg}>Agrega partidas arriba o escribe valores libres abajo</p>
-        )}
-
-        {itemsConVolumen.map(item => (
-          <div key={item.id} style={s.itemRow}>
-            <div style={s.itemInfo}>
-              <div style={s.itemLabel}>
-                <span style={s.itemNombre}>{nombreEntidad(item.tipo, item.entidadId)}</span>
-                <span style={{ ...s.tipoBadge, ...(item.tipoHormigon === '90-40-08' ? s.badgeRadier : s.badgeMuros) }}>
-                  {item.tipoHormigon}
-                </span>
-              </div>
-              <div style={s.itemFormula}>{item.formula}</div>
-            </div>
-            <button style={s.btnEliminarItem} onClick={() => setItems(prev => prev.filter(i => i.id !== item.id))}>×</button>
-          </div>
-        ))}
-
-        {itemsConVolumen.length > 0 && <div style={s.sep} />}
-
-        <p style={s.libreLabel}>Cálculo libre</p>
-        {libres.map(l => {
-          const vol = libreVol(l);
-          return (
-            <div key={l.id} style={s.libreRow}>
-              <input type="number" placeholder="L" step="0.01" style={s.libreInput}
-                value={l.l} onChange={e => setLibreField(l.id, 'l', e.target.value)} />
-              <span style={s.libreOp}>×</span>
-              <input type="number" placeholder="A" step="0.01" style={s.libreInput}
-                value={l.a} onChange={e => setLibreField(l.id, 'a', e.target.value)} />
-              <span style={s.libreOp}>×</span>
-              <input type="number" placeholder="H" step="0.01" style={s.libreInput}
-                value={l.h} onChange={e => setLibreField(l.id, 'h', e.target.value)} />
-              <span style={s.libreOp}>=</span>
-              <span style={s.libreRes}>{vol > 0 ? vol.toFixed(3) : '—'} m³</span>
-              <select style={s.libreSelect} value={l.tipo} onChange={e => setLibreField(l.id, 'tipo', e.target.value)}>
-                <option value="radier">Radier</option>
-                <option value="muros">Muros</option>
-              </select>
-              {libres.length > 1 && (
-                <button style={s.btnEliminarLibre} onClick={() => eliminarLibre(l.id)}>×</button>
-              )}
-            </div>
-          );
-        })}
-
-        <button style={s.btnAddLibre} onClick={agregarLibre}>+ Agregar fila</button>
-
-        {hayContenido && (
-          <button style={s.btnLimpiar} onClick={limpiarTodo}>Limpiar todo</button>
-        )}
-      </Sec>
-
-      {/* ── Sección 3: Resumen ───────────────────────────────────────── */}
-      <Sec titulo="Resumen">
-        <div style={s.resumenGrid}>
-          {[
-            { label: 'Radier', codigo: '90-40-08', total: totalRadier, color: '#3d7ebf' },
-            { label: 'Muros',  codigo: '90-20-08', total: totalMuros,  color: '#e6a817' },
-          ].map(({ label, codigo, total, color }) => (
-            <div key={codigo} style={{ ...s.resumenCard, borderColor: color }}>
-              <div style={{ ...s.resumenHeader, color }}>
-                {label} <span style={s.resumenCodigo}>{codigo}</span>
+      {/* ── Sección 3: Resumen de jornada ───────────────────────────── */}
+      {hayJornada && (
+        <div style={s.sec}>
+          <h2 style={s.secTit}>Resumen de jornada</h2>
+          <div style={s.resumenGrid}>
+            <div style={{ ...s.resumenCard, borderColor: '#3d7ebf' }}>
+              <div style={{ ...s.resumenHeader, color: '#7ab3e8' }}>
+                Radier <span style={s.resumenCodigo}>90-40-08</span>
               </div>
               <div style={s.resumenVol}>
-                {total.toFixed(3)} <span style={s.resumenUnit}>m³</span>
+                {m3RadierJornada.toFixed(3)} <span style={s.resumenUnit}>m³</span>
               </div>
-              <div style={s.resumenCamiones}>
-                {total > 0 ? Math.ceil(total / params.volumenCamion) : 0} camiones
+              <div style={{ ...s.resumenCamiones, color: '#7ab3e8' }}>
+                {m3RadierJornada > 0 ? Math.ceil(m3RadierJornada / params.volumenCamion) : 0} camiones
               </div>
               <div style={s.resumenCamionesDesc}>a {params.volumenCamion} m³ c/u</div>
             </div>
-          ))}
+            <div style={{ ...s.resumenCard, borderColor: '#e6a817' }}>
+              <div style={{ ...s.resumenHeader, color: '#f0c040' }}>
+                Muros <span style={s.resumenCodigo}>90-20-08</span>
+              </div>
+              <div style={s.resumenVol}>
+                {m3MuroJornada.toFixed(3)} <span style={s.resumenUnit}>m³</span>
+              </div>
+              <div style={{ ...s.resumenCamiones, color: '#f0c040' }}>
+                {m3MuroJornada > 0 ? Math.ceil(m3MuroJornada / params.volumenCamion) : 0} camiones
+              </div>
+              <div style={s.resumenCamionesDesc}>a {params.volumenCamion} m³ c/u</div>
+            </div>
+          </div>
+          <button style={s.btnPDF} onClick={handleExportarJornadaPDF} disabled={generandoPDF}>
+            {generandoPDF ? 'Generando PDF...' : '📄 Exportar PDF'}
+          </button>
         </div>
-        <button style={s.btnPDF} onClick={handleExportarPDF} disabled={generandoPDF}>
-          {generandoPDF ? 'Generando PDF...' : '📄 Exportar PDF'}
-        </button>
-      </Sec>
+      )}
 
-      {/* ── Sección 4: Parámetros ────────────────────────────────────── */}
-      <Sec titulo="Parámetros">
+      {/* ── Sección 4: Cálculo manual (colapsable) ──────────────────── */}
+      <div style={s.sec}>
+        <details>
+          <summary style={s.detailsSummary}>Cálculo manual</summary>
+          <div style={s.detailsBody}>
+            <p style={s.libreLabel}>Cálculo libre</p>
+            {libres.map(l => {
+              const vol = libreVol(l);
+              return (
+                <div key={l.id} style={s.libreRow}>
+                  <input type="number" placeholder="L" step="0.01" style={s.libreInput}
+                    value={l.l} onChange={e => setLibreField(l.id, 'l', e.target.value)} />
+                  <span style={s.libreOp}>×</span>
+                  <input type="number" placeholder="A" step="0.01" style={s.libreInput}
+                    value={l.a} onChange={e => setLibreField(l.id, 'a', e.target.value)} />
+                  <span style={s.libreOp}>×</span>
+                  <input type="number" placeholder="H" step="0.01" style={s.libreInput}
+                    value={l.h} onChange={e => setLibreField(l.id, 'h', e.target.value)} />
+                  <span style={s.libreOp}>=</span>
+                  <span style={s.libreRes}>{vol > 0 ? vol.toFixed(3) : '—'} m³</span>
+                  <select style={s.libreSelect} value={l.tipo}
+                    onChange={e => setLibreField(l.id, 'tipo', e.target.value)}>
+                    <option value="radier">Radier</option>
+                    <option value="muros">Muros</option>
+                  </select>
+                  {libres.length > 1 && (
+                    <button style={s.btnEliminarLibre} onClick={() => eliminarLibre(l.id)}>×</button>
+                  )}
+                </div>
+              );
+            })}
+            <button style={s.btnAddLibre} onClick={agregarLibre}>+ Agregar fila</button>
+            {(totalLibreRadier > 0 || totalLibreMuro > 0) && (
+              <div style={s.libreResumen}>
+                {totalLibreRadier > 0 && (
+                  <span style={{ color: '#7ab3e8' }}>Radier: {totalLibreRadier.toFixed(3)} m³</span>
+                )}
+                {totalLibreMuro > 0 && (
+                  <span style={{ color: '#f0c040' }}>Muros: {totalLibreMuro.toFixed(3)} m³</span>
+                )}
+              </div>
+            )}
+          </div>
+        </details>
+      </div>
+
+      {/* ── Sección 5: Parámetros ────────────────────────────────────── */}
+      <div style={s.sec}>
+        <h2 style={s.secTit}>Parámetros</h2>
         <div style={s.paramsGrid}>
           {Object.entries(PARAMS_LABELS).map(([key, label]) => (
             <div key={key} style={s.paramItem}>
               <div style={s.paramLabel}>{label}</div>
               {editandoParams ? (
                 <input
-                  type="number"
-                  step="0.001"
-                  style={s.paramInput}
+                  type="number" step="0.001" style={s.paramInput}
                   value={paramsEdit[key]}
-                  onChange={e => setParamsEdit(prev => ({
-                    ...prev,
-                    [key]: parseFloat(e.target.value) || 0,
-                  }))}
+                  onChange={e => setParamsEdit(prev => ({ ...prev, [key]: parseFloat(e.target.value) || 0 }))}
                 />
               ) : (
                 <div style={s.paramVal}>{params[key]}</div>
@@ -469,12 +527,9 @@ export default function Cubicaciones() {
             </div>
           ))}
         </div>
-
         {!editandoParams ? (
-          <button
-            style={s.btnEditar}
-            onClick={() => { setParamsEdit({ ...params }); setEditandoParams(true); }}
-          >
+          <button style={s.btnEditar}
+            onClick={() => { setParamsEdit({ ...params }); setEditandoParams(true); }}>
             ✏️ Editar
           </button>
         ) : (
@@ -483,16 +538,24 @@ export default function Cubicaciones() {
             <button style={s.btnGuardar} onClick={guardarParams}>✓ Guardar</button>
           </div>
         )}
-      </Sec>
+      </div>
     </div>
   );
 }
+
+// ─── Badge por tipo (fuera del objeto s para evitar confusión) ────────────────
+
+const BADGE_TIPO = {
+  tramo:     { background: '#1a2e5a', color: '#7ab3e8' },
+  caida:     { background: '#3d2800', color: '#f0a030' },
+  atravieso: { background: '#1a3a1a', color: '#68d391' },
+};
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 
 const s = {
   page: {
-    maxWidth: '600px', margin: '0 auto',
+    maxWidth: '900px', margin: '0 auto',
     display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '60px',
   },
   btnVolver: {
@@ -501,7 +564,6 @@ const s = {
   },
   titulo: { color: '#ccd6f6', fontSize: '22px', fontWeight: 700, margin: 0 },
 
-  // Sección
   sec: {
     background: '#16213e', border: '1px solid #0f3460', borderRadius: '12px',
     padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px',
@@ -510,89 +572,72 @@ const s = {
     color: '#64ffda', fontSize: '13px', fontWeight: 800, margin: 0,
     textTransform: 'uppercase', letterSpacing: '1px',
   },
-
-  // Toggle filtro
-  toggleBtn: {
-    background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '8px',
-    color: '#8892b0', fontSize: '13px', fontWeight: 600, padding: '10px 14px',
-    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', textAlign: 'left',
-  },
-  toggleBtnActivo: {
-    background: 'rgba(16,185,129,0.12)', borderColor: '#10b981', color: '#10b981',
-  },
-  countBadge: {
-    background: '#10b981', color: '#fff', fontSize: '11px', fontWeight: 700,
-    borderRadius: '10px', padding: '2px 8px', marginLeft: 'auto', flexShrink: 0,
-  },
-
-  // Selects
-  row:   { display: 'flex', gap: '10px' },
-  campo: { flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' },
-  label: { color: '#8892b0', fontSize: '12px', fontWeight: 600 },
-  countLabel: { color: '#64ffda', fontWeight: 700 },
-  input: {
-    background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '7px',
-    color: '#ccd6f6', fontSize: '13px', padding: '10px 12px',
-    fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box',
-  },
-
-  // Preview
-  preview: {
-    background: '#0a1428', borderRadius: '8px', padding: '10px 14px',
-    color: '#ccd6f6', fontSize: '14px', fontWeight: 600, border: '1px solid #0f3460',
-  },
-
-  // Partidas grid
-  partidasGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' },
-  partidaCard: {
-    background: '#0a1428', border: '2px solid #0f3460', borderRadius: '10px',
-    padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px',
-  },
-  partidaCardSel: { borderColor: '#64ffda', background: 'rgba(100,255,218,0.06)' },
-  partidaCardRecep: { opacity: 0.4 },
-  partidaNombre: { color: '#ccd6f6', fontSize: '13px', fontWeight: 700 },
-  partidaTipoH:  { color: '#8892b0', fontSize: '12px' },
-  partidaVol:    { color: '#64ffda', fontSize: '16px', fontWeight: 800 },
-  recepBadge: {
-    background: '#10b981', color: '#fff', fontSize: '10px', fontWeight: 700,
-    borderRadius: '4px', padding: '2px 6px', alignSelf: 'flex-start',
-  },
-
-  // Botón agregar
-  btnAgregar: {
-    background: '#64ffda', color: '#0a1f3a', border: 'none', borderRadius: '10px',
-    padding: '14px', fontSize: '14px', fontWeight: 700, cursor: 'pointer',
-  },
-
-  // Items sección 2
   emptyMsg: { color: '#8892b0', fontSize: '13px', margin: 0, fontStyle: 'italic' },
-  itemRow: {
-    display: 'flex', alignItems: 'flex-start', gap: '10px',
-    padding: '12px', background: '#0a1428', borderRadius: '8px', border: '1px solid #0f3460',
+
+  // Dashboard
+  dashGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' },
+  dashCard: {
+    background: '#0a1428', border: '2px solid', borderRadius: '10px', padding: '14px',
+    display: 'flex', flexDirection: 'column', gap: '4px',
   },
-  itemInfo:    { flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' },
-  itemLabel:   { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
-  itemNombre:  { color: '#ccd6f6', fontSize: '13px', fontWeight: 700 },
-  tipoBadge:   { fontSize: '10px', fontWeight: 700, borderRadius: '4px', padding: '2px 6px' },
-  badgeRadier: { background: '#1e3a7f', color: '#7ba7e8' },
-  badgeMuros:  { background: '#5a3d00', color: '#f0c040' },
-  itemFormula: { color: '#8892b0', fontSize: '12px', fontFamily: 'monospace' },
-  btnEliminarItem: {
-    background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)',
-    color: '#ef4444', borderRadius: '6px', width: '28px', height: '28px',
-    fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', flexShrink: 0, padding: 0, lineHeight: 1,
+  dashCardLabel: { fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' },
+  dashCount:     { color: '#ccd6f6', fontSize: '24px', fontWeight: 800, lineHeight: 1.1, marginTop: '4px' },
+  dashM3:        { color: '#ccd6f6', fontSize: '16px', fontWeight: 700 },
+  dashUnit:      { fontSize: '11px', fontWeight: 500, opacity: 0.7 },
+  dashCamiones:  { fontSize: '13px', fontWeight: 700 },
+  dashCodigo:    { color: '#4a5568', fontSize: '11px', marginTop: '4px' },
+
+  // Tabla
+  tableWrap: { overflowX: 'auto' },
+  tabla: { width: '100%', borderCollapse: 'collapse', minWidth: '520px' },
+  th: {
+    background: '#0a1428', color: '#8892b0', fontSize: '11px', fontWeight: 700,
+    textTransform: 'uppercase', letterSpacing: '0.5px', padding: '10px 12px',
+    borderBottom: '1px solid #1e3a5f', textAlign: 'center',
+  },
+  td: {
+    color: '#a0aec0', fontSize: '13px', padding: '10px 12px',
+    borderBottom: '1px solid #0f3460',
+  },
+  tipoBadge: {
+    fontSize: '10px', fontWeight: 700, borderRadius: '4px', padding: '2px 6px',
+    display: 'inline-block',
+  },
+  check: { width: '16px', height: '16px', cursor: 'pointer', accentColor: '#64ffda' },
+  done:  { color: '#10b981', fontSize: '16px', fontWeight: 700 },
+
+  // Resumen jornada
+  resumenGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' },
+  resumenCard: {
+    background: '#0a1428', border: '2px solid', borderRadius: '10px', padding: '14px',
+    display: 'flex', flexDirection: 'column', gap: '6px',
+  },
+  resumenHeader:      { fontSize: '15px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' },
+  resumenCodigo:      { fontSize: '11px', fontWeight: 600, opacity: 0.75 },
+  resumenVol:         { color: '#ccd6f6', fontSize: '22px', fontWeight: 800, lineHeight: 1.1 },
+  resumenUnit:        { fontSize: '13px', fontWeight: 600, opacity: 0.7 },
+  resumenCamiones:    { fontSize: '15px', fontWeight: 700 },
+  resumenCamionesDesc:{ color: '#8892b0', fontSize: '11px' },
+  btnPDF: {
+    background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '10px',
+    color: '#ccd6f6', fontSize: '14px', fontWeight: 700, padding: '14px',
+    cursor: 'pointer',
   },
 
-  // Separador
-  sep: { height: '1px', background: '#0f3460' },
+  // Cálculo manual colapsable
+  detailsSummary: {
+    color: '#64ffda', fontSize: '13px', fontWeight: 800,
+    textTransform: 'uppercase', letterSpacing: '1px',
+    cursor: 'pointer', userSelect: 'none',
+  },
+  detailsBody: { display: 'flex', flexDirection: 'column', gap: '12px', paddingTop: '14px' },
 
   // Libre
   libreLabel: {
     color: '#8892b0', fontSize: '11px', fontWeight: 700, margin: 0,
     textTransform: 'uppercase', letterSpacing: '0.5px',
   },
-  libreRow: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' },
+  libreRow:   { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' },
   libreInput: {
     width: '60px', background: '#0f3460', border: '1px solid #1e3a5f',
     borderRadius: '6px', color: '#ccd6f6', fontSize: '13px', padding: '8px 4px',
@@ -616,29 +661,10 @@ const s = {
     color: '#8892b0', fontSize: '13px', fontWeight: 600, padding: '10px',
     cursor: 'pointer', textAlign: 'center',
   },
-  btnLimpiar: {
-    background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)',
-    borderRadius: '8px', color: '#ef4444', fontSize: '13px', fontWeight: 600,
-    padding: '10px 16px', cursor: 'pointer', alignSelf: 'flex-end',
-  },
-
-  // Resumen
-  resumenGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' },
-  resumenCard: {
-    background: '#0a1428', border: '2px solid',
-    borderRadius: '10px', padding: '14px',
-    display: 'flex', flexDirection: 'column', gap: '6px',
-  },
-  resumenHeader: { fontSize: '15px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' },
-  resumenCodigo: { fontSize: '11px', fontWeight: 600, opacity: 0.75 },
-  resumenVol:    { color: '#ccd6f6', fontSize: '22px', fontWeight: 800, lineHeight: 1.1 },
-  resumenUnit:   { fontSize: '13px', fontWeight: 600, opacity: 0.7 },
-  resumenCamiones:     { color: '#64ffda', fontSize: '15px', fontWeight: 700 },
-  resumenCamionesDesc: { color: '#8892b0', fontSize: '11px' },
-  btnPDF: {
-    background: '#0f3460', border: '1px solid #1e3a5f', borderRadius: '10px',
-    color: '#ccd6f6', fontSize: '14px', fontWeight: 700, padding: '14px',
-    cursor: 'pointer',
+  libreResumen: {
+    display: 'flex', gap: '16px', flexWrap: 'wrap',
+    background: '#0a1428', borderRadius: '8px', padding: '10px 12px',
+    fontSize: '13px', fontWeight: 700,
   },
 
   // Parámetros
@@ -659,7 +685,7 @@ const s = {
     color: '#ccd6f6', fontSize: '13px', fontWeight: 700, padding: '10px 16px',
     cursor: 'pointer', alignSelf: 'flex-start',
   },
-  paramBtns:   { display: 'flex', gap: '10px', flexWrap: 'wrap' },
+  paramBtns:    { display: 'flex', gap: '10px', flexWrap: 'wrap' },
   btnRestaurar: {
     background: 'rgba(230,168,23,0.1)', border: '1px solid rgba(230,168,23,0.4)',
     borderRadius: '8px', color: '#e6a817', fontSize: '13px', fontWeight: 700,
