@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import UsuarioSelector from './UsuarioSelector';
 import SyncBadge from './SyncBadge';
 import { useAuth } from '../hooks/useAuth';
@@ -44,6 +44,15 @@ const SECCIONES = [
   },
 ];
 
+function seccionDeRuta(pathname) {
+  for (const sec of SECCIONES) {
+    if (sec.items.some(item => pathname === item.to || pathname.startsWith(item.to + '/'))) {
+      return sec.titulo;
+    }
+  }
+  return null;
+}
+
 function Item({ to, label, icono, end }) {
   return (
     <NavLink
@@ -59,11 +68,23 @@ function Item({ to, label, icono, end }) {
 
 export default function Sidebar() {
   const { session, usuario, signOut, cambiarContrasena } = useAuth();
-  const navigate = useNavigate();
-  const [cambioPass, setCambioPass]   = useState(false);
-  const [nuevaClave, setNuevaClave]   = useState('');
-  const [passMsg, setPassMsg]         = useState('');
-  const [guardandoPass, setGuardandoPass] = useState(false);
+  const navigate  = useNavigate();
+  const location  = useLocation();
+
+  const [seccionAbierta, setSeccionAbierta] = useState(() => seccionDeRuta(location.pathname));
+  const [cambioPass, setCambioPass]         = useState(false);
+  const [nuevaClave, setNuevaClave]         = useState('');
+  const [passMsg, setPassMsg]               = useState('');
+  const [guardandoPass, setGuardandoPass]   = useState(false);
+
+  useEffect(() => {
+    const sec = seccionDeRuta(location.pathname);
+    if (sec && sec !== seccionAbierta) setSeccionAbierta(sec);
+  }, [location.pathname]);
+
+  function toggleSeccion(titulo) {
+    setSeccionAbierta(prev => prev === titulo ? null : titulo);
+  }
 
   async function handleCambiarPass() {
     if (!nuevaClave || nuevaClave.length < 6) { setPassMsg('Mínimo 6 caracteres'); return; }
@@ -81,18 +102,22 @@ export default function Sidebar() {
       <div style={s.lista}>
         <Item to="/" label="Inicio" icono="🏠" end />
 
-        {SECCIONES.map(seccion => (
-          <div key={seccion.titulo} style={s.seccion}>
-            <p style={s.seccionTitulo}>{seccion.titulo}</p>
-            {seccion.items
-              .filter(item =>
-                (!item.soloAdmin || usuario?.rol === 'admin') &&
-                (!item.noAdmin   || usuario?.rol !== 'admin')
-              )
-              .map(item => <Item key={item.to + item.label} {...item} />)
-            }
-          </div>
-        ))}
+        {SECCIONES.map(seccion => {
+          const abierta   = seccionAbierta === seccion.titulo;
+          const itemsFilt = seccion.items.filter(item =>
+            (!item.soloAdmin || usuario?.rol === 'admin') &&
+            (!item.noAdmin   || usuario?.rol !== 'admin')
+          );
+          return (
+            <div key={seccion.titulo} style={s.seccion}>
+              <button style={s.seccionHeader} onClick={() => toggleSeccion(seccion.titulo)}>
+                <span style={s.seccionTitulo}>{seccion.titulo}</span>
+                <span style={s.seccionFlecha}>{abierta ? '▾' : '▸'}</span>
+              </button>
+              {abierta && itemsFilt.map(item => <Item key={item.to + item.label} {...item} />)}
+            </div>
+          );
+        })}
       </div>
 
       <div style={s.footer}>
@@ -161,41 +186,53 @@ const s = {
   lista: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '4px',
+    gap: '2px',
     flex: 1,
-    overflowY: 'auto',
+    overflowY: 'hidden',
   },
   seccion: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '4px',
-    marginTop: '12px',
+    gap: '2px',
+    marginTop: '6px',
+  },
+  seccionHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    padding: '4px 14px',
   },
   seccionTitulo: {
     color: '#8892b0',
-    fontSize: '11px',
+    fontSize: '10px',
     fontWeight: 700,
     textTransform: 'uppercase',
     letterSpacing: '0.6px',
-    margin: '0 0 4px',
-    padding: '0 14px',
+  },
+  seccionFlecha: {
+    color: '#8892b0',
+    fontSize: '10px',
   },
   link: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
-    padding: '12px 14px',
-    borderRadius: '10px',
+    gap: '10px',
+    padding: '7px 14px',
+    borderRadius: '8px',
     color: '#8892b0',
     textDecoration: 'none',
-    fontSize: '14px',
+    fontSize: '12px',
     fontWeight: 600,
   },
   linkActivo: {
     background: '#0f3460',
     color: '#64ffda',
   },
-  icono: { fontSize: '18px', lineHeight: 1 },
+  icono: { fontSize: '15px', lineHeight: 1 },
   footer: {
     display: 'flex',
     flexDirection: 'column',
@@ -205,6 +242,7 @@ const s = {
   },
   usuarioNombre: {
     maxWidth: 'none',
+    fontSize: '11px',
   },
 
   authSep: { height: '1px', background: '#0f3460', margin: '4px 0' },
