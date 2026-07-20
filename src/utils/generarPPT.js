@@ -252,34 +252,39 @@ function slide2(pptx, { camiones, fechaDesde, fechaHasta }) {
   const cobMayo     = g20mayo.length > 0 ? Math.round((g20mayoCono.length / g20mayo.length) * 100) : 0;
 
   // ── Zona 1: 6 KPIs en 3 columnas × 2 filas ───────────────────────────────
-  const KPI_H  = 1.0;
-  const ROW1_Y = 1.0;
-  const ROW2_Y = 2.1;
+  // 3 columnas iguales ocupando el ancho total (0.3 → 13.03)
+  const KPI_H    = 1.0;
+  const ROW1_Y   = 1.0;
+  const ROW2_Y   = 2.1;
+  const KPI_W    = 4.11;
+  const KPI_GAP  = 0.2;
+  const KPI_X    = [0.3, 0.3 + KPI_W + KPI_GAP, 0.3 + (KPI_W + KPI_GAP) * 2];
 
-  // Col 1 (x: 0.3, w: 3.0)
-  addKpiCompact(slide, 0.3, ROW1_Y, 3.0, KPI_H, camiones.length,             'Total camiones');
-  addKpiCompact(slide, 0.3, ROW2_Y, 3.0, KPI_H, `${volTotal.toFixed(1)} m³`, 'Total m³');
+  addKpiCompact(slide, KPI_X[0], ROW1_Y, KPI_W, KPI_H, camiones.length,             'Total camiones');
+  addKpiCompact(slide, KPI_X[0], ROW2_Y, KPI_W, KPI_H, `${volTotal.toFixed(1)} m³`, 'Total m³');
 
-  // Col 2 (x: 3.45, w: 3.0)
-  addKpiCompact(slide, 3.45, ROW1_Y, 3.0, KPI_H, g20plus.length,            'Camiones G20+');
-  addKpiCompact(slide, 3.45, ROW2_Y, 3.0, KPI_H, `${volG20.toFixed(1)} m³`, 'm³ G20+');
+  addKpiCompact(slide, KPI_X[1], ROW1_Y, KPI_W, KPI_H, g20plus.length,            'Camiones G20+');
+  addKpiCompact(slide, KPI_X[1], ROW2_Y, KPI_W, KPI_H, `${volG20.toFixed(1)} m³`, 'm³ G20+');
 
-  // Col 3 (x: 6.6, w: 3.1)
-  addKpiCompact(slide, 6.6, ROW1_Y, 3.1, KPI_H, `${cobertura}%`, 'Cobertura cono total');
-  addKpiCompact(slide, 6.6, ROW2_Y, 3.1, KPI_H, `${cobMayo}%`,   'Cobertura cono mayo 2026');
+  addKpiCompact(slide, KPI_X[2], ROW1_Y, KPI_W, KPI_H, `${cobertura}%`, 'Cobertura cono total');
+  addKpiCompact(slide, KPI_X[2], ROW2_Y, KPI_W, KPI_H, `${cobMayo}%`,   'Cobertura cono mayo 2026');
 
   // ── Zona 2: Tablas lado a lado ────────────────────────────────────────────
+  // Dos tablas llenando el ancho total, separadas por 0.3"
   const TAB_TITLE_Y = 3.2;
   const TAB_Y       = 3.45;
   const TAB_TH      = TAB_Y - TAB_TITLE_Y;
   const ROW_H       = 0.25;
+  const CONO_W      = 6.1;
+  const PU_X        = 0.3 + CONO_W + 0.33;   // 6.73
+  const PU_W        = 13.03 - PU_X;           // 6.3
 
   const TH8 = (extra = {}) => TH({ fontSize: 8, ...extra });
   const TD8 = (alt, extra = {}) => TD(alt, { fontSize: 8, ...extra });
 
-  // Tabla cono — izquierda (x: 0.3, w: 4.7)
+  // Tabla cono — izquierda (x: 0.3, w: 6.1)
   slide.addText('Control de Cono — G20+', {
-    x: 0.3, y: TAB_TITLE_Y, w: 4.7, h: TAB_TH,
+    x: 0.3, y: TAB_TITLE_Y, w: CONO_W, h: TAB_TH,
     fontSize: 9, bold: true, color: COLORES.acento, fontFace: FUENTE, valign: 'middle',
   });
   const hCono = [
@@ -307,17 +312,17 @@ function slide2(pptx, { camiones, fechaDesde, fechaHasta }) {
     ];
   });
   slide.addTable([hCono, ...rCono], {
-    x: 0.3, y: TAB_Y, w: 4.7, rowH: ROW_H,
+    x: 0.3, y: TAB_Y, w: CONO_W, rowH: ROW_H,
     border: { type: 'solid', color: 'DDDDDD', pt: 0.5 },
   });
 
-  // Tabla PU — derecha (x: 5.2, w: 4.5)
+  // Tabla PU — derecha (x: 6.73, w: 6.3)
   const g20pu = g20plus.filter(c =>
     c.puCalculado != null && c.puCalculado !== '' &&
     (c.fechaRecepcion ?? '') >= INICIO_PU
   );
   slide.addText('Control de Peso Unitario — G20+', {
-    x: 5.2, y: TAB_TITLE_Y, w: 4.5, h: TAB_TH,
+    x: PU_X, y: TAB_TITLE_Y, w: PU_W, h: TAB_TH,
     fontSize: 9, bold: true, color: COLORES.acento, fontFace: FUENTE, valign: 'middle',
   });
   const hPU = [
@@ -345,7 +350,7 @@ function slide2(pptx, { camiones, fechaDesde, fechaHasta }) {
     ];
   });
   slide.addTable([hPU, ...rPU], {
-    x: 5.2, y: TAB_Y, w: 4.5, rowH: ROW_H,
+    x: PU_X, y: TAB_Y, w: PU_W, rowH: ROW_H,
     border: { type: 'solid', color: 'DDDDDD', pt: 0.5 },
   });
 
@@ -386,7 +391,7 @@ function slide2(pptx, { camiones, fechaDesde, fechaHasta }) {
   const valAxisMaxVal = Math.ceil(maxMensual * 1.15 / 10) * 10;
 
   slide.addChart('bar', barData, {
-    x: 0.3, y: 4.5, w: 5.5, h: 2.8,
+    x: 0.3, y: 4.5, w: 7.8, h: 2.8,
     barGrouping: 'stacked',
     chartColors: ['9CA3AF', 'D97706', 'B45309', '78350F'],
     showValue: true, dataLabelPosition: 'ctr', dataLabelFontSize: 7,
@@ -412,7 +417,7 @@ function slide2(pptx, { camiones, fechaDesde, fechaHasta }) {
   }];
 
   slide.addChart('doughnut', donutData, {
-    x: 6.0, y: 4.5, w: 3.7, h: 2.8,
+    x: 8.4, y: 4.5, w: 4.63, h: 2.8,
     chartColors: ['64FFDA', 'F59E0B', '818CF8'],
     showLabel: false, showPercent: true, dataLabelFontSize: 9,
     showLegend: true, legendPos: 'b', legendFontSize: 9,
@@ -574,20 +579,23 @@ function slide4(pptx, { ensayos }) {
     {
       name:   'R28 (MPa)',
       labels: lineLabels,
-      values: ensayosR28.map(e => e.r28),
+      values: ensayosR28.map(e => parseFloat(e.r28.toFixed(1))),
     },
     {
       name:   'Mínimo G20 (20 MPa)',
       labels: lineLabels,
       values: Array(ensayosR28.length).fill(20),
+      line:   { dash: 'lgDash', pt: 1 },   // línea punteada para diferenciar
     },
   ];
 
   slide.addChart('line', lineData, {
-    x: 0.3, y: 1.8, w: 9.1, h: 4.5,
+    x: 0.3, y: 1.8, w: 12.73, h: 4.5,
     chartColors: ['C0622A', 'AAAAAA'],
+    // markers: círculos naranjos en R28 — blancos (invisibles) en línea mínimo
     lineDataSymbol: 'circle',
     lineDataSymbolSize: 6,
+    lineDataSymbolColors: ['C0622A', 'FFFFFF'],
     showValue: true, dataLabelFontSize: 7, dataLabelPosition: 't',
     showLegend: true, legendPos: 'b', legendFontSize: 9,
     valAxisMinVal: 15, valAxisMaxVal: 35,
@@ -610,7 +618,7 @@ function slide4(pptx, { ensayos }) {
     : 'Sin datos R28 G20 suficientes para estadísticas';
 
   slide.addText(statsText, {
-    x: 0.3, y: 6.5, w: 9.5, h: 0.38,
+    x: 0.3, y: 6.5, w: 12.73, h: 0.38,
     fontSize: 10, color: COLORES.negro, fontFace: FUENTE,
     valign: 'middle', align: 'left',
     bold: false,
