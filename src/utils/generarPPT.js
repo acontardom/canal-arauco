@@ -686,11 +686,15 @@ function slide4(pptx, { ensayos }) {
       })
       .filter(Boolean);
 
+    const minV = Math.min(...plantaVals).toFixed(1);
+    const maxV = Math.max(...plantaVals).toFixed(1);
+
     const filas = [
       ['N tomados / recibidos', `${totalEnsayosPlanta}  /  ${st.n}`],
       ['Cumplimiento',          `${pctCumple}%`],
       ...promedioRows,
       ['σ / CV',                `${st.sigma} MPa  /  ${cv != null ? cv + '%' : '—'}`],
+      ['Mín / Máx',             `${minV} / ${maxV} MPa`],
     ];
 
     slide.addTable(
@@ -755,35 +759,37 @@ function slide5(pptx, { ensayos }) {
     return;
   }
 
-  const fs = datos.length > 20 ? 7 : 8;
+  const fs = 8;
 
-  const hRow = [
-    'N°', 'Guía', 'Fecha', 'Planta', 'Tipo H°', 'Laboratorio', 'Correlativo', 'R7 (MPa)', 'R28 (MPa)', 'Cumple',
-  ].map(txt => ({ text: txt, options: TH({ fontSize: fs }) }));
+  const mkHeader = () => ['Fecha', 'Planta', 'Tipo H°', 'Laboratorio', 'R28 (MPa)']
+    .map(txt => ({ text: txt, options: TH({ fontSize: fs }) }));
 
-  const rows = datos.map((e, i) => {
-    const alt   = i % 2 === 1;
-    const tipoH = e.camiones?.tipo_hormigon ?? null;
-    const minR  = RESISTENCIA_MIN[tipoH] ?? null;
-    const ok    = minR != null ? e.r28 >= minR : true;
-    const base  = { ...TD(alt), fontSize: fs };
+  const mkRow = (e, i) => {
+    const alt  = i % 2 === 1;
+    const base = { ...TD(alt), fontSize: fs };
     return [
-      { text: String(i + 1),                                       options: base },
-      { text: fmt(e.numero_guia),                                   options: base },
-      { text: fmtFecha(e.fecha_muestreo),                           options: base },
-      { text: e.camiones?.planta         || '—',                    options: base },
-      { text: tipoH                      || '—',                    options: base },
-      { text: e.laboratorio              || '—',                    options: base },
-      { text: e.correlativo              || '—',                    options: base },
-      { text: e.r7  != null ? `${e.r7} MPa`  : '—',                options: base },
-      { text: e.r28 != null ? `${e.r28} MPa` : '—',                options: base },
-      { text: ok ? '✓' : '✗',
-        options: { ...base, bold: true, color: ok ? '16A34A' : 'CC0000' } },
+      { text: fmtFecha(e.fecha_muestreo),    options: base },
+      { text: e.camiones?.planta  || '—',    options: base },
+      { text: e.camiones?.tipo_hormigon || '—', options: base },
+      { text: e.laboratorio       || '—',    options: base },
+      { text: e.r28 != null ? `${e.r28} MPa` : '—', options: base },
     ];
+  };
+
+  const mitad  = Math.ceil(datos.length / 2);
+  const left   = datos.slice(0, mitad);
+  const right  = datos.slice(mitad);
+
+  const rowsLeft  = left.map((e, i) => mkRow(e, i));
+  const rowsRight = right.map((e, i) => mkRow(e, i));
+
+  slide.addTable([mkHeader(), ...rowsLeft], {
+    x: 0.3, y: 1.2, w: 4.5, rowH: 0.24,
+    border: { type: 'solid', color: 'DDDDDD', pt: 0.5 },
   });
 
-  slide.addTable([hRow, ...rows], {
-    x: 0.3, y: 1.2, w: W - 0.6, rowH: 0.24,
+  slide.addTable([mkHeader(), ...rowsRight], {
+    x: 5.0, y: 1.2, w: 4.5, rowH: 0.24,
     border: { type: 'solid', color: 'DDDDDD', pt: 0.5 },
   });
 }
