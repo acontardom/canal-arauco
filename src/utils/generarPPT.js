@@ -586,13 +586,13 @@ function slide4(pptx, { ensayos }) {
 
   addHeader(slide, 'Control de Calidad Hormigón — Evolución R28');
 
-  slide.addText('Laboratorio Pampa Austral / Labotec | Compresión G20', {
+  slide.addText('Laboratorio Pampa Austral / Labotec | Compresión G20/G25/G30', {
     x: 0.3, y: 0.75, w: W - 0.6, h: 0.35,
     fontSize: 11, color: COLORES.grisTexto, fontFace: FUENTE, valign: 'middle',
   });
 
   const ensayosR28 = [...ensayos]
-    .filter(e => e.r28 != null)
+    .filter(e => e.r28 != null && e.tipo_ensayo === 'compresion')
     .sort((a, b) => (a.fecha_muestreo ?? '') < (b.fecha_muestreo ?? '') ? -1 : 1);
 
   if (ensayosR28.length === 0) {
@@ -604,54 +604,166 @@ function slide4(pptx, { ensayos }) {
     return;
   }
 
-  const lineLabels = ensayosR28.map((_, i) => `M-${String(i + 1).padStart(2, '0')}`);
-  const lineData = [
-    {
-      name:   'R28 (MPa)',
-      labels: lineLabels,
-      values: ensayosR28.map(e => parseFloat(e.r28.toFixed(1))),
-    },
-    {
-      name:   'Mínimo G20 (20 MPa)',
-      labels: lineLabels,
-      values: Array(ensayosR28.length).fill(20),
-      line:   { dash: 'lgDash', pt: 1 },   // línea punteada para diferenciar
-    },
-  ];
+  const etiquetasGlobales = ensayosR28.map((_, i) => `E-${String(i + 1).padStart(2, '0')}`);
 
-  slide.addChart('line', lineData, {
-    x: 0.3, y: 1.8, w: 12.73, h: 4.5,
-    chartColors: ['C0622A', 'AAAAAA'],
-    // markers: círculos naranjos en R28 — blancos (invisibles) en línea mínimo
-    lineDataSymbol: 'circle',
-    lineDataSymbolSize: 6,
-    lineDataSymbolColors: ['C0622A', 'FFFFFF'],
-    showValue: true, dataLabelFontSize: 7, dataLabelPosition: 't',
-    showLegend: true, legendPos: 'b', legendFontSize: 9,
-    valAxisMinVal: 15, valAxisMaxVal: 35,
-    showTitle: true, title: 'Evolución R28 (MPa)', titleFontSize: 10,
-    lineSize: 1.5,
-    valAxisLabelFontSize: 9,
-    catAxisLabelFontSize: 8,
+  const mkSerie = (tipo) => ({
+    name:   tipo,
+    labels: etiquetasGlobales,
+    values: ensayosR28.map(e =>
+      e.camiones?.tipo_hormigon === tipo ? parseFloat(e.r28.toFixed(1)) : null
+    ),
   });
 
-  // Estadísticas G20
-  const g20r28Vals = ensayosR28
-    .filter(e => e.camiones?.tipo_hormigon === 'G20')
-    .map(e => e.r28);
-  const statsG20 = calcStats(g20r28Vals);
-  const minR28   = g20r28Vals.length > 0 ? Math.min(...g20r28Vals) : null;
-  const maxR28   = g20r28Vals.length > 0 ? Math.max(...g20r28Vals) : null;
+  slide.addChart('line', [mkSerie('G20'), mkSerie('G25'), mkSerie('G30')], {
+    x: 0.3, y: 1.3, w: 5.8, h: 4.5,
+    chartColors:          ['D97706', '2563EB', '16A34A'],
+    lineDataSymbol:       'circle',
+    lineDataSymbolSize:   5,
+    showValue:            true,
+    dataLabelFontSize:    7,
+    showLegend:           true,
+    legendPos:            'b',
+    legendFontSize:       9,
+    showTitle:            false,
+    valAxisMinVal:        15,
+    valAxisMaxVal:        36,
+    valAxisMajorUnit:     5,
+    catAxisLabelFontSize: 7,
+    lineSize:             1.5,
+  });
 
-  const statsText = statsG20.promedio != null
-    ? `G20:  x̅ = ${statsG20.promedio} MPa  │  σ = ${statsG20.sigma} MPa  │  Mín. ${minR28} MPa  │  Máx. ${maxR28} MPa  │  Requisito mínimo: 20 MPa  ✓`
-    : 'Sin datos R28 G20 suficientes para estadísticas';
+  // ── Estadísticas por planta ───────────────────────────────────────────────────
+  const STATS_X    = 6.3;
+  const STATS_W    = 3.4;
+  const BLOQUE_H   = 1.45;
+  const BLOQUE_GAP = 0.07;
+  const TITLE_H    = 0.25;
+  const ROW_H      = 0.20;
 
-  slide.addText(statsText, {
-    x: 0.3, y: 6.5, w: 12.73, h: 0.38,
-    fontSize: 10, color: COLORES.negro, fontFace: FUENTE,
-    valign: 'middle', align: 'left',
-    bold: false,
+  PLANTAS.forEach((planta, pi) => {
+    const yBloque = 1.3 + pi * (BLOQUE_H + BLOQUE_GAP);
+    const yTable  = yBloque + TITLE_H;
+
+    slide.addText(planta, {
+      x: STATS_X, y: yBloque, w: STATS_W, h: TITLE_H,
+      fontSize: 10, bold: true, color: COLORES.acento, fontFace: FUENTE, valign: 'middle',
+    });
+
+    const plantaVals = ensayosR28
+      .filter(e => e.camiones?.planta === planta)
+      .map(e => e.r28);
+
+    if (plantaVals.length === 0) {
+      slide.addText('Sin datos', {
+        x: STATS_X, y: yTable, w: STATS_W, h: 0.26,
+        fontSize: 9, italic: true, color: COLORES.grisTexto, fontFace: FUENTE, valign: 'middle',
+      });
+      return;
+    }
+
+    const st     = calcStats(plantaVals);
+    const minV   = Math.min(...plantaVals);
+    const maxV   = Math.max(...plantaVals);
+    const cv     = st.promedio ? ((st.sigma / st.promedio) * 100).toFixed(1) : null;
+    const cumple = ensayosR28
+      .filter(e => e.camiones?.planta === planta)
+      .filter(e => {
+        const minR = RESISTENCIA_MIN[e.camiones?.tipo_hormigon] ?? null;
+        return minR != null && e.r28 >= minR;
+      }).length;
+    const pctCumple = Math.round((cumple / plantaVals.length) * 100);
+
+    const filas = [
+      ['N',            String(st.n)],
+      ['Promedio R28', `${st.promedio} MPa`],
+      ['σ',            `${st.sigma} MPa`],
+      ['CV (%)',       cv != null ? `${cv}%` : '—'],
+      ['Rango',        `${minV}–${maxV} MPa`],
+      ['Cumplimiento', `${pctCumple}%`],
+    ];
+
+    slide.addTable(
+      filas.map((fila, fi) => {
+        const alt = fi % 2 === 1;
+        return [
+          { text: fila[0], options: { ...TD(alt), align: 'left',  fontSize: 8 } },
+          { text: fila[1], options: { ...TD(alt), align: 'right', fontSize: 8, bold: true } },
+        ];
+      }),
+      { x: STATS_X, y: yTable, w: STATS_W, rowH: ROW_H,
+        border: { type: 'solid', color: 'DDDDDD', pt: 0.5 } }
+    );
+  });
+
+  // ── Estadísticas globales ─────────────────────────────────────────────────────
+  const todosVals = ensayosR28.map(e => e.r28);
+  const gStats    = calcStats(todosVals);
+  const gMin      = Math.min(...todosVals);
+  const gMax      = Math.max(...todosVals);
+
+  slide.addText(
+    `Global: x̄ = ${gStats.promedio} MPa  │  σ = ${gStats.sigma} MPa  │  Mín. ${gMin} MPa  │  Máx. ${gMax} MPa  │  Requisito: G20≥20, G25≥25, G30≥30 MPa`,
+    { x: 0.3, y: 5.9, w: W - 0.6, h: 0.35,
+      fontSize: 9, color: COLORES.negro, fontFace: FUENTE, valign: 'middle', align: 'left' }
+  );
+}
+
+// ── LÁMINA 5 — Anexo: Detalle de ensayos ─────────────────────────────────────
+
+function slide5(pptx, { ensayos }) {
+  const slide = pptx.addSlide();
+  slide.background = { color: COLORES.blanco };
+
+  addHeader(slide, 'Anexo — Detalle de Ensayos de Laboratorio');
+
+  slide.addText('Ordenado cronológicamente', {
+    x: 0.3, y: 0.75, w: W - 0.6, h: 0.35,
+    fontSize: 11, color: COLORES.grisTexto, fontFace: FUENTE, valign: 'middle',
+  });
+
+  const datos = [...ensayos]
+    .filter(e => e.r28 != null)
+    .sort((a, b) => (a.fecha_muestreo ?? '') < (b.fecha_muestreo ?? '') ? -1 : 1);
+
+  if (datos.length === 0) {
+    slide.addText('Sin ensayos con R28 disponible', {
+      x: 0.3, y: 3.0, w: W - 0.6, h: 0.5,
+      fontSize: 13, italic: true, color: COLORES.grisTexto,
+      fontFace: FUENTE, align: 'center', valign: 'middle',
+    });
+    return;
+  }
+
+  const fs = datos.length > 20 ? 7 : 8;
+
+  const hRow = [
+    'N°', 'Guía', 'Fecha', 'Planta', 'Tipo H°', 'Laboratorio', 'Correlativo', 'R7 (MPa)', 'R28 (MPa)', 'Cumple',
+  ].map(txt => ({ text: txt, options: TH({ fontSize: fs }) }));
+
+  const rows = datos.map((e, i) => {
+    const alt   = i % 2 === 1;
+    const tipoH = e.camiones?.tipo_hormigon ?? null;
+    const minR  = RESISTENCIA_MIN[tipoH] ?? null;
+    const ok    = minR != null ? e.r28 >= minR : true;
+    const base  = { ...TD(alt), fontSize: fs };
+    return [
+      { text: String(i + 1),                                       options: base },
+      { text: fmt(e.numero_guia),                                   options: base },
+      { text: fmtFecha(e.fecha_muestreo),                           options: base },
+      { text: e.camiones?.planta         || '—',                    options: base },
+      { text: tipoH                      || '—',                    options: base },
+      { text: e.laboratorio              || '—',                    options: base },
+      { text: e.correlativo              || '—',                    options: base },
+      { text: e.r7  != null ? `${e.r7} MPa`  : '—',                options: base },
+      { text: e.r28 != null ? `${e.r28} MPa` : '—',                options: base },
+      { text: ok ? '✓' : '✗',
+        options: { ...base, bold: true, color: ok ? '16A34A' : 'CC0000' } },
+    ];
+  });
+
+  slide.addTable([hRow, ...rows], {
+    x: 0.3, y: 1.2, w: W - 0.6, rowH: 0.24,
+    border: { type: 'solid', color: 'DDDDDD', pt: 0.5 },
   });
 }
 
@@ -667,6 +779,7 @@ export async function generarPPT({ camiones, ensayos, fechaDesde, fechaHasta, ca
   slide2(pptx, { camiones, fechaDesde, fechaHasta });
   slide3(pptx, { ensayos, ensayosSemana });
   slide4(pptx, { ensayos });
+  slide5(pptx, { ensayos });
 
   const fd = (fechaDesde && fechaDesde !== '—') ? fechaDesde : 'inicio';
   const fh = (fechaHasta && fechaHasta !== '—') ? fechaHasta : 'hoy';
