@@ -66,9 +66,9 @@ function mapEnsayo(r) {
     fechaMuestreo:  r.fecha_muestreo ?? '',
     tipoEnsayo:     r.tipo_ensayo    ?? 'compresion',
     r7:             r.r7             ?? null,
-    fechaR7:        r.fecha_r7       ?? '',
+    fechaR7:        r.r7_fecha       ?? '',
     r28:            r.r28            ?? null,
-    fechaR28:       r.fecha_r28      ?? '',
+    fechaR28:       r.r28_fecha      ?? '',
     observaciones:  r.observaciones  ?? '',
     usuarioNombre:  r.usuario_nombre ?? '',
     tipoHormigon:   cam.tipo_hormigon  ?? '',
@@ -181,9 +181,9 @@ export default function EnsayosLaboratorio() {
         correlativo:   editForm.correlativo || null,
         tipo_ensayo:   editForm.tipoEnsayo,
         r7:            editForm.r7  !== '' ? Number(editForm.r7)  : null,
-        fecha_r7:      editForm.fechaR7  || null,
+        r7_fecha:      editForm.fechaR7  || null,
         r28:           editForm.r28 !== '' ? Number(editForm.r28) : null,
-        fecha_r28:     editForm.fechaR28 || null,
+        r28_fecha:     editForm.fechaR28 || null,
         observaciones: editForm.observaciones || null,
       };
       const { error: err } = await supabase
@@ -196,9 +196,9 @@ export default function EnsayosLaboratorio() {
         correlativo:  payload.correlativo   ?? '',
         tipoEnsayo:   payload.tipo_ensayo,
         r7:           payload.r7,
-        fechaR7:      payload.fecha_r7   ?? '',
+        fechaR7:      payload.r7_fecha   ?? '',
         r28:          payload.r28,
-        fechaR28:     payload.fecha_r28  ?? '',
+        fechaR28:     payload.r28_fecha  ?? '',
         observaciones: payload.observaciones ?? '',
       }));
       setModalEdit(null);
@@ -255,9 +255,9 @@ export default function EnsayosLaboratorio() {
         fecha_muestreo: camionEncontrado.fecha_recepcion ?? null,
         tipo_ensayo:    nuevoForm.tipoEnsayo,
         r7:             nuevoForm.r7  !== '' ? Number(nuevoForm.r7)  : null,
-        fecha_r7:       nuevoForm.fechaR7  || null,
+        r7_fecha:       nuevoForm.fechaR7  || null,
         r28:            nuevoForm.r28 !== '' ? Number(nuevoForm.r28) : null,
-        fecha_r28:      nuevoForm.fechaR28 || null,
+        r28_fecha:      nuevoForm.fechaR28 || null,
         observaciones:  nuevoForm.observaciones || null,
       };
       const { data, error: err } = await supabase
