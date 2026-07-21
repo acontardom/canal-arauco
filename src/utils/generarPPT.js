@@ -615,16 +615,16 @@ function slide4(pptx, { ensayos }) {
   });
 
   slide.addChart('line', [mkSerie('G20'), mkSerie('G25'), mkSerie('G30')], {
-    x: 0.3, y: 1.15, w: 5.8, h: 5.2,
+    x: 0.3, y: 1.15, w: 8.7, h: 5.2,
     chartColors:          ['D97706', '2563EB', '16A34A'],
     lineDataSymbol:       'circle',
     lineDataSymbolSize:   5,
     showValue:            true,
-    dataLabelFontSize:    7,
+    dataLabelFontSize:    9,
     dataLabelFormatCode:  '0.0',
     showLegend:           true,
     legendPos:            'b',
-    legendFontSize:       9,
+    legendFontSize:       11,
     showTitle:            false,
     valAxisMinVal:        15,
     valAxisMaxVal:        36,
@@ -634,46 +634,37 @@ function slide4(pptx, { ensayos }) {
   });
 
   // ── Estadísticas por planta ───────────────────────────────────────────────────
-  const STATS_X    = 6.3;
-  const STATS_W    = W - STATS_X - 0.33;   // ~6.7"
-  const BLOQUE_H   = 1.60;
-  const BLOQUE_GAP = 0.10;
-  const TITLE_H    = 0.27;
-  const ROW_H      = 0.22;
+  const STATS_X    = 9.4;
+  const STATS_W    = 3.6;
+  const BLOQUE_GAP = 0.22;
+  const TITLE_H    = 0.30;
+  const ROW_H      = 0.24;
   const TIPOS_R28  = ['G20', 'G25', 'G30'];
+  const FS_TITLE   = 12;
+  const FS_TABLE   = 10;
 
-  PLANTAS.forEach((planta, pi) => {
-    const yBloque = 1.15 + pi * (BLOQUE_H + BLOQUE_GAP);
-    const yTable  = yBloque + TITLE_H;
+  let yCursor = 1.15;
+
+  PLANTAS.forEach((planta) => {
+    const yTable = yCursor + TITLE_H;
 
     slide.addText(planta, {
-      x: STATS_X, y: yBloque, w: STATS_W, h: TITLE_H,
-      fontSize: 10, bold: true, color: COLORES.acento, fontFace: FUENTE, valign: 'middle',
+      x: STATS_X, y: yCursor, w: STATS_W, h: TITLE_H,
+      fontSize: FS_TITLE, bold: true, color: COLORES.acento, fontFace: FUENTE, valign: 'middle',
     });
 
-    const plantaEnsayos = ensayosR28.filter(e => e.camiones?.planta === planta);
-    const plantaVals    = plantaEnsayos.map(e => e.r28);
+    const plantaEnsayos      = ensayosR28.filter(e => e.camiones?.planta === planta);
+    const plantaVals         = plantaEnsayos.map(e => e.r28);
+    const totalEnsayosPlanta = ensayos.filter(e => e.camiones?.planta === planta).length;
 
     if (plantaVals.length === 0) {
-      slide.addText('Sin datos', {
-        x: STATS_X, y: yTable, w: STATS_W, h: 0.22,
-        fontSize: 9, italic: true, color: COLORES.grisTexto, fontFace: FUENTE, valign: 'middle',
+      slide.addText(`Sin datos (${totalEnsayosPlanta} recibidos)`, {
+        x: STATS_X, y: yTable, w: STATS_W, h: ROW_H,
+        fontSize: FS_TITLE - 1, italic: true, color: COLORES.grisTexto, fontFace: FUENTE, valign: 'middle',
       });
+      yCursor = yTable + ROW_H + BLOQUE_GAP;
       return;
     }
-
-    // Promedios por tipo (solo tipos con al menos un dato)
-    const promediosPorTipo = TIPOS_R28
-      .map(tipo => {
-        const vals = plantaEnsayos
-          .filter(e => e.camiones?.tipo_hormigon === tipo)
-          .map(e => e.r28);
-        if (vals.length === 0) return null;
-        const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-        return `${tipo}: ${avg.toFixed(1)} MPa`;
-      })
-      .filter(Boolean)
-      .join('  |  ');
 
     const st        = calcStats(plantaVals);
     const cv        = st.promedio ? ((st.sigma / st.promedio) * 100).toFixed(1) : null;
@@ -683,23 +674,38 @@ function slide4(pptx, { ensayos }) {
     }).length;
     const pctCumple = Math.round((cumple / plantaVals.length) * 100);
 
+    const promedioRows = TIPOS_R28
+      .map(tipo => {
+        const vals = plantaEnsayos
+          .filter(e => e.camiones?.tipo_hormigon === tipo)
+          .map(e => e.r28);
+        if (vals.length === 0) return null;
+        const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+        return [`Promedio ${tipo}`, `${avg.toFixed(1)} MPa`];
+      })
+      .filter(Boolean);
+
     const filas = [
-      ['Promedio R28',      promediosPorTipo || '—'],
-      ['σ / CV',            `${st.sigma} MPa  /  ${cv != null ? cv + '%' : '—'}`],
-      ['N / Cumplimiento',  `${st.n}  /  ${pctCumple}%`],
+      ['N tomados / recibidos', `${totalEnsayosPlanta}  /  ${st.n}`],
+      ['Cumplimiento',          `${pctCumple}%`],
+      ...promedioRows,
+      ['σ / CV',                `${st.sigma} MPa  /  ${cv != null ? cv + '%' : '—'}`],
     ];
 
     slide.addTable(
       filas.map((fila, fi) => {
         const alt = fi % 2 === 1;
         return [
-          { text: fila[0], options: { ...TD(alt), align: 'left',  fontSize: 8 } },
-          { text: fila[1], options: { ...TD(alt), align: 'right', fontSize: 8, bold: true } },
+          { text: fila[0], options: { ...TD(alt), align: 'left',  fontSize: FS_TABLE } },
+          { text: fila[1], options: { ...TD(alt), align: 'right', fontSize: FS_TABLE, bold: true } },
         ];
       }),
       { x: STATS_X, y: yTable, w: STATS_W, rowH: ROW_H,
+        colW: [2.1, 1.5],
         border: { type: 'solid', color: 'DDDDDD', pt: 0.5 } }
     );
+
+    yCursor = yTable + filas.length * ROW_H + BLOQUE_GAP;
   });
 
   // ── Pie: estadísticas G20 ─────────────────────────────────────────────────────
@@ -718,7 +724,7 @@ function slide4(pptx, { ensayos }) {
 
   slide.addText(footerText, {
     x: 0.3, y: 6.48, w: W - 0.6, h: 0.30,
-    fontSize: 9, color: COLORES.negro, fontFace: FUENTE, valign: 'middle', align: 'left',
+    fontSize: 11, color: COLORES.negro, fontFace: FUENTE, valign: 'middle', align: 'left',
   });
 }
 
