@@ -488,13 +488,21 @@ function slide3(pptx, { ensayos, ensayosSemana }) {
       { text: 'Estado',      options: TH() },
     ];
     const rSem = ensayosSemana.map((e, i) => {
-      const alt = i % 2 === 1;
+      const alt         = i % 2 === 1;
+      const tipoEntidad = e.camiones?.tipo_entidad;
+      const entidadId   = e.camiones?.entidad_id;
+      const entidad     = tipoEntidad === 'tramo'     ? `Tramo ${entidadId}`
+                        : tipoEntidad === 'caida'     ? `Caída ${entidadId}`
+                        : tipoEntidad === 'atravieso' ? `Atravieso ${entidadId}`
+                        : '—';
+      const usoRaw      = e.camiones?.uso_hormigon;
+      const uso         = usoRaw ? usoRaw.charAt(0).toUpperCase() + usoRaw.slice(1) : '—';
       return [
         { text: fmt(e.numero_guia),               options: TD(alt) },
-        { text: entidadLabelEnsayo(e),            options: TD(alt) },
+        { text: entidad,                           options: TD(alt) },
         { text: e.camiones?.planta        || '—', options: TD(alt) },
         { text: e.camiones?.tipo_hormigon || '—', options: TD(alt) },
-        { text: e.camiones?.uso_hormigon  || '—', options: TD(alt) },
+        { text: uso,                               options: TD(alt) },
         { text: e.laboratorio             || '—', options: TD(alt) },
         { text: fmt(e.r7, ' MPa'),                options: TD(alt) },
         { text: fmt(e.r28, ' MPa'),               options: TD(alt) },
@@ -539,15 +547,23 @@ function slide3(pptx, { ensayos, ensayosSemana }) {
       { text: 'Estado',      options: TH() },
     ];
     const rPend = pendientes.map((e, i) => {
-      const alt  = i % 2 === 1;
-      const err  = e._dias >= 28;
-      const opts = err ? TD_ERR(alt) : TD(alt);
+      const alt         = i % 2 === 1;
+      const err         = e._dias >= 28;
+      const opts        = err ? TD_ERR(alt) : TD(alt);
+      const tipoEntidad = e.camiones?.tipo_entidad;
+      const entidadId   = e.camiones?.entidad_id;
+      const entidad     = tipoEntidad === 'tramo'     ? `Tramo ${entidadId}`
+                        : tipoEntidad === 'caida'     ? `Caída ${entidadId}`
+                        : tipoEntidad === 'atravieso' ? `Atravieso ${entidadId}`
+                        : '—';
+      const usoRaw      = e.camiones?.uso_hormigon;
+      const uso         = usoRaw ? usoRaw.charAt(0).toUpperCase() + usoRaw.slice(1) : '—';
       return [
         { text: fmt(e.numero_guia),               options: opts },
-        { text: entidadLabelEnsayo(e),            options: opts },
+        { text: entidad,                           options: opts },
         { text: e.camiones?.planta        || '—', options: opts },
         { text: e.camiones?.tipo_hormigon || '—', options: opts },
-        { text: e.camiones?.uso_hormigon  || '—', options: opts },
+        { text: uso,                               options: opts },
         { text: e.laboratorio             || '—', options: opts },
         { text: fmt(e.r7, ' MPa'),                options: opts },
         { text: fmt(e.r28, ' MPa'),               options: opts },
