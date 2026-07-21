@@ -402,7 +402,7 @@ export default function EnsayosLaboratorio() {
           <table style={s.tabla}>
             <thead>
               <tr>
-                {['Guía', 'Entidad', 'Tipo H°', 'Planta', 'Laboratorio', 'Muestreo', 'Días', 'R7', 'R28', 'Estado', 'Informe', ''].map(col => (
+                {['Correlativo', 'Guía', 'Entidad', 'Tipo H°', 'Planta', 'Laboratorio', 'Muestreo', 'Días', 'R7', 'R28', 'Estado', 'Informe', ''].map(col => (
                   <th key={col} style={s.th}>{col}</th>
                 ))}
               </tr>
@@ -418,6 +418,7 @@ export default function EnsayosLaboratorio() {
                   : '#ccd6f6';
                 return (
                   <tr key={e.id} style={s.tr}>
+                    <td style={s.td}>{e.correlativo || '—'}</td>
                     <td style={s.td}>{e.numeroGuia || '—'}</td>
                     <td style={s.td}>{nombreEntidad(e)}</td>
                     <td style={s.td}>{e.tipoHormigon || '—'}</td>
