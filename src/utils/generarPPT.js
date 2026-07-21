@@ -238,7 +238,8 @@ function slide2(pptx, { camiones, fechaDesde, fechaHasta }) {
   const slide = pptx.addSlide();
   slide.background = { color: COLORES.blanco };
 
-  addHeader(slide, `Control de Calidad Hormigón — Acumulado ${rangoTitulo(fechaDesde, fechaHasta)}`);
+  const _fh = fechaHasta && fechaHasta !== '—' ? fechaHasta : 'hoy';
+  addHeader(slide, `Control de Calidad Hormigón — Acumulado al ${_fh}`);
 
   const INICIO_PU  = '2026-05-21';
   const volTotal   = camiones.reduce((s, c) => s + (parseFloat(c.volumen) || 0), 0);
