@@ -478,10 +478,10 @@ function slide3(pptx, { ensayos, ensayosSemana }) {
   } else {
     const hSem = [
       { text: 'Guía',        options: TH() },
-      { text: 'Entidad',     options: TH() },
       { text: 'Planta',      options: TH() },
-      { text: 'Tipo H°',     options: TH() },
+      { text: 'Entidad',     options: TH() },
       { text: 'Uso',         options: TH() },
+      { text: 'Tipo H°',     options: TH() },
       { text: 'Laboratorio', options: TH() },
       { text: 'R7 (MPa)',    options: TH() },
       { text: 'R28 (MPa)',   options: TH() },
@@ -499,10 +499,10 @@ function slide3(pptx, { ensayos, ensayosSemana }) {
       const uso         = usoRaw ? usoRaw.charAt(0).toUpperCase() + usoRaw.slice(1) : '—';
       return [
         { text: fmt(e.numero_guia),               options: TD(alt) },
-        { text: entidad,                           options: TD(alt) },
         { text: e.camiones?.planta        || '—', options: TD(alt) },
-        { text: e.camiones?.tipo_hormigon || '—', options: TD(alt) },
+        { text: entidad,                           options: TD(alt) },
         { text: uso,                               options: TD(alt) },
+        { text: e.camiones?.tipo_hormigon || '—', options: TD(alt) },
         { text: e.laboratorio             || '—', options: TD(alt) },
         { text: fmt(e.r7, ' MPa'),                options: TD(alt) },
         { text: fmt(e.r28, ' MPa'),               options: TD(alt) },
@@ -537,10 +537,10 @@ function slide3(pptx, { ensayos, ensayosSemana }) {
   } else {
     const hPend = [
       { text: 'Guía',        options: TH() },
-      { text: 'Entidad',     options: TH() },
       { text: 'Planta',      options: TH() },
-      { text: 'Tipo H°',     options: TH() },
+      { text: 'Entidad',     options: TH() },
       { text: 'Uso',         options: TH() },
+      { text: 'Tipo H°',     options: TH() },
       { text: 'Laboratorio', options: TH() },
       { text: 'R7 (MPa)',    options: TH() },
       { text: 'R28 (MPa)',   options: TH() },
@@ -560,10 +560,10 @@ function slide3(pptx, { ensayos, ensayosSemana }) {
       const uso         = usoRaw ? usoRaw.charAt(0).toUpperCase() + usoRaw.slice(1) : '—';
       return [
         { text: fmt(e.numero_guia),               options: opts },
-        { text: entidad,                           options: opts },
         { text: e.camiones?.planta        || '—', options: opts },
-        { text: e.camiones?.tipo_hormigon || '—', options: opts },
+        { text: entidad,                           options: opts },
         { text: uso,                               options: opts },
+        { text: e.camiones?.tipo_hormigon || '—', options: opts },
         { text: e.laboratorio             || '—', options: opts },
         { text: fmt(e.r7, ' MPa'),                options: opts },
         { text: fmt(e.r28, ' MPa'),               options: opts },
