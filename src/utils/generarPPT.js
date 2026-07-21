@@ -546,6 +546,7 @@ function slide3(pptx, { ensayos, ensayosSemana }) {
       { text: 'R7 (MPa)',    options: TH() },
       { text: 'R28 (MPa)',   options: TH() },
       { text: 'Estado',      options: TH() },
+      { text: 'Días',        options: TH() },
     ];
     const rPend = pendientes.map((e, i) => {
       const alt         = i % 2 === 1;
@@ -559,6 +560,7 @@ function slide3(pptx, { ensayos, ensayosSemana }) {
                         : '—';
       const usoRaw      = e.camiones?.uso_hormigon;
       const uso         = usoRaw ? usoRaw.charAt(0).toUpperCase() + usoRaw.slice(1) : '—';
+      const diasColor   = e._dias >= 28 ? 'CC0000' : e._dias >= 21 ? 'D97706' : COLORES.negro;
       return [
         { text: fmt(e.numero_guia),               options: opts },
         { text: e.camiones?.planta        || '—', options: opts },
@@ -569,6 +571,7 @@ function slide3(pptx, { ensayos, ensayosSemana }) {
         { text: fmt(e.r7, ' MPa'),                options: opts },
         { text: fmt(e.r28, ' MPa'),               options: opts },
         { text: estadoEnsayo(e),                  options: opts },
+        { text: String(e._dias),                  options: { ...opts, color: diasColor, bold: e._dias >= 21 } },
       ];
     });
     slide.addTable([hPend, ...rPend], {
