@@ -615,7 +615,7 @@ function slide4(pptx, { ensayos }) {
   });
 
   slide.addChart('line', [mkSerie('G20'), mkSerie('G25'), mkSerie('G30')], {
-    x: 0.3, y: 1.15, w: 8.7, h: 5.2,
+    x: 0.3, y: 1.15, w: 8.7, h: 5.5,
     chartColors:          ['D97706', '2563EB', '16A34A'],
     lineDataSymbol:       'circle',
     lineDataSymbolSize:   5,
@@ -723,7 +723,7 @@ function slide4(pptx, { ensayos }) {
     : 'Sin datos G20';
 
   slide.addText(footerText, {
-    x: 0.3, y: 6.48, w: W - 0.6, h: 0.30,
+    x: 0.3, y: 6.85, w: W - 0.6, h: 0.30,
     fontSize: 11, color: COLORES.negro, fontFace: FUENTE, valign: 'middle', align: 'left',
   });
 }
