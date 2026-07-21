@@ -615,12 +615,13 @@ function slide4(pptx, { ensayos }) {
   });
 
   slide.addChart('line', [mkSerie('G20'), mkSerie('G25'), mkSerie('G30')], {
-    x: 0.3, y: 1.3, w: 5.8, h: 4.5,
+    x: 0.3, y: 1.15, w: 5.8, h: 5.2,
     chartColors:          ['D97706', '2563EB', '16A34A'],
     lineDataSymbol:       'circle',
     lineDataSymbolSize:   5,
     showValue:            true,
     dataLabelFontSize:    7,
+    dataLabelFormatCode:  '0.0',
     showLegend:           true,
     legendPos:            'b',
     legendFontSize:       9,
@@ -628,20 +629,21 @@ function slide4(pptx, { ensayos }) {
     valAxisMinVal:        15,
     valAxisMaxVal:        36,
     valAxisMajorUnit:     5,
-    catAxisLabelFontSize: 7,
+    catAxisLabelFontSize: 6,
     lineSize:             1.5,
   });
 
   // ── Estadísticas por planta ───────────────────────────────────────────────────
   const STATS_X    = 6.3;
-  const STATS_W    = 3.4;
-  const BLOQUE_H   = 1.45;
-  const BLOQUE_GAP = 0.07;
-  const TITLE_H    = 0.25;
-  const ROW_H      = 0.20;
+  const STATS_W    = W - STATS_X - 0.33;   // ~6.7"
+  const BLOQUE_H   = 1.60;
+  const BLOQUE_GAP = 0.10;
+  const TITLE_H    = 0.27;
+  const ROW_H      = 0.22;
+  const TIPOS_R28  = ['G20', 'G25', 'G30'];
 
   PLANTAS.forEach((planta, pi) => {
-    const yBloque = 1.3 + pi * (BLOQUE_H + BLOQUE_GAP);
+    const yBloque = 1.15 + pi * (BLOQUE_H + BLOQUE_GAP);
     const yTable  = yBloque + TITLE_H;
 
     slide.addText(planta, {
@@ -649,37 +651,42 @@ function slide4(pptx, { ensayos }) {
       fontSize: 10, bold: true, color: COLORES.acento, fontFace: FUENTE, valign: 'middle',
     });
 
-    const plantaVals = ensayosR28
-      .filter(e => e.camiones?.planta === planta)
-      .map(e => e.r28);
+    const plantaEnsayos = ensayosR28.filter(e => e.camiones?.planta === planta);
+    const plantaVals    = plantaEnsayos.map(e => e.r28);
 
     if (plantaVals.length === 0) {
       slide.addText('Sin datos', {
-        x: STATS_X, y: yTable, w: STATS_W, h: 0.26,
+        x: STATS_X, y: yTable, w: STATS_W, h: 0.22,
         fontSize: 9, italic: true, color: COLORES.grisTexto, fontFace: FUENTE, valign: 'middle',
       });
       return;
     }
 
-    const st     = calcStats(plantaVals);
-    const minV   = Math.min(...plantaVals);
-    const maxV   = Math.max(...plantaVals);
-    const cv     = st.promedio ? ((st.sigma / st.promedio) * 100).toFixed(1) : null;
-    const cumple = ensayosR28
-      .filter(e => e.camiones?.planta === planta)
-      .filter(e => {
-        const minR = RESISTENCIA_MIN[e.camiones?.tipo_hormigon] ?? null;
-        return minR != null && e.r28 >= minR;
-      }).length;
+    // Promedios por tipo (solo tipos con al menos un dato)
+    const promediosPorTipo = TIPOS_R28
+      .map(tipo => {
+        const vals = plantaEnsayos
+          .filter(e => e.camiones?.tipo_hormigon === tipo)
+          .map(e => e.r28);
+        if (vals.length === 0) return null;
+        const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+        return `${tipo}: ${avg.toFixed(1)} MPa`;
+      })
+      .filter(Boolean)
+      .join('  |  ');
+
+    const st        = calcStats(plantaVals);
+    const cv        = st.promedio ? ((st.sigma / st.promedio) * 100).toFixed(1) : null;
+    const cumple    = plantaEnsayos.filter(e => {
+      const minR = RESISTENCIA_MIN[e.camiones?.tipo_hormigon] ?? null;
+      return minR != null && e.r28 >= minR;
+    }).length;
     const pctCumple = Math.round((cumple / plantaVals.length) * 100);
 
     const filas = [
-      ['N',            String(st.n)],
-      ['Promedio R28', `${st.promedio} MPa`],
-      ['σ',            `${st.sigma} MPa`],
-      ['CV (%)',       cv != null ? `${cv}%` : '—'],
-      ['Rango',        `${minV}–${maxV} MPa`],
-      ['Cumplimiento', `${pctCumple}%`],
+      ['Promedio R28',      promediosPorTipo || '—'],
+      ['σ / CV',            `${st.sigma} MPa  /  ${cv != null ? cv + '%' : '—'}`],
+      ['N / Cumplimiento',  `${st.n}  /  ${pctCumple}%`],
     ];
 
     slide.addTable(
@@ -695,17 +702,24 @@ function slide4(pptx, { ensayos }) {
     );
   });
 
-  // ── Estadísticas globales ─────────────────────────────────────────────────────
-  const todosVals = ensayosR28.map(e => e.r28);
-  const gStats    = calcStats(todosVals);
-  const gMin      = Math.min(...todosVals);
-  const gMax      = Math.max(...todosVals);
+  // ── Pie: estadísticas G20 ─────────────────────────────────────────────────────
+  const g20Ensayos = ensayosR28.filter(e => e.camiones?.tipo_hormigon === 'G20');
+  const g20Vals    = g20Ensayos.map(e => e.r28);
+  const g20Stats   = calcStats(g20Vals);
+  const g20Min     = g20Vals.length ? Math.min(...g20Vals).toFixed(1) : '—';
+  const g20Max     = g20Vals.length ? Math.max(...g20Vals).toFixed(1) : '—';
+  const g20Cumple  = g20Vals.length
+    ? Math.round(g20Ensayos.filter(e => e.r28 >= 20).length / g20Vals.length * 100)
+    : null;
 
-  slide.addText(
-    `Global: x̄ = ${gStats.promedio} MPa  │  σ = ${gStats.sigma} MPa  │  Mín. ${gMin} MPa  │  Máx. ${gMax} MPa  │  Requisito: G20≥20, G25≥25, G30≥30 MPa`,
-    { x: 0.3, y: 5.9, w: W - 0.6, h: 0.35,
-      fontSize: 9, color: COLORES.negro, fontFace: FUENTE, valign: 'middle', align: 'left' }
-  );
+  const footerText = g20Stats.n > 0
+    ? `G20: x̄ = ${g20Stats.promedio} MPa  │  σ = ${g20Stats.sigma} MPa  │  Mín. ${g20Min} MPa  │  Máx. ${g20Max} MPa  │  ${g20Cumple}% cumplimiento`
+    : 'Sin datos G20';
+
+  slide.addText(footerText, {
+    x: 0.3, y: 6.48, w: W - 0.6, h: 0.30,
+    fontSize: 9, color: COLORES.negro, fontFace: FUENTE, valign: 'middle', align: 'left',
+  });
 }
 
 // ── LÁMINA 5 — Anexo: Detalle de ensayos ─────────────────────────────────────
