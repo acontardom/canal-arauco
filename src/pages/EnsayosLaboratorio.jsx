@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../config/supabase';
+import { useAuth } from '../hooks/useAuth';
 
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 const LABS_OPCIONES = ['Pampa Austral', 'Labotec', 'Otro'];
@@ -97,6 +98,7 @@ export default function EnsayosLaboratorio() {
   const [guardando, setGuardando] = useState(false);
   const [toast, setToast]         = useState(null);
   const toastRef                  = useRef(null);
+  const { usuario }               = useAuth();
 
   const [modalNuevo,       setModalNuevo]       = useState(false);
   const [guiaBuscar,       setGuiaBuscar]       = useState('');
@@ -206,6 +208,25 @@ export default function EnsayosLaboratorio() {
       alert('Error al guardar: ' + (err.message ?? err));
     } finally {
       setGuardando(false);
+    }
+  }
+
+  // ── Eliminar ensayo ──────────────────────────────────────────────────────────
+
+  async function handleEliminar() {
+    if (!window.confirm('¿Eliminar este ensayo? Esta acción no se puede deshacer.')) return;
+    try {
+      const id = modalEdit.id;
+      const { error: errDel } = await supabase.from('ensayos_laboratorio').delete().eq('id', id);
+      if (errDel) throw errDel;
+      if (modalEdit.pdf_url) {
+        await supabase.storage.from('ensayos').remove([`${id}/informe.pdf`]);
+      }
+      setEnsayos(prev => prev.filter(e => e.id !== id));
+      setModalEdit(null);
+      mostrarToast('Ensayo eliminado');
+    } catch (err) {
+      alert('Error al eliminar: ' + (err.message ?? err));
     }
   }
 
@@ -519,11 +540,18 @@ export default function EnsayosLaboratorio() {
               </Field>
             </Section>
 
-            <div style={s.modalBotones}>
-              <button style={s.btnCancelar} onClick={() => setModalEdit(null)}>Cancelar</button>
-              <button style={s.btnGuardar} onClick={guardarEdicion} disabled={guardando}>
-                {guardando ? 'Guardando...' : 'Guardar cambios'}
-              </button>
+            <div style={{ ...s.modalBotones, justifyContent: 'space-between' }}>
+              <div>
+                {usuario?.rol === 'admin' && (
+                  <button style={s.btnEliminar} onClick={handleEliminar}>🗑️ Eliminar ensayo</button>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button style={s.btnCancelar} onClick={() => setModalEdit(null)}>Cancelar</button>
+                <button style={s.btnGuardar} onClick={guardarEdicion} disabled={guardando}>
+                  {guardando ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -729,6 +757,11 @@ const s = {
     fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box',
   },
   modalBotones: { display: 'flex', gap: '10px', justifyContent: 'flex-end' },
+  btnEliminar: {
+    background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)',
+    borderRadius: '8px', padding: '10px 16px', fontSize: '13px', fontWeight: 600,
+    color: '#f87171', cursor: 'pointer',
+  },
   btnCancelar: {
     background: 'transparent', color: '#8892b0', border: '1px solid #0f3460',
     borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
