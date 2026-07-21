@@ -657,9 +657,15 @@ function slide4(pptx, { ensayos }) {
       fontSize: FS_TITLE, bold: true, color: COLORES.acento, fontFace: FUENTE, valign: 'middle',
     });
 
-    const plantaEnsayos      = ensayosR28.filter(e => e.camiones?.planta === planta);
-    const plantaVals         = plantaEnsayos.map(e => e.r28);
+    const plantaEnsayosAll   = ensayosR28.filter(e => e.camiones?.planta === planta);
     const totalEnsayosPlanta = ensayos.filter(e => e.camiones?.planta === planta).length;
+
+    // Membrillar: excluir r28 === 31 (valor atípico muestra M-20)
+    const EXCLUIR_MEMBRILLAR = planta === 'Membrillar' ? [31] : [];
+    const plantaEnsayos = EXCLUIR_MEMBRILLAR.length
+      ? plantaEnsayosAll.filter(e => !EXCLUIR_MEMBRILLAR.includes(e.r28))
+      : plantaEnsayosAll;
+    const plantaVals = plantaEnsayos.map(e => e.r28);
 
     if (plantaVals.length === 0) {
       slide.addText(`Sin datos (${totalEnsayosPlanta} recibidos)`, {
@@ -692,8 +698,13 @@ function slide4(pptx, { ensayos }) {
     const minV = Math.min(...plantaVals).toFixed(1);
     const maxV = Math.max(...plantaVals).toFixed(1);
 
+    const nLabel = EXCLUIR_MEMBRILLAR.length
+      ? `${plantaEnsayosAll.length} (${st.n} sin atípico)`
+      : `${totalEnsayosPlanta}  /  ${st.n}`;
+    const nRowLabel = EXCLUIR_MEMBRILLAR.length ? 'N registrados (usados)' : 'N tomados / recibidos';
+
     const filas = [
-      ['N tomados / recibidos', `${totalEnsayosPlanta}  /  ${st.n}`],
+      [nRowLabel,               nLabel],
       ['Cumplimiento',          `${pctCumple}%`],
       ...promedioRows,
       ['σ / CV',                `${st.sigma} MPa  /  ${cv != null ? cv + '%' : '—'}`],
@@ -713,7 +724,20 @@ function slide4(pptx, { ensayos }) {
         border: { type: 'solid', color: 'DDDDDD', pt: 0.5 } }
     );
 
-    yCursor = yTable + filas.length * ROW_H + BLOQUE_GAP;
+    const tableH = filas.length * ROW_H;
+
+    if (EXCLUIR_MEMBRILLAR.length) {
+      const cvAll = calcStats(plantaEnsayosAll.map(e => e.r28));
+      const cvAllPct = cvAll.promedio ? ((cvAll.sigma / cvAll.promedio) * 100).toFixed(1) : '—';
+      slide.addText(
+        `* Se excluye muestra M-20 (31 MPa) por valor atípico. CV sin exclusión: ${cvAllPct}%`,
+        { x: STATS_X, y: yTable + tableH + 0.02, w: STATS_W, h: 0.20,
+          fontSize: 7, italic: true, color: COLORES.grisTexto, fontFace: FUENTE, valign: 'middle' }
+      );
+      yCursor = yTable + tableH + 0.22 + BLOQUE_GAP;
+    } else {
+      yCursor = yTable + tableH + BLOQUE_GAP;
+    }
   });
 
   // ── Pie: estadísticas G20 ─────────────────────────────────────────────────────
