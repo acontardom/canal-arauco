@@ -265,7 +265,7 @@ export default function DashboardCamiones() {
     if (!supabase || !navigator.onLine) return;
     supabase
       .from('ensayos_laboratorio')
-      .select('*, camiones(tipo_hormigon, planta)')
+      .select('*, camiones(tipo_hormigon, planta, tipo_entidad, entidad_id, uso_hormigon)')
       .eq('tipo_ensayo', 'compresion')
       .order('fecha_muestreo', { ascending: true })
       .then(({ data, error: err }) => {
