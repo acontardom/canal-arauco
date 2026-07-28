@@ -189,6 +189,8 @@ export default function HistorialCamiones() {
           fecha_recepcion: cambios.fechaRecepcion || null,
           foto_guia_url: cambios.fotoGuiaUrl ?? null,
           fotos_ensayo_urls: cambios.fotosEnsayoUrls ?? [],
+          tiene_muestra: cambios.tieneMuestra ?? false,
+          laboratorio_muestra: cambios.laboratorioMuestra ?? null,
         };
         const { error: err } = await supabase.from('camiones').update(payload).eq('id', camion.supabaseId);
         if (err) throw err;
@@ -580,6 +582,13 @@ function EditarCamionModal({ camion: c, guardando, onGuardar, onCancelar }) {
     pesoHoyaHormigon: c.pesoHoyaHormigon ?? '',
     estadoCalidad: c.estadoCalidad ?? '',
     observaciones: c.observaciones ?? '',
+    tieneMuestra: Boolean(c.tieneMuestra),
+    laboratorioMuestra: ['Pampa Austral', 'Labotec'].includes(c.laboratorioMuestra)
+      ? (c.laboratorioMuestra ?? '')
+      : (c.laboratorioMuestra ? 'Otro' : ''),
+    laboratorioOtro: ['Pampa Austral', 'Labotec'].includes(c.laboratorioMuestra)
+      ? ''
+      : (c.laboratorioMuestra ?? ''),
     tipoEspecificacion: c.tipoEspecificacion ?? '',
     valorTotal: c.valorTotal ?? '',
     fotoGuia: c.fotoGuiaUrl ?? null,
@@ -656,6 +665,10 @@ function EditarCamionModal({ camion: c, guardando, onGuardar, onCancelar }) {
       puCalculado: puPreview,
       estadoCalidad: form.estadoCalidad || null,
       observaciones: form.observaciones,
+      tieneMuestra: form.tieneMuestra,
+      laboratorioMuestra: form.tieneMuestra
+        ? (form.laboratorioMuestra === 'Otro' ? form.laboratorioOtro : form.laboratorioMuestra)
+        : null,
       tipoEspecificacion: form.tipoEspecificacion || null,
       valorTotal: form.valorTotal,
       fotoGuiaUrl: fotoGuiaFinal,
@@ -821,6 +834,36 @@ function EditarCamionModal({ camion: c, guardando, onGuardar, onCancelar }) {
                 </select>
               </div>
             </div>
+          )}
+
+          <div style={{ ...s.campo, flexDirection: 'row', alignItems: 'center', gap: '10px' }}>
+            <input
+              type="checkbox"
+              checked={form.tieneMuestra}
+              onChange={e => campo('tieneMuestra', e.target.checked)}
+              style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#64ffda' }}
+            />
+            <label style={s.label}>¿Se tomó muestra para laboratorio?</label>
+          </div>
+
+          {form.tieneMuestra && (
+            <>
+              <div style={s.campo}>
+                <label style={s.label}>Laboratorio</label>
+                <select style={s.input} value={form.laboratorioMuestra} onChange={e => campo('laboratorioMuestra', e.target.value)}>
+                  <option value="">Seleccionar...</option>
+                  <option value="Pampa Austral">Pampa Austral</option>
+                  <option value="Labotec">Labotec</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </div>
+              {form.laboratorioMuestra === 'Otro' && (
+                <div style={s.campo}>
+                  <label style={s.label}>Especificar laboratorio</label>
+                  <input style={s.input} value={form.laboratorioOtro} onChange={e => campo('laboratorioOtro', e.target.value)} />
+                </div>
+              )}
+            </>
           )}
 
           <div style={s.campo}>
