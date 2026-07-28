@@ -106,8 +106,27 @@ export default function EnsayosLaboratorio() {
   const [guiaError,        setGuiaError]        = useState('');
   const [buscandoGuia,     setBuscandoGuia]     = useState(false);
   const [nuevoForm,        setNuevoForm]        = useState(FORM_NUEVO_INICIAL);
+  const [camionesSinEnsayo, setCamionesSinEnsayo] = useState([]);
 
   useEffect(() => { cargar(); }, []);
+  useEffect(() => { cargarCamionesPendientes(); }, []);
+
+  async function cargarCamionesPendientes() {
+    try {
+      const [{ data: camiones }, { data: ensayosIds }] = await Promise.all([
+        supabase
+          .from('camiones')
+          .select('id, numero_guia, tipo_entidad, entidad_id, tipo_hormigon, planta, laboratorio_muestra, fecha_recepcion')
+          .eq('tiene_muestra', true),
+        supabase
+          .from('ensayos_laboratorio')
+          .select('camion_id'),
+      ]);
+      if (!camiones) return;
+      const conEnsayo = new Set((ensayosIds ?? []).map(e => e.camion_id));
+      setCamionesSinEnsayo(camiones.filter(c => !conEnsayo.has(c.id)));
+    } catch (_) {}
+  }
 
   async function cargar() {
     setCargando(true);
@@ -262,6 +281,19 @@ export default function EnsayosLaboratorio() {
     }
   }
 
+  function abrirModalDesde(camion) {
+    const labDirecta = LABS_OPCIONES.filter(l => l !== 'Otro').includes(camion.laboratorio_muestra);
+    setGuiaBuscar(String(camion.numero_guia ?? ''));
+    setCamionEncontrado(camion);
+    setGuiaError('');
+    setNuevoForm({
+      ...FORM_NUEVO_INICIAL,
+      laboratorio:     labDirecta ? camion.laboratorio_muestra : (camion.laboratorio_muestra ? 'Otro' : ''),
+      laboratorioOtro: labDirecta ? '' : (camion.laboratorio_muestra ?? ''),
+    });
+    setModalNuevo(true);
+  }
+
   async function guardarNuevo() {
     if (!camionEncontrado) return;
     const labFinal = nuevoForm.laboratorio === 'Otro' ? nuevoForm.laboratorioOtro : nuevoForm.laboratorio;
@@ -294,6 +326,7 @@ export default function EnsayosLaboratorio() {
         .single();
       if (err) throw err;
       setEnsayos(prev => [mapEnsayo(data), ...prev]);
+      setCamionesSinEnsayo(prev => prev.filter(c => c.id !== camionEncontrado.id));
       setModalNuevo(false);
       resetNuevo();
     } catch (err) {
@@ -386,6 +419,30 @@ export default function EnsayosLaboratorio() {
           <span style={s.kpiLabel}>R28 vencidos sin resultado</span>
         </div>
       </div>
+
+      {/* Banner camiones con muestra sin ensayo */}
+      {camionesSinEnsayo.length > 0 && (
+        <div style={s.bannerAlerta}>
+          <div style={s.bannerTitulo}>
+            <span>⚠️</span>
+            <span>
+              {camionesSinEnsayo.length} camión{camionesSinEnsayo.length > 1 ? 'es' : ''} marcado{camionesSinEnsayo.length > 1 ? 's' : ''} con muestra de laboratorio no tiene{camionesSinEnsayo.length > 1 ? 'n' : ''} ensayo registrado
+            </span>
+          </div>
+          <div style={s.bannerLista}>
+            {camionesSinEnsayo.map(c => {
+              const entidad = `${NOMBRE_TIPO[c.tipo_entidad] ?? c.tipo_entidad} ${c.entidad_id}`;
+              const desc    = [entidad, c.tipo_hormigon, c.planta].filter(Boolean).join(', ');
+              return (
+                <div key={c.id} style={s.bannerItem}>
+                  <span>Guía {c.numero_guia} — {desc}</span>
+                  <button style={s.btnRegistrar} onClick={() => abrirModalDesde(c)}>Registrar</button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Filtros */}
       <div style={s.filtrosRow}>
@@ -798,5 +855,24 @@ const s = {
   camionChip: {
     background: '#0f3460', color: '#64ffda', fontSize: '12px', fontWeight: 700,
     padding: '4px 10px', borderRadius: '999px',
+  },
+
+  bannerAlerta: {
+    background: '#1c1a00', border: '1px solid #f59e0b', borderRadius: '8px',
+    padding: '12px 16px',
+  },
+  bannerTitulo: {
+    display: 'flex', alignItems: 'center', gap: '8px',
+    color: '#f59e0b', fontSize: '14px', fontWeight: 700, marginBottom: '10px',
+  },
+  bannerLista:  { display: 'flex', flexDirection: 'column', gap: '6px' },
+  bannerItem:   {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    color: '#ccd6f6', fontSize: '13px',
+  },
+  btnRegistrar: {
+    background: 'rgba(245,158,11,0.12)', border: '1px solid #f59e0b',
+    borderRadius: '6px', color: '#f59e0b', fontSize: '12px', fontWeight: 700,
+    padding: '4px 12px', cursor: 'pointer', flexShrink: 0,
   },
 };
