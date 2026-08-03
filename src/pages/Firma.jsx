@@ -170,7 +170,7 @@ export default function Firma() {
         // Filtrar al camión seleccionado al momento de enviar (igual que Protocolo.jsx)
         const camionId = datosProto?.camionId;
         if (camionId && camionId !== 'todos') {
-          camiones = camiones.filter(c => c.key === camionId);
+          camiones = camiones.filter(c => c.supabaseId === camionId || c.key === camionId);
         }
       }
 
