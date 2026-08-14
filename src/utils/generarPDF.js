@@ -912,7 +912,8 @@ async function construirControlHA(doc, protocolo, camiones, kmInicio, kmFin, tot
       }
     }
 
-    const galeriaHA = (datosProtocolo.fotosGaleriaHA ?? {})[camion.key] ?? [];
+    const _galObj = datosProtocolo.fotosGaleriaHA ?? {};
+    const galeriaHA = _galObj[camion.supabaseId] ?? _galObj[camion.key] ?? [];
     for (const foto of galeriaHA) {
       fotosParaPDF.push({
         storageUrl: foto.storageUrl,
