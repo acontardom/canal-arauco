@@ -34,6 +34,7 @@ const FILTROS_INICIAL = {
   planta: '',
   estado: '',
   tipoHormigon: '',
+  tieneMuestra: '',
 };
 
 function mapRemoto(r) {
@@ -68,6 +69,8 @@ function mapRemoto(r) {
     fotosEnsayoUrls: r.fotos_ensayo_urls ?? [],
     tipoEspecificacion: r.tipo_especificacion ?? null,
     valorTotal: r.valor_total != null ? String(r.valor_total) : '',
+    tieneMuestra: Boolean(r.tiene_muestra),
+    laboratorioMuestra: r.laboratorio_muestra ?? null,
   };
 }
 
@@ -113,7 +116,7 @@ export default function HistorialCamiones() {
             const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000));
             const consulta = supabase
               .from('camiones')
-              .select('id, local_id, tipo_entidad, entidad_id, entidad_secundaria_tipo, entidad_secundaria_id, tipo_hormigon, volumen, numero_guia, planta, cono, temp_hormigon, temp_ambiente, hora_carga, hora_descarga, tiempo_traslado, peso_hoya_hormigon, pu_calculado, observaciones, usuario_nombre, fecha_recepcion, uso_hormigon, estado_calidad, foto_guia_url, fotos_ensayo_urls, tipo_especificacion, valor_total, created_at')
+              .select('id, local_id, tipo_entidad, entidad_id, entidad_secundaria_tipo, entidad_secundaria_id, tipo_hormigon, volumen, numero_guia, planta, cono, temp_hormigon, temp_ambiente, hora_carga, hora_descarga, tiempo_traslado, peso_hoya_hormigon, pu_calculado, observaciones, usuario_nombre, fecha_recepcion, uso_hormigon, estado_calidad, foto_guia_url, fotos_ensayo_urls, tipo_especificacion, valor_total, created_at, tiene_muestra, laboratorio_muestra')
               .order('fecha_recepcion', { ascending: false });
             try {
               const { data, error: err } = await Promise.race([consulta, timeout]);
@@ -257,6 +260,8 @@ export default function HistorialCamiones() {
       if (filtros.planta && c.planta !== filtros.planta) return false;
       if (filtros.estado && c.estadoCalidad !== filtros.estado) return false;
       if (filtros.tipoHormigon && c.tipoHormigon !== filtros.tipoHormigon) return false;
+      if (filtros.tieneMuestra === 'si' && !c.tieneMuestra) return false;
+      if (filtros.tieneMuestra === 'no' && c.tieneMuestra) return false;
       const key = fechaKey(c.fechaRecepcion);
       if (filtros.fechaDesde && key < filtros.fechaDesde) return false;
       if (filtros.fechaHasta && key > filtros.fechaHasta) return false;
@@ -358,6 +363,14 @@ export default function HistorialCamiones() {
               <option value="">Todos</option>
               <option value="aprobado">Aprobado</option>
               <option value="rechazado">Rechazado</option>
+            </select>
+          </div>
+          <div style={s.campo}>
+            <label style={s.label}>Muestra laboratorio</label>
+            <select style={s.input} value={filtros.tieneMuestra} onChange={e => setFiltro('tieneMuestra', e.target.value)}>
+              <option value="">Todos</option>
+              <option value="si">Con muestra</option>
+              <option value="no">Sin muestra</option>
             </select>
           </div>
           <div style={s.campo}>
