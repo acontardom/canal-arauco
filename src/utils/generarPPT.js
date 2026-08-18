@@ -392,7 +392,7 @@ function slide2(pptx, { camiones, fechaDesde, fechaHasta }) {
   const valAxisMaxVal = Math.ceil(maxMensual * 1.15 / 10) * 10;
 
   slide.addChart('bar', barData, {
-    x: 0.3, y: 4.5, w: 7.8, h: 2.8,
+    x: 0.3, y: 4.5, w: 6.4, h: 2.8,
     barGrouping: 'stacked',
     chartColors: ['9CA3AF', 'D97706', 'B45309', '78350F'],
     showValue: true, dataLabelPosition: 'ctr', dataLabelFontSize: 7,
@@ -405,7 +405,7 @@ function slide2(pptx, { camiones, fechaDesde, fechaHasta }) {
     showTitle: true, title: 'Volumen mensual por tipo (m³)', titleFontSize: 10,
   });
 
-  // Datos dona por planta
+  // Dona 1 — distribución total por planta
   const donutData = [{
     name: 'Distribución',
     labels: PLANTAS,
@@ -418,11 +418,32 @@ function slide2(pptx, { camiones, fechaDesde, fechaHasta }) {
   }];
 
   slide.addChart('doughnut', donutData, {
-    x: 8.4, y: 4.5, w: 4.63, h: 2.8,
+    x: 6.9, y: 4.5, w: 3.1, h: 2.8,
     chartColors: ['64FFDA', 'F59E0B', '818CF8'],
     showLabel: false, showPercent: true, dataLabelFontSize: 9,
     showLegend: true, legendPos: 'b', legendFontSize: 9,
     showTitle: true, title: 'Distribución por planta (m³)', titleFontSize: 10,
+    holeSize: 50,
+  });
+
+  // Dona 2 — distribución G20+ por planta
+  const donutG20Data = [{
+    name: 'G20+',
+    labels: PLANTAS,
+    values: PLANTAS.map(planta =>
+      +camiones
+        .filter(c => c.planta === planta && ['G20', 'G25', 'G30'].includes(c.tipoHormigon))
+        .reduce((s, c) => s + (parseFloat(c.volumen) || 0), 0)
+        .toFixed(1)
+    ),
+  }];
+
+  slide.addChart('doughnut', donutG20Data, {
+    x: 10.15, y: 4.5, w: 3.1, h: 2.8,
+    chartColors: ['64FFDA', 'F59E0B', '818CF8'],
+    showLabel: false, showPercent: true, dataLabelFontSize: 9,
+    showLegend: true, legendPos: 'b', legendFontSize: 9,
+    showTitle: true, title: 'Distribución G20+ por planta (m³)', titleFontSize: 10,
     holeSize: 50,
   });
 }
