@@ -3,9 +3,10 @@ export const TRAMOS = [
   'K', 'L', 'M', 'N1', 'N2', 'O', 'P', 'Q', 'R', 'S', 'T',
   'U', 'V', 'W', 'X', 'Y1', 'Y2', 'Z',
   'AZ', 'BZ', 'CZ', 'DZ', 'TEST',
+  '2.1', '2.2', '2.3',
 ];
 
-export const CAIDAS = Array.from({ length: 29 }, (_, i) => i + 1);
+export const CAIDAS = [...Array.from({ length: 29 }, (_, i) => i + 1), 'CE', 'CS'];
 
 export const ATRAVIESOS = ['1', '2', '3'];
 
