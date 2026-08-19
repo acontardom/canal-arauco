@@ -282,32 +282,74 @@ function MatrizITO({ protocolos, verPorEDP }) {
         </div>
       </div>
 
-      {/* ── Etapa 2 ── */}
-      <div>
-        <div style={sectionTh}>ETAPA 2</div>
-        <div style={wrapStyle}>
-          <table style={tablaStyle}>
-            <thead>
-              <tr>
-                <th style={thSticky} />
-                {COLUMNAS_CAIDAS_ATRAVIESOS.map(col => <th key={col.id} style={thLabel}>{col.label}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {ETAPA_2.map(({ tipo, id }) => (
-                <tr key={`${tipo}-${id}`}>
-                  <td style={tdLabel} title={nombreEntidad(tipo, id)}>
-                    {tipo === 'atravieso' ? `AT${id}` : String(id)}
-                  </td>
-                  {COLUMNAS_CAIDAS_ATRAVIESOS.map(col => {
-                    const k = `${tipo}-${String(id)}-${col.id}`;
-                    return <CeldaMatrizITO key={col.id} proto={protMap[k]} cellStyle={cellStyle} cellBg={cellBg(k)} />;
-                  })}
+      {/* ── Separador Etapa 2 ── */}
+      <div style={{
+        background: '#0a1f3d', border: '1px solid #1e3a5f',
+        color: '#64ffda', fontSize: 13, fontWeight: 800,
+        textAlign: 'center', padding: '10px 0', letterSpacing: '3px',
+        textTransform: 'uppercase', borderRadius: 8,
+        marginTop: 4,
+      }}>
+        ETAPA 2
+      </div>
+
+      {/* ── Etapa 2: dos tablas lado a lado ── */}
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+
+        {/* Tramos E2 */}
+        <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+          <div style={sectionTh}>TRAMOS</div>
+          <div style={wrapStyle}>
+            <table style={tablaStyle}>
+              <thead>
+                <tr>
+                  <th style={thSticky} />
+                  {COLUMNAS_TRAMOS.map(col => <th key={col.id} style={thLabel}>{col.label}</th>)}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {ETAPA_2.filter(e => e.tipo === 'tramo').map(({ tipo, id }) => (
+                  <tr key={id}>
+                    <td style={tdLabel}>{id}</td>
+                    {COLUMNAS_TRAMOS.map(col => {
+                      const k = `${tipo}-${String(id)}-${col.id}`;
+                      return <CeldaMatrizITO key={col.id} proto={protMap[k]} cellStyle={cellStyle} cellBg={cellBg(k)} />;
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
+
+        {/* Cámaras y Atravieso */}
+        <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+          <div style={sectionTh}>CÁMARAS Y ATRAVIESO</div>
+          <div style={wrapStyle}>
+            <table style={tablaStyle}>
+              <thead>
+                <tr>
+                  <th style={thSticky} />
+                  {COLUMNAS_CAIDAS_ATRAVIESOS.map(col => <th key={col.id} style={thLabel}>{col.label}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {ETAPA_2.filter(e => e.tipo !== 'tramo').map(({ tipo, id }) => (
+                  <tr key={`${tipo}-${id}`}>
+                    <td style={tdLabel} title={nombreEntidad(tipo, id)}>
+                      {tipo === 'atravieso' ? `AT${id}` : String(id)}
+                    </td>
+                    {COLUMNAS_CAIDAS_ATRAVIESOS.map(col => {
+                      const k = `${tipo}-${String(id)}-${col.id}`;
+                      return <CeldaMatrizITO key={col.id} proto={protMap[k]} cellStyle={cellStyle} cellBg={cellBg(k)} />;
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
 
     </div>

@@ -298,8 +298,9 @@ export default function DashboardMatriz() {
         </div>
       </div>
 
+      {/* ── Etapa 1 ────────────────────────────────────────────────────── */}
       <div style={s.contenedor}>
-        {/* ── Tabla TRAMOS ──────────────────────────────────────────────── */}
+        {/* Tabla TRAMOS */}
         <div style={s.tablaWrap}>
           <table style={s.tabla}>
             <ColGroup protocolos={PROTOCOLOS_MATRIZ_TRAMO} />
@@ -329,39 +330,7 @@ export default function DashboardMatriz() {
           </table>
         </div>
 
-        {/* ── Tabla ETAPA 2 ─────────────────────────────────────────── */}
-        <div style={s.tablaWrap}>
-          <table style={s.tabla}>
-            <ColGroup protocolos={PROTOCOLOS_MATRIZ_CAIDA} />
-            <thead>
-              <tr>
-                <th colSpan={PROTOCOLOS_MATRIZ_CAIDA.length + 1} style={s.tituloTabla}>ETAPA 2</th>
-              </tr>
-              <EncabezadoColumnas protocolos={PROTOCOLOS_MATRIZ_CAIDA} colLabel={COL_LABEL_CAIDA} />
-            </thead>
-            <tbody>
-              {ETAPA_2.map(({ tipo, id }) => (
-                <tr key={`${tipo}-${id}`}>
-                  <th style={s.rowHeader}>
-                    {tipo === 'atravieso' ? `AT${id}` : String(id)}
-                  </th>
-                  {PROTOCOLOS_MATRIZ_CAIDA.map(p => (
-                    <MatrizCell
-                      key={p.id}
-                      tipo={tipo}
-                      entidadId={id}
-                      protocolo={p}
-                      nombreEntidad={calcNombreEntidad(tipo, id)}
-                      {...cellProps}
-                    />
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* ── Tabla CAÍDAS + ATRAVIESOS ────────────────────────────────── */}
+        {/* Tabla CAÍDAS + ATRAVIESOS */}
         <div style={s.tablaWrap}>
           <table style={s.tabla}>
             <ColGroup protocolos={PROTOCOLOS_MATRIZ_CAIDA} />
@@ -411,6 +380,74 @@ export default function DashboardMatriz() {
           </table>
         </div>
       </div>
+
+      {/* ── Separador Etapa 2 ─────────────────────────────────────────── */}
+      <div style={s.separadorEtapa2}>ETAPA 2</div>
+
+      {/* ── Etapa 2 ────────────────────────────────────────────────────── */}
+      <div style={s.contenedor}>
+        {/* Tabla TRAMOS E2 */}
+        <div style={s.tablaWrap}>
+          <table style={s.tabla}>
+            <ColGroup protocolos={PROTOCOLOS_MATRIZ_TRAMO} />
+            <thead>
+              <tr>
+                <th colSpan={PROTOCOLOS_MATRIZ_TRAMO.length + 1} style={s.tituloTabla}>TRAMOS</th>
+              </tr>
+              <EncabezadoColumnas protocolos={PROTOCOLOS_MATRIZ_TRAMO} />
+            </thead>
+            <tbody>
+              {ETAPA_2.filter(e => e.tipo === 'tramo').map(({ tipo, id }) => (
+                <tr key={id}>
+                  <th style={s.rowHeader}>{id}</th>
+                  {PROTOCOLOS_MATRIZ_TRAMO.map(p => (
+                    <MatrizCell
+                      key={p.id}
+                      tipo={tipo}
+                      entidadId={id}
+                      protocolo={p}
+                      nombreEntidad={calcNombreEntidad(tipo, id)}
+                      {...cellProps}
+                    />
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Tabla CÁMARAS Y ATRAVIESO */}
+        <div style={s.tablaWrap}>
+          <table style={s.tabla}>
+            <ColGroup protocolos={PROTOCOLOS_MATRIZ_CAIDA} />
+            <thead>
+              <tr>
+                <th colSpan={PROTOCOLOS_MATRIZ_CAIDA.length + 1} style={s.tituloTabla}>CÁMARAS Y ATRAVIESO</th>
+              </tr>
+              <EncabezadoColumnas protocolos={PROTOCOLOS_MATRIZ_CAIDA} colLabel={COL_LABEL_CAIDA} />
+            </thead>
+            <tbody>
+              {ETAPA_2.filter(e => e.tipo !== 'tramo').map(({ tipo, id }) => (
+                <tr key={`${tipo}-${id}`}>
+                  <th style={s.rowHeader}>
+                    {tipo === 'atravieso' ? `AT${id}` : String(id)}
+                  </th>
+                  {PROTOCOLOS_MATRIZ_CAIDA.map(p => (
+                    <MatrizCell
+                      key={p.id}
+                      tipo={tipo}
+                      entidadId={id}
+                      protocolo={p}
+                      nombreEntidad={calcNombreEntidad(tipo, id)}
+                      {...cellProps}
+                    />
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
@@ -448,6 +485,14 @@ const s = {
     background: '#16213e', border: '1px solid #27ae60', color: '#82e0aa',
     borderRadius: '8px', padding: '7px 10px', fontSize: '12px', fontWeight: 700,
     cursor: 'pointer', outline: 'none', fontFamily: 'inherit',
+  },
+
+  separadorEtapa2: {
+    background: '#0a1f3d', border: '1px solid #1e3a5f',
+    color: '#64ffda', fontSize: '15px', fontWeight: 800,
+    textAlign: 'center', padding: '12px 0', letterSpacing: '3px',
+    textTransform: 'uppercase', borderRadius: '8px',
+    marginTop: '8px', marginBottom: '4px',
   },
 
   contenedor: {
