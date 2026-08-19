@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
 import { useAuth } from '../hooks/useAuth';
-import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
+import { TRAMOS, CAIDAS, ATRAVIESOS, normalizarEntidadId } from '../constants/estructura';
 import { comprimirFoto } from '../utils/comprimirFoto';
 import { leerFechaExif } from '../utils/leerFechaExif';
 import { sincronizar } from '../utils/sync';
@@ -35,7 +35,7 @@ export default function SubirFotos() {
   const inputGaleriaRef = useRef(null);
   const toastTimerRef = useRef(null);
 
-  const entidadIdReal = tipo === 'caida' ? Number(entidadId) : entidadId;
+  const entidadIdReal = normalizarEntidadId(tipo, entidadId);
 
   const [guardadas, setGuardadas] = useState(0);
 

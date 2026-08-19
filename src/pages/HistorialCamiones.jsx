@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { db } from '../db/database';
 import { supabase } from '../config/supabase';
-import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
+import { TRAMOS, CAIDAS, ATRAVIESOS, normalizarEntidadId } from '../constants/estructura';
 import { eliminarFotoStorage, uploadFoto } from '../utils/uploadFoto';
 import { formatearFecha, formatearFechaLarga } from '../utils/fecha';
 
@@ -43,11 +43,9 @@ function mapRemoto(r) {
     localId: r.local_id ?? null,
     supabaseId: r.id,
     tipoEntidad: r.tipo_entidad,
-    entidadId: r.tipo_entidad === 'caida' ? Number(r.entidad_id) : r.entidad_id,
+    entidadId: normalizarEntidadId(r.tipo_entidad, r.entidad_id),
     entidadSecundariaTipo: r.entidad_secundaria_tipo ?? null,
-    entidadSecundariaId: r.entidad_secundaria_tipo === 'caida' && r.entidad_secundaria_id != null
-      ? Number(r.entidad_secundaria_id)
-      : (r.entidad_secundaria_id ?? null),
+    entidadSecundariaId: normalizarEntidadId(r.entidad_secundaria_tipo, r.entidad_secundaria_id) ?? null,
     tipoHormigon: r.tipo_hormigon,
     usoHormigon: r.uso_hormigon ?? null,
     volumen: r.volumen ?? '',
@@ -636,10 +634,10 @@ function EditarCamionModal({ camion: c, guardando, onGuardar, onCancelar }) {
   const puPreview = calcPU(form.pesoHoyaHormigon);
 
   async function handleGuardar() {
-    const entidadIdFinal = form.tipoEntidad === 'caida' ? Number(form.entidadId) : form.entidadId;
+    const entidadIdFinal = normalizarEntidadId(form.tipoEntidad, form.entidadId);
     const entidadSecundariaTipoFinal = form.involucraSecundaria ? form.entidadSecundariaTipo : null;
     const entidadSecundariaIdFinal = entidadSecundariaTipoFinal
-      ? (entidadSecundariaTipoFinal === 'caida' ? Number(form.entidadSecundariaId) : form.entidadSecundariaId)
+      ? normalizarEntidadId(entidadSecundariaTipoFinal, form.entidadSecundariaId)
       : null;
 
     let fotoGuiaFinal = form.fotoGuia;

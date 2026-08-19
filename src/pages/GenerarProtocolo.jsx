@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TRAMOS, CAIDAS, ATRAVIESOS, PROTOCOLOS } from '../constants/estructura';
+import { TRAMOS, CAIDAS, ATRAVIESOS, PROTOCOLOS, normalizarEntidadId } from '../constants/estructura';
 import { supabase } from '../config/supabase';
 import Protocolo from './Protocolo';
 
@@ -37,7 +37,7 @@ export default function GenerarProtocolo() {
 
   useEffect(() => {
     if (!supabase || !navigator.onLine) { setTieneRadier(true); return; }
-    const entidadIdQuery = tipo === 'caida' ? Number(entidadId) : String(entidadId);
+    const entidadIdQuery = tipo === 'caida' ? normalizarEntidadId(tipo, entidadId) : String(entidadId);
     supabase
       .from('avance')
       .select('partida_id')

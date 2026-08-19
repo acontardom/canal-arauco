@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
 import { useAuth } from '../hooks/useAuth';
-import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
+import { TRAMOS, CAIDAS, ATRAVIESOS, normalizarEntidadId } from '../constants/estructura';
 import { comprimirFoto } from '../utils/comprimirFoto';
 import { leerFechaExif } from '../utils/leerFechaExif';
 import { uploadFoto } from '../utils/uploadFoto';
@@ -95,7 +95,7 @@ export default function RecibirCamion() {
   const inputGaleriaRef = useRef(null);
   const toastTimerRef = useRef(null);
 
-  const entidadIdReal = tipo === 'caida' ? Number(entidadId) : entidadId;
+  const entidadIdReal = normalizarEntidadId(tipo, entidadId);
 
   function claveBorrador(t, eid) {
     return `camion_borrador_${t}_${eid}`;

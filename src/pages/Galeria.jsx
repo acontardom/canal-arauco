@@ -4,7 +4,7 @@ import { supabase } from '../config/supabase';
 import { eliminarFotoStorage } from '../utils/uploadFoto';
 import { useAuth } from '../hooks/useAuth';
 import { formatearFecha, formatearFechaLarga } from '../utils/fecha';
-import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
+import { TRAMOS, CAIDAS, ATRAVIESOS, normalizarEntidadId } from '../constants/estructura';
 
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 const LISTAS = { tramo: TRAMOS, caida: CAIDAS, atravieso: ATRAVIESOS };
@@ -24,7 +24,7 @@ function mapRemoto(r) {
     id: r.id,
     localId: r.local_id ?? null,
     tipo: r.tipo,
-    entidadId: r.tipo === 'caida' ? Number(r.entidad_id) : r.entidad_id,
+    entidadId: normalizarEntidadId(r.tipo, r.entidad_id),
     etiquetas: r.etiquetas ?? [],
     descripcion: r.descripcion ?? '',
     storageUrl: r.storage_url ?? null,
@@ -254,7 +254,7 @@ export default function Galeria() {
 
   async function guardarMovimiento() {
     try {
-      const entidadIdLocal = moveTipo === 'caida' ? Number(moveEntidadId) : moveEntidadId;
+      const entidadIdLocal = normalizarEntidadId(moveTipo, moveEntidadId);
       await actualizarFoto(
         fotoActual,
         { tipo: moveTipo, entidad_id: String(moveEntidadId) },

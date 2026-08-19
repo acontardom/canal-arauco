@@ -1,6 +1,7 @@
 import { db } from '../db/database';
 import { supabase } from '../config/supabase';
 import { uploadFoto } from './uploadFoto';
+import { normalizarEntidadId } from '../constants/estructura';
 
 async function conReintentos(fn, intentos = 3, espera = 1000) {
   for (let i = 0; i < intentos; i++) {
@@ -244,7 +245,7 @@ export async function descargarDesdeSupabase() {
         await db.fotos_terreno.add({
           deviceFotoTerrenoId: remoto.device_foto_terreno_id ?? null,
           tipo:          remoto.tipo,
-          entidadId:     remoto.tipo === 'caida' ? Number(remoto.entidad_id) : remoto.entidad_id,
+          entidadId:     normalizarEntidadId(remoto.tipo, remoto.entidad_id),
           etiquetas:     remoto.etiquetas ?? [],
           descripcion:   remoto.descripcion ?? null,
           dataUrl:       null,  // no se descarga — usar storageUrl
@@ -279,11 +280,9 @@ export async function descargarDesdeSupabase() {
         await db.camiones.add({
           deviceCamionId:         remoto.device_camion_id ?? null,
           tipoEntidad:            remoto.tipo_entidad,
-          entidadId:              remoto.tipo_entidad === 'caida' ? Number(remoto.entidad_id) : remoto.entidad_id,
+          entidadId:              normalizarEntidadId(remoto.tipo_entidad, remoto.entidad_id),
           entidadSecundariaTipo:  remoto.entidad_secundaria_tipo ?? null,
-          entidadSecundariaId:    remoto.entidad_secundaria_tipo === 'caida' && remoto.entidad_secundaria_id != null
-                                    ? Number(remoto.entidad_secundaria_id)
-                                    : remoto.entidad_secundaria_id ?? null,
+          entidadSecundariaId:    normalizarEntidadId(remoto.entidad_secundaria_tipo, remoto.entidad_secundaria_id) ?? null,
           tipoHormigon:           remoto.tipo_hormigon,
           usoHormigon:            remoto.uso_hormigon ?? null,
           volumen:                remoto.volumen ?? '',

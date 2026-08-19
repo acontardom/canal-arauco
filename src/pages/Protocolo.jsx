@@ -4,7 +4,7 @@ import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
-import { PROTOCOLOS, CHECKLISTS, CHECKLIST_DEFAULTS, TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
+import { PROTOCOLOS, CHECKLISTS, CHECKLIST_DEFAULTS, TRAMOS, CAIDAS, ATRAVIESOS, normalizarEntidadId } from '../constants/estructura';
 import { generarPDF, construirDocumentoPDF } from '../utils/generarPDF';
 import { useKm } from '../hooks/useKm';
 import { useAuth } from '../hooks/useAuth';
@@ -325,7 +325,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const { usuario: usuarioAuth } = useAuth();
   const esVisor = usuarioAuth?.rol === 'visor';
 
-  const entidadIdReal = tipo === 'caida' ? Number(entidadId) : entidadId;
+  const entidadIdReal = normalizarEntidadId(tipo, entidadId);
   const protocoloInfo = PROTOCOLOS.find(p => p.id === protocoloId);
   const itemsChecklist = CHECKLISTS[protocoloId] ?? [];
   const defaultsDef    = CHECKLIST_DEFAULTS[protocoloId] ?? null;
@@ -1470,7 +1470,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   }
 
   async function actualizarEntidadCamion(camion, nuevoTipo, nuevoEntidadIdStr) {
-    const nuevoEntidadId = nuevoTipo === 'caida' ? Number(nuevoEntidadIdStr) : nuevoEntidadIdStr;
+    const nuevoEntidadId = normalizarEntidadId(nuevoTipo, nuevoEntidadIdStr);
 
     if (supabase && navigator.onLine && camion.supabaseId) {
       try {

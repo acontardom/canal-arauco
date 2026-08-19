@@ -7,7 +7,7 @@ import {
   ErrorBar, ReferenceArea, ReferenceLine, Label,
 } from 'recharts';
 import { supabase } from '../config/supabase';
-import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
+import { TRAMOS, CAIDAS, ATRAVIESOS, normalizarEntidadId } from '../constants/estructura';
 import { generarPPT } from '../utils/generarPPT';
 
 // ─── Constantes de negocio ────────────────────────────────────────────────────
@@ -60,7 +60,7 @@ function mapRemoto(r) {
     id:                    r.id,
     supabaseId:            r.id,
     tipoEntidad:           r.tipo_entidad,
-    entidadId:             r.tipo_entidad === 'caida' ? Number(r.entidad_id) : r.entidad_id,
+    entidadId:             normalizarEntidadId(r.tipo_entidad, r.entidad_id),
     entidadSecundariaTipo: r.entidad_secundaria_tipo ?? null,
     entidadSecundariaId:   r.entidad_secundaria_tipo === 'caida' && r.entidad_secundaria_id != null
       ? Number(r.entidad_secundaria_id)
