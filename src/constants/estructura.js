@@ -419,3 +419,43 @@ export const KM_DATA = {
     '3': { inicio: '0,0',     fin: '0,0' },
   },
 };
+
+// ─── Etapa 2 ───────────────────────────────────────────────
+// Entidades de la segunda etapa del proyecto, en orden físico del canal.
+// Las cámaras usan tipo 'caida' porque comparten los mismos protocolos.
+export const ETAPA_2 = [
+  { tipo: 'caida',     id: 'CE'  },
+  { tipo: 'tramo',     id: '2.1' },
+  { tipo: 'atravieso', id: '3'   },
+  { tipo: 'tramo',     id: '2.2' },
+  { tipo: 'tramo',     id: '2.3' },
+  { tipo: 'caida',     id: 'CS'  },
+];
+
+export function esEtapa2(tipo, id) {
+  return ETAPA_2.some(e => e.tipo === tipo && String(e.id) === String(id));
+}
+
+// Nombres visibles que sobreescriben el label por defecto
+export const ETIQUETAS_ENTIDAD = {
+  'caida-CE': 'Cámara de Entrada',
+  'caida-CS': 'Cámara de Salida',
+};
+
+export function nombreEntidad(tipo, id) {
+  const custom = ETIQUETAS_ENTIDAD[`${tipo}-${id}`];
+  if (custom) return custom;
+  if (tipo === 'tramo')     return `Tramo ${id}`;
+  if (tipo === 'caida')     return `Caída ${id}`;
+  if (tipo === 'atravieso') return `Atravieso ${id}`;
+  return String(id);
+}
+
+// Convierte entidad_id a número solo cuando es numérico.
+// Para caídas 1-29 devuelve el mismo número que Number().
+// Para IDs de texto como 'CE' o 'CS' devuelve el string sin alterar.
+export function normalizarEntidadId(tipo, id) {
+  if (tipo !== 'caida') return id;
+  const n = Number(id);
+  return Number.isNaN(n) ? String(id) : n;
+}

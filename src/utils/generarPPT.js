@@ -809,18 +809,20 @@ function slide5(pptx, { ensayos }) {
 
   const fs = 8;
 
-  const mkHeader = () => ['Fecha', 'Planta', 'Tipo H°', 'Laboratorio', 'R28 (MPa)']
+  const mkHeader = () => ['Fecha', 'Elemento', 'Entidad', 'Planta', 'Tipo H°', 'Laboratorio', 'R28 (MPa)']
     .map(txt => ({ text: txt, options: TH({ fontSize: fs }) }));
 
   const mkRow = (e, i) => {
     const alt  = i % 2 === 1;
     const base = { ...TD(alt), fontSize: fs };
     return [
-      { text: fmtFecha(e.fecha_muestreo),    options: base },
-      { text: e.camiones?.planta  || '—',    options: base },
-      { text: e.camiones?.tipo_hormigon || '—', options: base },
-      { text: e.laboratorio       || '—',    options: base },
-      { text: e.r28 != null ? `${e.r28} MPa` : '—', options: base },
+      { text: fmtFecha(e.fecha_muestreo),                                    options: base },
+      { text: NOMBRES_TIPO[e.camiones?.tipo_entidad] || '—',                 options: base },
+      { text: String(e.camiones?.entidad_id ?? '—'),                         options: base },
+      { text: e.camiones?.planta         || '—',                             options: base },
+      { text: e.camiones?.tipo_hormigon  || '—',                             options: base },
+      { text: e.laboratorio              || '—',                             options: base },
+      { text: e.r28 != null ? `${e.r28} MPa` : '—',                         options: base },
     ];
   };
 
@@ -832,12 +834,12 @@ function slide5(pptx, { ensayos }) {
   const rowsRight = right.map((e, i) => mkRow(e, i));
 
   slide.addTable([mkHeader(), ...rowsLeft], {
-    x: 0.3, y: 1.2, w: 4.5, rowH: 0.24,
+    x: 0.3, y: 1.2, w: 6.1, rowH: 0.24,
     border: { type: 'solid', color: 'DDDDDD', pt: 0.5 },
   });
 
   slide.addTable([mkHeader(), ...rowsRight], {
-    x: 5.0, y: 1.2, w: 4.5, rowH: 0.24,
+    x: 6.6, y: 1.2, w: 6.4, rowH: 0.24,
     border: { type: 'solid', color: 'DDDDDD', pt: 0.5 },
   });
 }
