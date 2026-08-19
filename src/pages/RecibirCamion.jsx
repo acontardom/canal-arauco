@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
 import { useAuth } from '../hooks/useAuth';
-import { TRAMOS, CAIDAS, ATRAVIESOS, normalizarEntidadId } from '../constants/estructura';
+import { TRAMOS, CAIDAS, ATRAVIESOS, normalizarEntidadId, nombreEntidad, esVisible } from '../constants/estructura';
 import { comprimirFoto } from '../utils/comprimirFoto';
 import { leerFechaExif } from '../utils/leerFechaExif';
 import { uploadFoto } from '../utils/uploadFoto';
@@ -444,7 +444,7 @@ export default function RecibirCamion() {
         </div>
         {sincronizando && <div style={s.syncIndicator}>☁️ Sincronizando...</div>}
         <div style={s.resumenCard}>
-          <p style={s.resumenLinea}><strong>{NOMBRE_TIPO[tipo]} {entidadId}</strong></p>
+          <p style={s.resumenLinea}><strong>{nombreEntidad(tipo, entidadId)}</strong></p>
           <p style={s.resumenLinea}>Tipo hormigón: <strong>{c.tipoHormigon}</strong></p>
           {c.planta && <p style={s.resumenLinea}>Planta: {c.planta}</p>}
           {c.numeroGuia && <p style={s.resumenLinea}>N° Guía: {c.numeroGuia}</p>}
@@ -500,8 +500,8 @@ export default function RecibirCamion() {
         <div style={s.campo}>
           <label style={s.label}>Entidad</label>
           <select style={s.input} value={entidadId} onChange={e => handleEntidadChange(e.target.value)}>
-            {LISTAS[tipo].map(id => (
-              <option key={id} value={id}>{NOMBRE_TIPO[tipo]} {id}</option>
+            {LISTAS[tipo].filter(id => esVisible(tipo, id)).map(id => (
+              <option key={id} value={id}>{nombreEntidad(tipo, id)}</option>
             ))}
           </select>
         </div>
@@ -775,7 +775,7 @@ export default function RecibirCamion() {
         <div style={s.overlay}>
           <div style={s.galeriaModal}>
             <div style={s.galeriaHeader}>
-              <span style={s.galeriaTitulo}>Fotos de {NOMBRE_TIPO[tipo]} {entidadId}</span>
+              <span style={s.galeriaTitulo}>Fotos de {nombreEntidad(tipo, entidadId)}</span>
               <button style={s.btnCerrarGaleria} onClick={() => setMostrarSelectorGaleria(false)}>✕</button>
             </div>
             {fotosGaleria.length === 0 ? (

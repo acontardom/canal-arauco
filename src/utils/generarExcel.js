@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { PROTOCOLOS, CHECKLISTS } from '../constants/estructura';
+import { PROTOCOLOS, CHECKLISTS, nombreEntidad } from '../constants/estructura';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -73,9 +73,7 @@ export async function generarExcel(protocolo, fotos = []) {
   ws.getColumn(1).width = 52; // contenido principal / imágenes
   ws.getColumn(2).width = 22; // estado / valores cortos
 
-  const entidad = protocolo.tipo === 'tramo'
-    ? `Tramo ${protocolo.entidadId}`
-    : `Caída ${protocolo.entidadId}`;
+  const entidad = nombreEntidad(protocolo.tipo, protocolo.entidadId);
 
   const protocoloMeta = PROTOCOLOS.find(p => p.id === protocolo.protocoloId);
   const nombreProtocolo = protocoloMeta

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { db } from '../db/database';
 import { supabase } from '../config/supabase';
-import { TRAMOS, CAIDAS, ATRAVIESOS, normalizarEntidadId } from '../constants/estructura';
+import { TRAMOS, CAIDAS, ATRAVIESOS, normalizarEntidadId, nombreEntidad, esVisible } from '../constants/estructura';
 import { eliminarFotoStorage, uploadFoto } from '../utils/uploadFoto';
 import { formatearFecha, formatearFechaLarga } from '../utils/fecha';
 
@@ -290,7 +290,7 @@ export default function HistorialCamiones() {
     }
     return [...map.entries()].map(([key, items]) => {
       const c = items[0];
-      const nombre = `${NOMBRE_TIPO[c.tipoEntidad] ?? c.tipoEntidad} ${c.entidadId}`;
+      const nombre = nombreEntidad(c.tipoEntidad, c.entidadId);
       return {
         key,
         titulo: `${nombre} — ${items.length} ${items.length === 1 ? 'camión' : 'camiones'}`,
@@ -327,8 +327,8 @@ export default function HistorialCamiones() {
             <label style={s.label}>Entidad</label>
             <select style={s.input} value={filtros.entidadId} onChange={e => setFiltro('entidadId', e.target.value)} disabled={!filtros.entidadTipo}>
               <option value="">Todas</option>
-              {(LISTAS[filtros.entidadTipo] ?? []).map(id => (
-                <option key={id} value={id}>{NOMBRE_TIPO[filtros.entidadTipo]} {id}</option>
+              {(LISTAS[filtros.entidadTipo] ?? []).filter(id => esVisible(filtros.entidadTipo, id)).map(id => (
+                <option key={id} value={id}>{nombreEntidad(filtros.entidadTipo, id)}</option>
               ))}
             </select>
           </div>
@@ -494,7 +494,7 @@ function CamionCard({ camion: c, expandido, onToggle, onEditar, onEliminar }) {
           Tipo hormigón: <strong>{c.tipoHormigon}{c.tipoEspecificacion ? ` — ${c.tipoEspecificacion}` : ''}</strong>{c.volumen && ` — ${c.volumen} m³`}
         </p>
         <p style={s.cardLinea}>
-          Entidad: <strong>{NOMBRE_TIPO[c.tipoEntidad] ?? c.tipoEntidad} {c.entidadId}</strong>
+          Entidad: <strong>{nombreEntidad(c.tipoEntidad, c.entidadId)}</strong>
           {c.usoHormigon && ` — ${USO_LABEL[c.usoHormigon] ?? c.usoHormigon}`}
         </p>
         {c.cono && <p style={s.cardLinea}>Cono: {c.cono} cm</p>}
@@ -712,8 +712,8 @@ function EditarCamionModal({ camion: c, guardando, onGuardar, onCancelar }) {
             <div style={s.campo}>
               <label style={s.label}>Entidad</label>
               <select style={s.input} value={form.entidadId} onChange={e => campo('entidadId', e.target.value)}>
-                {(LISTAS[form.tipoEntidad] ?? []).map(id => (
-                  <option key={id} value={id}>{NOMBRE_TIPO[form.tipoEntidad]} {id}</option>
+                {(LISTAS[form.tipoEntidad] ?? []).filter(id => esVisible(form.tipoEntidad, id)).map(id => (
+                  <option key={id} value={id}>{nombreEntidad(form.tipoEntidad, id)}</option>
                 ))}
               </select>
             </div>
@@ -839,8 +839,8 @@ function EditarCamionModal({ camion: c, guardando, onGuardar, onCancelar }) {
               <div style={s.campo}>
                 <label style={s.label}>Entidad secundaria</label>
                 <select style={s.input} value={form.entidadSecundariaId} onChange={e => campo('entidadSecundariaId', e.target.value)}>
-                  {(LISTAS[form.entidadSecundariaTipo] ?? []).map(id => (
-                    <option key={id} value={id}>{NOMBRE_TIPO[form.entidadSecundariaTipo]} {id}</option>
+                  {(LISTAS[form.entidadSecundariaTipo] ?? []).filter(id => esVisible(form.entidadSecundariaTipo, id)).map(id => (
+                    <option key={id} value={id}>{nombreEntidad(form.entidadSecundariaTipo, id)}</option>
                   ))}
                 </select>
               </div>

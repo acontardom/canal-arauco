@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
-import { TRAMOS, CAIDAS, ATRAVIESOS, PARTIDAS } from '../constants/estructura';
+import { TRAMOS, CAIDAS, ATRAVIESOS, PARTIDAS, nombreEntidad, esVisible } from '../constants/estructura';
 import { supabase } from '../config/supabase';
 import { fechaHoy, formatearFecha } from '../utils/fecha';
 
@@ -128,8 +128,8 @@ export default function RecepcionarAvance() {
         <div style={s.campo}>
           <label style={s.label}>Entidad</label>
           <select style={s.input} value={entidadId} onChange={e => setEntidadId(e.target.value)}>
-            {LISTAS[tipo].map(id => (
-              <option key={id} value={id}>{NOMBRE_TIPO[tipo]} {id}</option>
+            {LISTAS[tipo].filter(id => esVisible(tipo, id)).map(id => (
+              <option key={id} value={id}>{nombreEntidad(tipo, id)}</option>
             ))}
           </select>
         </div>
@@ -211,7 +211,7 @@ export default function RecepcionarAvance() {
           <div style={s.modal}>
             <p style={s.modalTexto}>
               ¿Confirmar recepción de <strong>{partidaActual.nombre}</strong> en{' '}
-              <strong>{NOMBRE_TIPO[tipo]} {entidadId}</strong>?
+              <strong>{nombreEntidad(tipo, entidadId)}</strong>?
             </p>
             <div style={s.modalBotones}>
               <button style={s.btnCancelarModal} onClick={() => setConfirmando(false)} disabled={guardando}>

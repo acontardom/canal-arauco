@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import JSZip from 'jszip';
 import { supabase } from '../config/supabase';
 import { useAuth } from '../hooks/useAuth';
-import { TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
+import { TRAMOS, CAIDAS, ATRAVIESOS, nombreEntidad } from '../constants/estructura';
 
 const ORDEN_PROTOCOLO = {
   PICE1: 1, G5: 2, PICE4_RADIER: 3, PICE4_MURO: 4, PICE3: 5,
@@ -353,7 +353,7 @@ export default function GeneradorEDP() {
                     <div>
                       <div style={{ fontSize: 12, color: '#ccd6f6' }}>{NOMBRES_PROTOCOLO_EDP[p.protocolo_id] ?? p.protocolo_id}</div>
                       <div style={{ fontSize: 11, color: '#8892b0' }}>
-                        {p.tipo === 'tramo' ? 'Tramo' : p.tipo === 'caida' ? 'Caída' : 'Atravieso'} {p.entidad_id}
+                        {nombreEntidad(p.tipo, p.entidad_id)}
                       </div>
                     </div>
                     <button onClick={() => onToggle(p)} style={s.btnQuitar}>×</button>

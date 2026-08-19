@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { TRAMOS, CAIDAS } from '../constants/estructura';
+import { TRAMOS, CAIDAS, nombreEntidad } from '../constants/estructura';
 import { LS_KEY, kmKey } from '../hooks/useKm';
 
 function leerConfig() {
@@ -58,7 +58,7 @@ export default function Configuracion() {
         <Tabla
           filas={TRAMOS.map(id => ({
             key: kmKey('tramo', id),
-            label: `Tramo ${id}`,
+            label: nombreEntidad('tramo', id),
             ...config[kmKey('tramo', id)],
           }))}
           onChange={set}
@@ -69,7 +69,7 @@ export default function Configuracion() {
         <Tabla
           filas={CAIDAS.map(id => ({
             key: kmKey('caida', id),
-            label: `Caída ${id}`,
+            label: nombreEntidad('caida', id),
             ...config[kmKey('caida', id)],
           }))}
           onChange={set}

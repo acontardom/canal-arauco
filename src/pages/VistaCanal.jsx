@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { KM_DATA, PARTIDAS } from '../constants/estructura';
+import { KM_DATA, PARTIDAS, nombreEntidad } from '../constants/estructura';
 import { supabase } from '../config/supabase';
 
 // ── Estructura lineal del canal ───────────────────────────────────────────────
@@ -201,7 +201,7 @@ export default function VistaCanal() {
           <div style={s.modal} onClick={e => e.stopPropagation()}>
             <button style={s.modalCerrar} onClick={() => setPopup(null)}>✕</button>
 
-            <h2 style={s.modalTitulo}>{NOMBRE_TIPO[popup.tipo]} {popup.id}</h2>
+            <h2 style={s.modalTitulo}>{nombreEntidad(popup.tipo, popup.id)}</h2>
 
             {popupKm && (
               <div style={s.modalKmRow}>
@@ -261,7 +261,7 @@ function Tarjeta({ tipo, id, avanceSet, onClick, onDotClick }) {
         borderTop: `3px solid ${BORDE_TOP[tipo]}`,
       }}
       onClick={onClick}
-      title={`${NOMBRE_TIPO[tipo]} ${id} — click para ver detalle`}
+      title={`${nombreEntidad(tipo, id)} — click para ver detalle`}
     >
       <span style={s.tarjetaNombre}>{cardLabel(tipo, id)}</span>
 

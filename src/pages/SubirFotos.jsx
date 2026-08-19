@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
 import { useAuth } from '../hooks/useAuth';
-import { TRAMOS, CAIDAS, ATRAVIESOS, normalizarEntidadId } from '../constants/estructura';
+import { TRAMOS, CAIDAS, ATRAVIESOS, normalizarEntidadId, nombreEntidad, esVisible } from '../constants/estructura';
 import { comprimirFoto } from '../utils/comprimirFoto';
 import { leerFechaExif } from '../utils/leerFechaExif';
 import { sincronizar } from '../utils/sync';
@@ -164,8 +164,8 @@ export default function SubirFotos() {
         <div style={s.campo}>
           <label style={s.label}>Entidad</label>
           <select style={s.input} value={entidadId} onChange={e => setEntidadId(e.target.value)}>
-            {LISTAS[tipo].map(id => (
-              <option key={id} value={id}>{NOMBRE_TIPO[tipo]} {id}</option>
+            {LISTAS[tipo].filter(id => esVisible(tipo, id)).map(id => (
+              <option key={id} value={id}>{nombreEntidad(tipo, id)}</option>
             ))}
           </select>
         </div>

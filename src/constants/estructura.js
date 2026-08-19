@@ -460,3 +460,7 @@ export function normalizarEntidadId(tipo, id) {
   const n = Number(id);
   return Number.isNaN(n) ? String(id) : n;
 }
+
+export function esVisible(tipo, id) {
+  return !(tipo === 'tramo' && String(id) === 'TEST');
+}

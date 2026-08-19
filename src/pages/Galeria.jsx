@@ -4,7 +4,7 @@ import { supabase } from '../config/supabase';
 import { eliminarFotoStorage } from '../utils/uploadFoto';
 import { useAuth } from '../hooks/useAuth';
 import { formatearFecha, formatearFechaLarga } from '../utils/fecha';
-import { TRAMOS, CAIDAS, ATRAVIESOS, normalizarEntidadId } from '../constants/estructura';
+import { TRAMOS, CAIDAS, ATRAVIESOS, normalizarEntidadId, nombreEntidad as calcNombreEntidad, esVisible } from '../constants/estructura';
 
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 const LISTAS = { tramo: TRAMOS, caida: CAIDAS, atravieso: ATRAVIESOS };
@@ -56,7 +56,7 @@ function imgSrc(f) {
 }
 
 function nombreEntidad(f) {
-  return `${NOMBRE_TIPO[f.tipo] ?? f.tipo} ${f.entidadId}`;
+  return calcNombreEntidad(f.tipo, f.entidadId);
 }
 
 const fechaKey = s => s?.substring(0, 10) ?? '';
@@ -354,8 +354,8 @@ export default function Galeria() {
             <label style={s.label}>Entidad</label>
             <select style={s.input} value={filtros.entidadId} onChange={e => setFiltro('entidadId', e.target.value)} disabled={!filtros.entidadTipo}>
               <option value="">Todas</option>
-              {(LISTAS[filtros.entidadTipo] ?? []).map(id => (
-                <option key={id} value={id}>{NOMBRE_TIPO[filtros.entidadTipo]} {id}</option>
+              {(LISTAS[filtros.entidadTipo] ?? []).filter(id => esVisible(filtros.entidadTipo, id)).map(id => (
+                <option key={id} value={id}>{calcNombreEntidad(filtros.entidadTipo, id)}</option>
               ))}
             </select>
           </div>
@@ -525,8 +525,8 @@ export default function Galeria() {
                 <label style={s.label}>Entidad</label>
                 <select style={s.input} value={moveEntidadId} onChange={e => setMoveEntidadId(e.target.value)}>
                   <option value="">Seleccionar...</option>
-                  {(LISTAS[moveTipo] ?? []).map(id => (
-                    <option key={id} value={id}>{NOMBRE_TIPO[moveTipo]} {id}</option>
+                  {(LISTAS[moveTipo] ?? []).filter(id => esVisible(moveTipo, id)).map(id => (
+                    <option key={id} value={id}>{calcNombreEntidad(moveTipo, id)}</option>
                   ))}
                 </select>
                 <div style={s.modalAcciones}>

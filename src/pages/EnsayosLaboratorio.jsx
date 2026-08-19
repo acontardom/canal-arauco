@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../config/supabase';
+import { nombreEntidad } from '../constants/estructura';
 import { useAuth } from '../hooks/useAuth';
 
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
@@ -82,9 +83,9 @@ function mapEnsayo(r) {
   };
 }
 
-function nombreEntidad(e) {
+function nombreEntidadEnsayo(e) {
   if (!e.tipoEntidad) return '—';
-  return `${NOMBRE_TIPO[e.tipoEntidad] ?? e.tipoEntidad} ${e.entidadId}`;
+  return nombreEntidad(e.tipoEntidad, e.entidadId);
 }
 
 export default function EnsayosLaboratorio() {
@@ -431,7 +432,7 @@ export default function EnsayosLaboratorio() {
           </div>
           <div style={s.bannerLista}>
             {camionesSinEnsayo.map(c => {
-              const entidad = `${NOMBRE_TIPO[c.tipo_entidad] ?? c.tipo_entidad} ${c.entidad_id}`;
+              const entidad = nombreEntidad(c.tipo_entidad, c.entidad_id);
               const desc    = [entidad, c.tipo_hormigon, c.planta].filter(Boolean).join(', ');
               return (
                 <div key={c.id} style={s.bannerItem}>
@@ -498,7 +499,7 @@ export default function EnsayosLaboratorio() {
                   <tr key={e.id} style={s.tr}>
                     <td style={s.td}>{e.correlativo || '—'}</td>
                     <td style={s.td}>{e.numeroGuia || '—'}</td>
-                    <td style={s.td}>{nombreEntidad(e)}</td>
+                    <td style={s.td}>{nombreEntidadEnsayo(e)}</td>
                     <td style={s.td}>{e.tipoHormigon || '—'}</td>
                     <td style={s.td}>{e.planta || '—'}</td>
                     <td style={s.td}>{e.laboratorio || '—'}</td>
@@ -645,7 +646,7 @@ export default function EnsayosLaboratorio() {
               {camionEncontrado && (
                 <div style={s.camionFound}>
                   {[
-                    `${NOMBRE_TIPO[camionEncontrado.tipo_entidad] ?? camionEncontrado.tipo_entidad} ${camionEncontrado.entidad_id}`,
+                    nombreEntidad(camionEncontrado.tipo_entidad, camionEncontrado.entidad_id),
                     camionEncontrado.tipo_hormigon,
                     camionEncontrado.planta,
                     camionEncontrado.fecha_recepcion?.slice(0, 10),

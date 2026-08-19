@@ -7,7 +7,7 @@ import {
   ErrorBar, ReferenceArea, ReferenceLine, Label,
 } from 'recharts';
 import { supabase } from '../config/supabase';
-import { TRAMOS, CAIDAS, ATRAVIESOS, normalizarEntidadId } from '../constants/estructura';
+import { TRAMOS, CAIDAS, ATRAVIESOS, normalizarEntidadId, nombreEntidad, esVisible } from '../constants/estructura';
 import { generarPPT } from '../utils/generarPPT';
 
 // ─── Constantes de negocio ────────────────────────────────────────────────────
@@ -633,8 +633,8 @@ export default function DashboardCamiones() {
             <label style={s.label}>Entidad</label>
             <select style={s.input} value={filtros.entidadId} onChange={e => setFiltro('entidadId', e.target.value)} disabled={!filtros.entidadTipo}>
               <option value="">Todas</option>
-              {(LISTAS[filtros.entidadTipo] ?? []).map(id => (
-                <option key={id} value={id}>{NOMBRE_TIPO[filtros.entidadTipo]} {id}</option>
+              {(LISTAS[filtros.entidadTipo] ?? []).filter(id => esVisible(filtros.entidadTipo, id)).map(id => (
+                <option key={id} value={id}>{nombreEntidad(filtros.entidadTipo, id)}</option>
               ))}
             </select>
           </div>

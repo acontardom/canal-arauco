@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TRAMOS, CAIDAS, ATRAVIESOS, PROTOCOLOS, normalizarEntidadId } from '../constants/estructura';
+import { TRAMOS, CAIDAS, ATRAVIESOS, PROTOCOLOS, normalizarEntidadId, nombreEntidad, esVisible } from '../constants/estructura';
 import { supabase } from '../config/supabase';
 import Protocolo from './Protocolo';
 
@@ -93,8 +93,8 @@ export default function GenerarProtocolo() {
         <div style={s.campo}>
           <label style={s.label}>Entidad</label>
           <select style={s.input} value={entidadId} onChange={e => handleEntidadChange(e.target.value)}>
-            {LISTAS[tipo].map(id => (
-              <option key={id} value={id}>{NOMBRE_TIPO[tipo]} {id}</option>
+            {LISTAS[tipo].filter(id => esVisible(tipo, id)).map(id => (
+              <option key={id} value={id}>{nombreEntidad(tipo, id)}</option>
             ))}
           </select>
         </div>

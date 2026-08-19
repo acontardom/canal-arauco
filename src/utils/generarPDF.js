@@ -1,4 +1,5 @@
 import jsPDF from 'jspdf';
+import { nombreEntidad } from '../constants/estructura';
 import autoTable from 'jspdf-autotable';
 import logoUrl from '../assets/Logo_ExMaq.jpg';
 import esquemaCaidaUrl from '../assets/esquema_tipo_caida.jpg';
@@ -360,7 +361,7 @@ function agregarTablaInfo(doc, protocolo, y, kmInicio, kmFin, escala = ESCALA_NO
     ? 'ambos'
     : textos.selector;
   const km = resolveKm(protocolo, kmInicio, kmFin);
-  const entidad = `${NOMBRES_TIPO[protocolo.tipo] ?? protocolo.tipo} ${protocolo.entidadId}`;
+  const entidad = nombreEntidad(protocolo.tipo, protocolo.entidadId);
   const actividad = `km: ${km.inicio || '—'} hasta ${km.fin || '—'} — Elemento: ${entidad}`;
 
   const AMARILLO = [255, 215, 0];
@@ -997,7 +998,7 @@ async function construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64, fir
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const datos = protocolo.datos ?? {};
   const esCaida = protocolo.tipo === 'caida';
-  const entidad = `${NOMBRES_TIPO[protocolo.tipo] ?? protocolo.tipo} ${protocolo.entidadId}`;
+  const entidad = nombreEntidad(protocolo.tipo, protocolo.entidadId);
 
   const H_AUTOCAD = CW * 4 / 16;  // ~45mm
   const H_TABLA   = CW * 10 / 16; // ~114mm

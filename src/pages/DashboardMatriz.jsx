@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TRAMOS, CAIDAS, ATRAVIESOS, PROTOCOLOS } from '../constants/estructura';
+import { TRAMOS, CAIDAS, ATRAVIESOS, PROTOCOLOS, ETAPA_2, esEtapa2, esVisible, nombreEntidad as calcNombreEntidad } from '../constants/estructura';
 import { supabase } from '../config/supabase';
 
 // ─── Orden y etiquetas de columnas ────────────────────────────────────────────
@@ -310,7 +310,7 @@ export default function DashboardMatriz() {
               <EncabezadoColumnas protocolos={PROTOCOLOS_MATRIZ_TRAMO} />
             </thead>
             <tbody>
-              {TRAMOS.map(tramoId => (
+              {TRAMOS.filter(id => !esEtapa2('tramo', id) && esVisible('tramo', id)).map(tramoId => (
                 <tr key={tramoId}>
                   <th style={s.rowHeader}>{tramoId}</th>
                   {PROTOCOLOS_MATRIZ_TRAMO.map(p => (
@@ -319,7 +319,39 @@ export default function DashboardMatriz() {
                       tipo="tramo"
                       entidadId={tramoId}
                       protocolo={p}
-                      nombreEntidad={`Tramo ${tramoId}`}
+                      nombreEntidad={calcNombreEntidad('tramo', tramoId)}
+                      {...cellProps}
+                    />
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ── Tabla ETAPA 2 ─────────────────────────────────────────── */}
+        <div style={s.tablaWrap}>
+          <table style={s.tabla}>
+            <ColGroup protocolos={PROTOCOLOS_MATRIZ_CAIDA} />
+            <thead>
+              <tr>
+                <th colSpan={PROTOCOLOS_MATRIZ_CAIDA.length + 1} style={s.tituloTabla}>ETAPA 2</th>
+              </tr>
+              <EncabezadoColumnas protocolos={PROTOCOLOS_MATRIZ_CAIDA} colLabel={COL_LABEL_CAIDA} />
+            </thead>
+            <tbody>
+              {ETAPA_2.map(({ tipo, id }) => (
+                <tr key={`${tipo}-${id}`}>
+                  <th style={s.rowHeader}>
+                    {tipo === 'atravieso' ? `AT${id}` : String(id)}
+                  </th>
+                  {PROTOCOLOS_MATRIZ_CAIDA.map(p => (
+                    <MatrizCell
+                      key={p.id}
+                      tipo={tipo}
+                      entidadId={id}
+                      protocolo={p}
+                      nombreEntidad={calcNombreEntidad(tipo, id)}
                       {...cellProps}
                     />
                   ))}
@@ -340,7 +372,7 @@ export default function DashboardMatriz() {
               <EncabezadoColumnas protocolos={PROTOCOLOS_MATRIZ_CAIDA} colLabel={COL_LABEL_CAIDA} />
             </thead>
             <tbody>
-              {CAIDAS.map(caidaId => (
+              {CAIDAS.filter(id => !esEtapa2('caida', String(id))).map(caidaId => (
                 <tr key={caidaId}>
                   <th style={s.rowHeader}>{caidaId}</th>
                   {PROTOCOLOS_MATRIZ_CAIDA.map(p => (
@@ -349,7 +381,7 @@ export default function DashboardMatriz() {
                       tipo="caida"
                       entidadId={caidaId}
                       protocolo={p}
-                      nombreEntidad={`Caída ${caidaId}`}
+                      nombreEntidad={calcNombreEntidad('caida', caidaId)}
                       {...cellProps}
                     />
                   ))}
@@ -360,7 +392,7 @@ export default function DashboardMatriz() {
                 <th colSpan={PROTOCOLOS_MATRIZ_CAIDA.length + 1} style={s.separadorFila}>ATRAVIESOS</th>
               </tr>
 
-              {ATRAVIESOS.map(atId => (
+              {ATRAVIESOS.filter(id => !esEtapa2('atravieso', id)).map(atId => (
                 <tr key={atId}>
                   <th style={s.rowHeader}>{`AT${atId}`}</th>
                   {PROTOCOLOS_MATRIZ_CAIDA.map(p => (
@@ -369,7 +401,7 @@ export default function DashboardMatriz() {
                       tipo="atravieso"
                       entidadId={atId}
                       protocolo={p}
-                      nombreEntidad={`Atravieso ${atId}`}
+                      nombreEntidad={calcNombreEntidad('atravieso', atId)}
                       {...cellProps}
                     />
                   ))}

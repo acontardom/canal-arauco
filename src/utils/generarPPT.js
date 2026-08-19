@@ -1,4 +1,5 @@
 import pptxgen from 'pptxgenjs';
+import { nombreEntidad } from '../constants/estructura';
 
 const COLORES = {
   header:    '7B3F1E',
@@ -513,10 +514,7 @@ function slide3(pptx, { ensayos, ensayosSemana }) {
       const alt         = i % 2 === 1;
       const tipoEntidad = e.camiones?.tipo_entidad;
       const entidadId   = e.camiones?.entidad_id;
-      const entidad     = tipoEntidad === 'tramo'     ? `Tramo ${entidadId}`
-                        : tipoEntidad === 'caida'     ? `Caída ${entidadId}`
-                        : tipoEntidad === 'atravieso' ? `Atravieso ${entidadId}`
-                        : '—';
+      const entidad     = tipoEntidad ? nombreEntidad(tipoEntidad, entidadId) : '—';
       const usoRaw      = e.camiones?.uso_hormigon;
       const uso         = usoRaw ? usoRaw.charAt(0).toUpperCase() + usoRaw.slice(1) : '—';
       return [
@@ -575,10 +573,7 @@ function slide3(pptx, { ensayos, ensayosSemana }) {
       const opts        = err ? TD_ERR(alt) : TD(alt);
       const tipoEntidad = e.camiones?.tipo_entidad;
       const entidadId   = e.camiones?.entidad_id;
-      const entidad     = tipoEntidad === 'tramo'     ? `Tramo ${entidadId}`
-                        : tipoEntidad === 'caida'     ? `Caída ${entidadId}`
-                        : tipoEntidad === 'atravieso' ? `Atravieso ${entidadId}`
-                        : '—';
+      const entidad     = tipoEntidad ? nombreEntidad(tipoEntidad, entidadId) : '—';
       const usoRaw      = e.camiones?.uso_hormigon;
       const uso         = usoRaw ? usoRaw.charAt(0).toUpperCase() + usoRaw.slice(1) : '—';
       const diasColor   = e._dias >= 28 ? 'CC0000' : e._dias >= 21 ? 'D97706' : COLORES.negro;

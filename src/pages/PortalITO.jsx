@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../config/supabase';
 import { useAuth } from '../hooks/useAuth';
-import { PROTOCOLOS, TRAMOS, CAIDAS, ATRAVIESOS } from '../constants/estructura';
+import { PROTOCOLOS, TRAMOS, CAIDAS, ATRAVIESOS, ETAPA_2, esEtapa2, esVisible, nombreEntidad } from '../constants/estructura';
 
 // ─── Constantes de los recuadros ──────────────────────────────────────────────
 
@@ -80,7 +80,7 @@ function RecuadroProtocolos({ titulo, protocolos, color, renderAccion }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={s.cardNombre}>
                   {NOMBRE_PROT[p.protocolo_id] ?? p.protocolo_id}
-                  &nbsp;—&nbsp;{NOMBRE_TIPO[p.tipo] ?? p.tipo}&nbsp;{p.entidad_id}
+                  &nbsp;—&nbsp;{nombreEntidad(p.tipo, p.entidad_id)}
                 </div>
                 <div style={s.cardFecha}>{fmtFecha(p.fecha_modificacion)}</div>
                 {p.observacion_ito && (
@@ -216,7 +216,7 @@ function MatrizITO({ protocolos, verPorEDP }) {
               </tr>
             </thead>
             <tbody>
-              {TRAMOS.map(id => (
+              {TRAMOS.filter(id => !esEtapa2('tramo', id) && esVisible('tramo', id)).map(id => (
                 <tr key={id}>
                   <td style={tdLabel}>{id}</td>
                   {COLUMNAS_TRAMOS.map(col => {
@@ -242,7 +242,7 @@ function MatrizITO({ protocolos, verPorEDP }) {
               </tr>
             </thead>
             <tbody>
-              {CAIDAS.map(id => (
+              {CAIDAS.filter(id => !esEtapa2('caida', String(id))).map(id => (
                 <tr key={id}>
                   <td style={tdLabel}>{id}</td>
                   {COLUMNAS_CAIDAS_ATRAVIESOS.map(col => {
@@ -268,11 +268,39 @@ function MatrizITO({ protocolos, verPorEDP }) {
               </tr>
             </thead>
             <tbody>
-              {ATRAVIESOS.map(id => (
+              {ATRAVIESOS.filter(id => !esEtapa2('atravieso', id)).map(id => (
                 <tr key={id}>
                   <td style={tdLabel}>AT {id}</td>
                   {COLUMNAS_CAIDAS_ATRAVIESOS.map(col => {
                     const k = `atravieso-${String(id)}-${col.id}`;
+                    return <CeldaMatrizITO key={col.id} proto={protMap[k]} cellStyle={cellStyle} cellBg={cellBg(k)} />;
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── Etapa 2 ── */}
+      <div>
+        <div style={sectionTh}>ETAPA 2</div>
+        <div style={wrapStyle}>
+          <table style={tablaStyle}>
+            <thead>
+              <tr>
+                <th style={thSticky} />
+                {COLUMNAS_CAIDAS_ATRAVIESOS.map(col => <th key={col.id} style={thLabel}>{col.label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {ETAPA_2.map(({ tipo, id }) => (
+                <tr key={`${tipo}-${id}`}>
+                  <td style={tdLabel} title={nombreEntidad(tipo, id)}>
+                    {tipo === 'atravieso' ? `AT${id}` : String(id)}
+                  </td>
+                  {COLUMNAS_CAIDAS_ATRAVIESOS.map(col => {
+                    const k = `${tipo}-${String(id)}-${col.id}`;
                     return <CeldaMatrizITO key={col.id} proto={protMap[k]} cellStyle={cellStyle} cellBg={cellBg(k)} />;
                   })}
                 </tr>

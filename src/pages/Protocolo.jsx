@@ -4,7 +4,7 @@ import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
-import { PROTOCOLOS, CHECKLISTS, CHECKLIST_DEFAULTS, TRAMOS, CAIDAS, ATRAVIESOS, normalizarEntidadId } from '../constants/estructura';
+import { PROTOCOLOS, CHECKLISTS, CHECKLIST_DEFAULTS, TRAMOS, CAIDAS, ATRAVIESOS, normalizarEntidadId, nombreEntidad as calcNombreEntidad } from '../constants/estructura';
 import { generarPDF, construirDocumentoPDF } from '../utils/generarPDF';
 import { useKm } from '../hooks/useKm';
 import { useAuth } from '../hooks/useAuth';
@@ -270,7 +270,7 @@ function CamionRegistradoCard({ camion: c, expandido, onToggle, editando, onEdit
               </select>
               <select style={s.inputEdit} value={entidadEdit} onChange={e => setEntidadEdit(e.target.value)}>
                 {LISTAS_HA[tipoEdit].map(id => (
-                  <option key={id} value={id}>{NOMBRES_TIPO[tipoEdit]} {id}</option>
+                  <option key={id} value={id}>{calcNombreEntidad(tipoEdit, id)}</option>
                 ))}
               </select>
               <div style={s.editEntidadBotones}>
@@ -333,7 +333,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
     const hasDefault = defaultsDef?.items.some(d => d.id === i.id);
     return [i.id, { valor: hasDefault ? 'si' : null, obs: '' }];
   }));
-  const nombreEntidad = `${NOMBRES_TIPO[tipo] ?? tipo} ${entidadId}`;
+  const nombreEntidad = calcNombreEntidad(tipo, entidadId);
   const titulo = `${nombreEntidad} — ${protocoloInfo?.nombre ?? protocoloId}`;
   const volverUrl = searchParams.get('from') === 'matriz'
     ? '/matriz'
@@ -1194,7 +1194,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
         }));
       }
       setFotosOtraEntidad(lista);
-      const label = `${NOMBRES_TIPO[busquedaTipo] ?? busquedaTipo} ${busquedaEntidadId}`;
+      const label = calcNombreEntidad(busquedaTipo, busquedaEntidadId);
       setBusquedaActiva({ tipo: busquedaTipo, entidadId: busquedaEntidadId, label });
       setBusquedaPanel(false);
     } catch (err) {
@@ -1668,7 +1668,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
               >
                 {LISTAS_HA[busquedaTipo].map(id => (
                   <option key={id} value={String(id)}>
-                    {NOMBRES_TIPO[busquedaTipo]} {id}
+                    {calcNombreEntidad(busquedaTipo, id)}
                   </option>
                 ))}
               </select>

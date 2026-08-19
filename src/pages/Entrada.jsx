@@ -5,6 +5,7 @@ import logoUrl from '../assets/Logo_ExMaq.jpg';
 import BottomNav from '../components/BottomNav';
 import { db } from '../db/database';
 import { fechaHoy } from '../utils/fecha';
+import { nombreEntidad } from '../constants/estructura';
 
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 
@@ -102,7 +103,7 @@ export default function Entrada() {
                   {actividad.fotos.map(g => (
                     <div key={`foto-${g.tipo}-${g.entidadId}`} style={s.actividadItem}>
                       <span style={s.actividadTexto}>
-                        📷 {g.count} {g.count === 1 ? 'foto' : 'fotos'} — {NOMBRE_TIPO[g.tipo]} {g.entidadId}
+                        📷 {g.count} {g.count === 1 ? 'foto' : 'fotos'} — {nombreEntidad(g.tipo, g.entidadId)}
                       </span>
                       <span style={{ ...s.actividadEstado, color: g.sincronizado ? '#10b981' : '#f59e0b' }}>
                         {g.sincronizado ? '✅ sincronizado' : '🔄 pendiente'}
@@ -112,7 +113,7 @@ export default function Entrada() {
                   {actividad.camiones.map(c => (
                     <div key={`camion-${c.id}`} style={s.actividadItem}>
                       <span style={s.actividadTexto}>
-                        🚛 {c.tipoHormigon} — {NOMBRE_TIPO[c.tipoEntidad]} {c.entidadId}{c.numeroGuia ? ` — Guía ${c.numeroGuia}` : ''}
+                        🚛 {c.tipoHormigon} — {nombreEntidad(c.tipoEntidad, c.entidadId)}{c.numeroGuia ? ` — Guía ${c.numeroGuia}` : ''}
                       </span>
                       <span style={{ ...s.actividadEstado, color: c.sincronizado ? '#10b981' : '#f59e0b' }}>
                         {c.sincronizado ? '✅ sincronizado' : '🔄 pendiente'}

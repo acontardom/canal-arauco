@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TRAMOS, CAIDAS, ATRAVIESOS, KM_DATA } from '../constants/estructura';
+import { TRAMOS, CAIDAS, ATRAVIESOS, KM_DATA, nombreEntidad, esVisible } from '../constants/estructura';
 import { supabase } from '../config/supabase';
 import { generarPDFCubicaciones } from '../utils/generarPDFCubicaciones';
 
@@ -96,12 +96,6 @@ function libreVol(l) {
   return isNaN(v) ? 0 : v;
 }
 
-function nombreEntidad(tipo, id) {
-  if (tipo === 'tramo')     return `Tramo ${id}`;
-  if (tipo === 'caida')     return `Caída ${id}`;
-  if (tipo === 'atravieso') return `AT${id}`;
-  return String(id);
-}
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
@@ -142,7 +136,7 @@ export default function Cubicaciones() {
       const p = PARTIDAS_HORMIGON[tipo][0];
       for (const id of LISTAS[tipo]) {
         const sid = String(id);
-        if (sid === 'TEST') continue;
+        if (!esVisible(tipo, sid)) continue;
         if (!avance[`${tipo}_${sid}_${p.id}`]) {
           const largo = largoEntidad(tipo, sid);
           result.push({ tipo, id: sid, partida: p.partida, volumen: calcVolumen({ tipo, partida: p.partida, largo }, params) });
@@ -158,7 +152,7 @@ export default function Cubicaciones() {
       const p = PARTIDAS_HORMIGON[tipo][1];
       for (const id of LISTAS[tipo]) {
         const sid = String(id);
-        if (sid === 'TEST') continue;
+        if (!esVisible(tipo, sid)) continue;
         if (!avance[`${tipo}_${sid}_${p.id}`]) {
           const largo = largoEntidad(tipo, sid);
           result.push({ tipo, id: sid, partida: p.partida, volumen: calcVolumen({ tipo, partida: p.partida, largo }, params) });
@@ -172,7 +166,7 @@ export default function Cubicaciones() {
     let count = 0;
     for (const tipo of ['tramo', 'caida', 'atravieso']) {
       for (const id of LISTAS[tipo]) {
-        if (String(id) === 'TEST') continue;
+        if (!esVisible(tipo, String(id))) continue;
         if (!avance[`${tipo}_${String(id)}_emplantillado`]) count++;
       }
     }
