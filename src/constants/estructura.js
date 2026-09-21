@@ -437,6 +437,13 @@ export function esEtapa2(tipo, id) {
   return ETAPA_2.some(e => e.tipo === tipo && String(e.id) === String(id));
 }
 
+// Cámaras de Etapa 2. Se modelan con tipo 'caida' porque comparten sus
+// protocolos, pero su protocolo COTAS se comporta como el de un tramo
+// (dos fotos: diagrama AutoCAD y tabla de cotas).
+export function esCamara(tipo, id) {
+  return tipo === 'caida' && ['CE', 'CS'].includes(String(id));
+}
+
 // Nombres visibles que sobreescriben el label por defecto
 export const ETIQUETAS_ENTIDAD = {
   'caida-CE': 'Cámara de Entrada',

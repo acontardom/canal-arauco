@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../config/supabase';
 import { construirDocumentoPDF } from '../utils/generarPDF';
+import { esCamara } from '../constants/estructura';
 import logoUrl from '../assets/Logo_ExMaq.jpg';
 
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
@@ -41,10 +42,13 @@ export default function Firma() {
   const [fotosAdjuntas, setFotosAdjuntas]   = useState([]);
   const fileInputRef = useRef(null);
 
-  function combinarFotos(datosProto, fotosAdj, protocoloId) {
+  function combinarFotos(datosProto, fotosAdj, protocoloId, tipo, entidadId) {
     if (protocoloId === 'COTAS') {
+      // Tramos, atraviesos y cámaras CE/CS llevan AutoCAD + tabla.
+      // Las caídas 1-29 solo la tabla; el esquema tipo caída lo agrega el PDF.
+      const cotasDosFotos = tipo !== 'caida' || esCamara(tipo, entidadId);
       const fotos = [];
-      if (datosProto?.fotoAutocad?.storageUrl)
+      if (cotasDosFotos && datosProto?.fotoAutocad?.storageUrl)
         fotos.push({ storageUrl: datosProto.fotoAutocad.storageUrl, descripcion: 'AutoCAD' });
       if (datosProto?.fotoTabla?.storageUrl)
         fotos.push({ storageUrl: datosProto.fotoTabla.storageUrl, descripcion: 'Tabla de Datos' });
@@ -189,7 +193,7 @@ export default function Firma() {
         supabaseId:        data.id,
         datos:             datosProto ?? data.datos ?? {},
       };
-      const fotosParaPDF = combinarFotos(datosProto, fotosAdj, data.protocolo_id);
+      const fotosParaPDF = combinarFotos(datosProto, fotosAdj, data.protocolo_id, data.tipo, data.entidad_id);
       const kmInicio = (datosProto ?? {}).kmInicio ?? '';
       const kmFin    = (datosProto ?? {}).kmFin    ?? '';
       const { doc } = await construirDocumentoPDF(protMapeado, fotosParaPDF, kmInicio, kmFin, camiones, null, fechaFirmaITO);
@@ -306,7 +310,7 @@ export default function Firma() {
       };
 
       // 3. Combinar fotos y generar PDF con firma incrustada
-      const fotosParaPDF = combinarFotos(datosProtocolo, fotosAdjuntas, protocolo.protocolo_id);
+      const fotosParaPDF = combinarFotos(datosProtocolo, fotosAdjuntas, protocolo.protocolo_id, protocolo.tipo, protocolo.entidad_id);
       const kmInicio = datosProtocolo?.kmInicio ?? '';
       const kmFin    = datosProtocolo?.kmFin    ?? '';
       const { doc } = await construirDocumentoPDF(

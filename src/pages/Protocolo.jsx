@@ -4,7 +4,7 @@ import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { db } from '../db/database';
 import { useUser } from '../context/UserContext';
-import { PROTOCOLOS, CHECKLISTS, CHECKLIST_DEFAULTS, TRAMOS, CAIDAS, ATRAVIESOS, normalizarEntidadId, nombreEntidad as calcNombreEntidad } from '../constants/estructura';
+import { PROTOCOLOS, CHECKLISTS, CHECKLIST_DEFAULTS, TRAMOS, CAIDAS, ATRAVIESOS, normalizarEntidadId, nombreEntidad as calcNombreEntidad, esCamara } from '../constants/estructura';
 import { generarPDF, construirDocumentoPDF } from '../utils/generarPDF';
 import { useKm } from '../hooks/useKm';
 import { useAuth } from '../hooks/useAuth';
@@ -342,6 +342,9 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
   const esHA = protocoloId === 'HA_RADIER' || protocoloId === 'HA_MURO';
   // Protocolo de Cotas Topográficas — formulario propio, sin checklist
   const esCOTAS = protocoloId === 'COTAS';
+  // COTAS con dos fotos (AutoCAD + tabla): tramos, atraviesos y las cámaras CE/CS.
+  // Las caídas 1-29 llevan una sola foto (la tabla); el esquema lo pone el PDF.
+  const cotasDosFotos = tipo !== 'caida' || esCamara(tipo, entidadId);
   // Protocolos de Hormigones — tienen dropdown de camiones en ítem cono
   const esPICE2 = protocoloId === 'PICE2_RADIER' || protocoloId === 'PICE2_MURO';
   // Protocolos solo-fotos (ej. G5 Emplantillado) — sin checklist ni observaciones
@@ -1561,7 +1564,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
 
   const fotosCombinadas = esCOTAS
     ? [
-        ...(tipo !== 'caida' && (fotoAutocad?.dataUrl || fotoAutocad?.storageUrl) ? [{ id: 'cotas-autocad', dataUrl: fotoAutocad.dataUrl ?? null, storageUrl: fotoAutocad.storageUrl ?? null, descripcion: 'AutoCAD', origen: 'cotas' }] : []),
+        ...(cotasDosFotos && (fotoAutocad?.dataUrl || fotoAutocad?.storageUrl) ? [{ id: 'cotas-autocad', dataUrl: fotoAutocad.dataUrl ?? null, storageUrl: fotoAutocad.storageUrl ?? null, descripcion: 'AutoCAD', origen: 'cotas' }] : []),
         ...((fotoTabla?.dataUrl || fotoTabla?.storageUrl) ? [{ id: 'cotas-tabla', dataUrl: fotoTabla.dataUrl ?? null, storageUrl: fotoTabla.storageUrl ?? null, descripcion: 'Tabla de cotas', origen: 'cotas' }] : []),
       ]
     : esHA
@@ -1757,7 +1760,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
             }}
           />
           <div style={s.cotasSlotsGrid}>
-            {tipo !== 'caida' && (
+            {cotasDosFotos && (
               <div style={s.cotasSlot}>
                 <span style={s.cotasSlotLabel}>Foto 1 — AutoCAD / Esquema del tramo</span>
                 {(fotoAutocad?.dataUrl || fotoAutocad?.storageUrl) ? (
@@ -1777,7 +1780,7 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
               </div>
             )}
             <div style={s.cotasSlot}>
-              <span style={s.cotasSlotLabel}>{tipo === 'caida' ? 'Foto 1' : 'Foto 2'} — Tabla de cotas</span>
+              <span style={s.cotasSlotLabel}>{cotasDosFotos ? 'Foto 2' : 'Foto 1'} — Tabla de cotas</span>
               {(fotoTabla?.dataUrl || fotoTabla?.storageUrl) ? (
                 <div style={s.cotasSlotPreview}>
                   <img src={fotoTabla.dataUrl || fotoTabla.storageUrl} alt="Tabla" style={s.cotasSlotImg} />
@@ -2150,12 +2153,12 @@ export default function Protocolo({ tipo: tipoProp, entidadId: entidadIdProp, pr
               <label style={{ ...s.cotasLabel, marginTop: '12px' }}>Observación (opcional)</label>
               <textarea style={{ ...s.cotasInput, minHeight: '70px', resize: 'vertical', marginTop: '4px' }} value={cotasObs} onChange={e => setCotasObs(e.target.value)} readOnly={readOnly} placeholder="Condiciones del terreno, desviaciones, etc." />
             </div>
-            {tipo === 'caida' && (
+            {!cotasDosFotos && (
               <div style={s.cotasNote}>
                 📐 El PDF incluye automáticamente el esquema tipo caída como foto 1. Agrega aquí la foto de la tabla de datos.
               </div>
             )}
-            {(tipo === 'tramo' || tipo === 'atravieso') && (
+            {cotasDosFotos && (
               <div style={s.cotasNote}>
                 📐 Agrega las fotos en orden: 1) AutoCAD, 2) Tabla de datos.
               </div>
