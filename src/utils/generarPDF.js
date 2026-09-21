@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import { nombreEntidad } from '../constants/estructura';
+import { nombreEntidad, esCamara } from '../constants/estructura';
 import autoTable from 'jspdf-autotable';
 import logoUrl from '../assets/Logo_ExMaq.jpg';
 import esquemaCaidaUrl from '../assets/esquema_tipo_caida.jpg';
@@ -997,7 +997,9 @@ function dibujarFotoConRelleno(doc, imgData, formato, x, y, containerW, containe
 async function construirPDFCotas(protocolo, fotos, kmInicio, kmFin, logoB64, firmaITO = null, fechaProtocolo = null, fechaFirmaITO = null) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const datos = protocolo.datos ?? {};
-  const esCaida = protocolo.tipo === 'caida';
+  // Las cámaras CE/CS son tipo 'caida', pero su COTAS se arma como el de un
+  // tramo: dos fotos (AutoCAD + tabla) en vez del esquema tipo caída.
+  const esCaida = protocolo.tipo === 'caida' && !esCamara(protocolo.tipo, protocolo.entidadId);
   const entidad = nombreEntidad(protocolo.tipo, protocolo.entidadId);
 
   const H_AUTOCAD = CW * 4 / 16;  // ~45mm
