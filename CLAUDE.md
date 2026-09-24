@@ -23,7 +23,12 @@ Repo: acontardom/canal-arauco
 
 6. **Solo admin puede enviar al ITO** y responder observaciones. Operadores solo pueden guardar borrador en `con_observaciones`.
 
-7. **`fotosHA` usa `supabaseId`**, nunca `.key`. La línea correcta es `camionesRegistrados.find(x => x.supabaseId === camionSeleccionado)`.
+7. **Lookup de camión en protocolos HA — usar siempre `supabaseId`.** El `camionId` guardado en `datos` es UUID limpio de Supabase. Tres lugares hacen este lookup y los tres deben usar `supabaseId` con fallback a `key` para protocolos legacy:
+   - `Protocolo.jsx` → `fotosHA` (useMemo): `camionesRegistrados.find(x => x.supabaseId === camionSeleccionado)`
+   - `Firma.jsx` → `cargarCamionesHA` (filtro): `camiones.filter(c => c.supabaseId === camionId || c.key === camionId)` — helper compartido por las dos rutas de PDF, ver regla 10
+   - `generarPDF.js` → línea ~917 (lookup galería): `_galObj[camion.supabaseId] ?? _galObj[camion.key] ?? []`
+
+   Si se agrega un cuarto lugar que lea `datos.camionId`, aplicar el mismo patrón dual-format.
 
 8. **`descargarDesdeSupabase` se llama solo desde `iniciarSyncAutomatico`**, nunca directamente desde `App.jsx`. Llamarla dos veces simultáneas causa duplicados en Dexie.
 
@@ -234,3 +239,7 @@ Completado:
 Pendiente externo:
 - Backup Storage → ejecutar cuando galería esté limpia
 - Carga PDFs históricos → esperar PDFs físicos
+
+## Outliers documentados
+
+**Membrillar G20 — muestra M-20 (guía 1179, mayo 2026, R28 = 31 MPa):** valor atípico que duplica la dispersión aparente de Membrillar (CV 10.3% con outlier vs 5.4% sin él). En el exportador PPT (`src/utils/generarPPT.js`, función `slide4`) se excluye del cálculo de promedio, σ, CV y rango mediante `EXCLUIR_MEMBRILLAR = [31]`, mostrando nota explicativa al pie del bloque. Pendiente de estandarizar criterio de exclusión de outliers para versiones futuras de la app.
