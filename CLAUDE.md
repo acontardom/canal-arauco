@@ -29,6 +29,14 @@ Repo: acontardom/canal-arauco
 
 9. **No crear protocolos duplicados.** Existe constraint única `protocolos_unique_tipo_entidad_protocolo` en Supabase. Usar `maybeSingle()` en queries, nunca `single()`.
 
+10. **`Firma.jsx` tiene dos rutas de generación de PDF y son independientes.** Si se modifica la carga de datos para el PDF, verificar **siempre las dos**:
+    - `generarBlobPDF` → el preview que el ITO ve en pantalla.
+    - `confirmarFirma` → el PDF definitivo que se sube a Storage y queda en `pdf_firmado_url`.
+
+    Durante meses el preview mostró los camiones correctamente mientras el PDF guardado los omitía ("Sin camiones registrados"), porque `confirmarFirma` pasaba un array vacío hardcodeado como quinto argumento de `construirDocumentoPDF`. Afectó a los 15 protocolos HA del EDP 7, regenerados con `scripts/regenerar-pdfs-edp7.js`.
+
+    Corregido extrayendo el helper `cargarCamionesHA(protocoloId, tipo, entidadId, datosProto)`, que ahora usan ambas rutas. **Que el preview se vea bien no significa que el documento firmado esté correcto.**
+
 ## Arquitectura de sync
 
 ```
