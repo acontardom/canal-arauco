@@ -7,6 +7,16 @@ import logoUrl from '../assets/Logo_ExMaq.jpg';
 
 const NOMBRE_TIPO = { tramo: 'Tramo', caida: 'Caída', atravieso: 'Atravieso' };
 
+const ALERTA_EMAIL        = 'acontardo@elespinal.cl';
+const REINTENTOS_CAMIONES = 3;     // reintentos adicionales tras el primer intento
+const ESPERA_REINTENTO_MS = 1000;
+
+const esperar = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+function esProtocoloHA(protocoloId) {
+  return protocoloId === 'HA_RADIER' || protocoloId === 'HA_MURO';
+}
+
 function fmtFecha(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -129,54 +139,118 @@ export default function Firma() {
     }
   }
 
+  // Carga los camiones del protocolo HA: query, mapeo a camelCase y filtro al
+  // camion seleccionado. Devuelve [] si el protocolo no es HA o no hay Supabase.
+  async function cargarCamionesHA(protocoloId, tipo, entidadId, datosProto) {
+    if (!esProtocoloHA(protocoloId) || !supabase) return [];
+
+    const uso        = protocoloId === 'HA_RADIER' ? 'radier' : 'muro';
+    const maxIntentos = REINTENTOS_CAMIONES + 1;
+
+    for (let intento = 1; intento <= maxIntentos; intento++) {
+      const camiones = await intentarCargarCamiones(uso, tipo, entidadId, datosProto, intento, maxIntentos);
+      if (camiones.length > 0) return camiones;
+      if (intento < maxIntentos) await esperar(ESPERA_REINTENTO_MS);
+    }
+    return [];
+  }
+
+  // Un intento de query + mapeo + filtro. Devuelve [] si falla o no hay coincidencias.
+  async function intentarCargarCamiones(uso, tipo, entidadId, datosProto, intento, maxIntentos) {
+    const { data: camionesData, error: errCamiones } = await supabase
+      .from('camiones')
+      .select('*')
+      .eq('tipo_entidad', tipo)
+      .eq('entidad_id', String(entidadId))
+      .eq('uso_hormigon', uso)
+      .in('tipo_hormigon', ['G20', 'G25', 'G30']);
+
+    if (errCamiones) {
+      console.error(
+        `[Firma] Error al cargar camiones HA (intento ${intento}/${maxIntentos}):`,
+        errCamiones.message ?? errCamiones,
+      );
+      return [];
+    }
+
+    let camiones = (camionesData ?? []).map(r => ({
+      key:              `sb-${r.id}`,
+      supabaseId:       r.id,
+      localId:          r.local_id ?? null,
+      tipoEntidad:      r.tipo_entidad,
+      entidadId:        r.entidad_id,
+      tipoHormigon:     r.tipo_hormigon,
+      volumen:          r.volumen,
+      numeroGuia:       r.numero_guia,
+      planta:           r.planta,
+      cono:             r.cono,
+      tempHormigon:     r.temp_hormigon,
+      tempAmbiente:     r.temp_ambiente,
+      horaCarga:        r.hora_carga,
+      horaDescarga:     r.hora_descarga,
+      tiempoTraslado:   r.tiempo_traslado,
+      puCalculado:      r.pu_calculado,
+      observaciones:    r.observaciones,
+      usuarioNombre:    r.usuario_nombre,
+      fechaRecepcion:   r.fecha_recepcion,
+      fotoGuia:         r.foto_guia,
+      fotosEnsayo:      r.fotos_ensayo ?? [],
+      pesoHoyaHormigon: r.peso_hoya_hormigon,
+      estadoCalidad:    r.estado_calidad ?? null,
+      fotoGuiaUrl:      r.foto_guia_url ?? null,
+      fotosEnsayoUrls:  r.fotos_ensayo_urls ?? [],
+    }));
+
+    // Filtrar al camion seleccionado al momento de enviar (igual que Protocolo.jsx)
+    const camionId = datosProto?.camionId;
+    if (camionId && camionId !== 'todos') {
+      camiones = camiones.filter(c => c.supabaseId === camionId || c.key === camionId);
+    }
+
+    if (camiones.length === 0) {
+      console.error(`[Firma] Camiones HA sin resultados (intento ${intento}/${maxIntentos}).`);
+    }
+    return camiones;
+  }
+
+  // PASO 2: la firma ya se completo; solo avisamos por correo. Nunca lanza,
+  // para que el ITO no vea ningun error.
+  async function alertarPDFSinCamiones() {
+    const tipoLabel = NOMBRE_TIPO[protocolo?.tipo] ?? protocolo?.tipo ?? '';
+    const detalle = [
+      `Entidad: ${tipoLabel} ${protocolo?.entidad_id ?? '—'}`,
+      `Tipo de protocolo: ${protocolo?.protocolo_id ?? '—'}`,
+      `ID del protocolo: ${protocolo?.id ?? '—'}`,
+      `camionId en datos: ${datosProtocolo?.camionId ?? '(sin camionId)'}`,
+      '',
+      'El PDF firmado se subio a Storage sin los datos del camion y requiere regeneracion.',
+    ].join('\n');
+
+    console.error('[Firma] PDF firmado sin datos de camion:\n' + detalle);
+
+    try {
+      await supabase.functions.invoke('notificar-firma', {
+        body: {
+          protocolo_id: protocolo.id,
+          accion:       'alerta_sin_camiones',
+          destinatario: ALERTA_EMAIL,
+          asunto:       'Alerta — PDF firmado sin datos de camión',
+          detalle,
+        },
+      });
+    } catch (err) {
+      console.warn('[Notificacion] Error al enviar alerta sin camiones:', err?.message ?? err);
+    }
+  }
+
   async function generarBlobPDF(data, datosProto, fotosAdj) {
     try {
-      const esHA = data.protocolo_id === 'HA_RADIER' || data.protocolo_id === 'HA_MURO';
-
-      let camiones = [];
-      if (esHA && supabase) {
-        const uso = data.protocolo_id === 'HA_RADIER' ? 'radier' : 'muro';
-        const { data: camionesData } = await supabase
-          .from('camiones')
-          .select('*')
-          .eq('tipo_entidad', data.tipo)
-          .eq('entidad_id', String(data.entidad_id))
-          .eq('uso_hormigon', uso)
-          .in('tipo_hormigon', ['G20', 'G25', 'G30']);
-        camiones = (camionesData ?? []).map(r => ({
-          key:              `sb-${r.id}`,
-          supabaseId:       r.id,
-          localId:          r.local_id ?? null,
-          tipoEntidad:      r.tipo_entidad,
-          entidadId:        r.entidad_id,
-          tipoHormigon:     r.tipo_hormigon,
-          volumen:          r.volumen,
-          numeroGuia:       r.numero_guia,
-          planta:           r.planta,
-          cono:             r.cono,
-          tempHormigon:     r.temp_hormigon,
-          tempAmbiente:     r.temp_ambiente,
-          horaCarga:        r.hora_carga,
-          horaDescarga:     r.hora_descarga,
-          tiempoTraslado:   r.tiempo_traslado,
-          puCalculado:      r.pu_calculado,
-          observaciones:    r.observaciones,
-          usuarioNombre:    r.usuario_nombre,
-          fechaRecepcion:   r.fecha_recepcion,
-          fotoGuia:         r.foto_guia,
-          fotosEnsayo:      r.fotos_ensayo ?? [],
-          pesoHoyaHormigon: r.peso_hoya_hormigon,
-          estadoCalidad:    r.estado_calidad ?? null,
-          fotoGuiaUrl:      r.foto_guia_url ?? null,
-          fotosEnsayoUrls:  r.fotos_ensayo_urls ?? [],
-        }));
-
-        // Filtrar al camión seleccionado al momento de enviar (igual que Protocolo.jsx)
-        const camionId = datosProto?.camionId;
-        if (camionId && camionId !== 'todos') {
-          camiones = camiones.filter(c => c.supabaseId === camionId || c.key === camionId);
-        }
-      }
+      const camiones = await cargarCamionesHA(
+        data.protocolo_id,
+        data.tipo,
+        data.entidad_id,
+        datosProto,
+      );
 
       const protMapeado = {
         id:                data.id,
@@ -313,12 +387,19 @@ export default function Firma() {
       const fotosParaPDF = combinarFotos(datosProtocolo, fotosAdjuntas, protocolo.protocolo_id, protocolo.tipo, protocolo.entidad_id);
       const kmInicio = datosProtocolo?.kmInicio ?? '';
       const kmFin    = datosProtocolo?.kmFin    ?? '';
+      const camiones = await cargarCamionesHA(
+        protocolo.protocolo_id,
+        protocolo.tipo,
+        protocolo.entidad_id,
+        datosProtocolo,
+      );
+
       const { doc } = await construirDocumentoPDF(
         protocoloCompleto,
         fotosParaPDF,
         kmInicio,
         kmFin,
-        [],
+        camiones,
         firmaBase64,
         fechaFirmaITO,
       );
@@ -355,6 +436,11 @@ export default function Firma() {
         });
       } catch (err) {
         console.warn('[Notificacion] Error al enviar email:', err?.message ?? err);
+      }
+
+      // La firma ya quedo registrada; si el PDF salio sin camiones, avisar por correo.
+      if (esProtocoloHA(protocolo.protocolo_id) && camiones.length === 0) {
+        await alertarPDFSinCamiones();
       }
 
       setPdfFirmadoUrl(pdfData.publicUrl);
